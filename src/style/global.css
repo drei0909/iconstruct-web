@@ -1,0 +1,256 @@
+/* General */
+
+body {
+  font-family: "Segoe UI", sans-serif;
+  background: #ffffff; 
+  color: #0f172a; 
+}
+
+/* Hero section */
+
+.hero-section {
+  background: 
+  linear-gradient(135deg, rgba(59,130,246,0.8), rgba(147,197,253,0.8)), 
+  url("https://images.unsplash.com/photo-1503387762-592deb58ef4e");
+  background-size: cover;
+  background-position: center;
+  height: 80vh;
+  display: flex;
+  align-items: center;
+}
+
+.hero-content {
+  max-width: 700px;
+  color: white;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+
+
+.hero-title {
+  font-size: 48px;
+  font-weight: 700;
+}
+
+.hero-subtitle {
+  font-size: 18px;
+  margin-top: 15px;
+}
+
+.hero-btn {
+  margin-top: 25px;
+  padding: 12px 28px;
+  font-weight: 600;
+  background: linear-gradient(90deg, #0e49a7, #60a5fa); /* blue gradient button */
+  border: none;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.hero-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(59,130,246,0.4);
+}
+
+/* Features */
+
+.features-section {
+  background: #ffffff;
+  padding: 80px 0;
+}
+
+.section-title {
+  font-weight: 700;
+  color: #1e3a8a;
+  margin-bottom: 40px;
+}
+
+.feature-card {
+  padding: 25px;
+  border-radius: 10px;
+  transition: 0.3s;
+  background: linear-gradient(145deg, #e0f2fe, #bae6fd);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+}
+
+.feature-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(59,130,246,0.2);
+}
+
+.feature-card h4 {
+  margin-bottom: 15px;
+  color: #1d4ed8;
+}
+
+.feature-card p {
+  color: #1e40af;
+}
+
+
+/* navbar*/
+
+/* Navbar container */
+.navbar-custom {
+  background: #ffffff;           
+  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+  height: 100px;                 /* FIXED navbar height */
+}
+
+/* Inner container for flex alignment */
+.navbar-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;                 /* take full navbar height */
+  padding: 10 30px;              /* side padding */
+}
+
+/* Logo */
+.navbar-logo {
+  width: 300px;                 /* adjust logo size */
+  height: 70;
+  max-height: 500px;             /* ensure it doesn't stretch navbar */
+}
+
+/* Navbar links */
+.navbar-custom .navbar-nav .nav-link {
+  color: #1e3a8a !important;
+  margin-left: 20px;            
+  font-size: 20px !important;  /* force override */
+  font-weight: 650 !important;  /* force bold */
+  transition: 0.3s;
+}
+
+.navbar-custom .navbar-nav .nav-link:hover {
+  color: #3b82f6 !important;
+}
+
+/* Navbar buttons */
+.navbar-custom .btn-primary {
+  font-size: 18px !important;   /* force bigger font */
+  font-weight: 700 !important;  
+  padding: 12px 32px !important;
+  border-radius: 10px;
+  margin-left: 20px;
+  line-height: 1;
+}
+
+
+
+/* Blue line under navbar */
+.navbar-custom{
+  background:#ffffff;
+  height:110px;
+  border-bottom:1px solid #1d4ed8;
+}
+
+
+/* BUTTON BAR */
+
+/* BUTTON BAR */
+
+.top-buttons {
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.buttons-container {
+  display: flex;
+  justify-content: flex-end;
+  gap: 15px;
+  padding: 12px 0;
+}
+
+/* Buttons */
+.top-btn {
+  padding: 10px 20px;           /* bigger padding like navbar */
+  font-size: 18px;              /* bigger font */
+  font-weight: 700;             /* bold text */
+  color: #1e3a8a;               /* dark blue */
+  text-decoration: none;
+  border-bottom: 3px solid transparent;  /* for underline on active */
+  transition: color 0.2s, border-bottom 0.2s;
+}
+
+.top-btn:hover {
+  color: #3b82f6;               /* bright blue on hover */
+}
+
+/* Active page */
+.top-btn.active {
+  border-bottom: 3px solid #3b82f6; /* blue underline */
+  color: #1d4ed8;
+}
+
+/* DOWNLOAD MODAL */
+
+/* Modal container */
+.download-modal{
+  border-radius:12px;
+  border:none;
+}
+
+/* Header (top bar of modal) */
+.download-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  height:80px;          /* CHANGE MODAL HEADER HEIGHT HERE */
+  padding:0 25px;       /* space left and right */
+}
+
+/* Logo inside modal */
+.download-logo{
+  height:120px;          /* CHANGE LOGO SIZE HERE */
+  width:auto;
+}
+
+/* Close button alignment */
+.download-header .btn-close{
+  transform:scale(1.1); /* optional bigger close button */
+}
+
+/* Text */
+.download-text{
+  color:#374151;
+  margin-bottom:25px;
+  font-size:16px;
+}
+
+/* Buttons */
+.download-buttons{
+  display:flex;
+  justify-content:center;
+  gap:15px;
+}
+
+.store-btn{
+  padding:12px 24px;
+  font-weight:600;
+  border-radius:8px;
+}
+/* Footer */
+
+.footer-custom {
+  background: #f8fafc; /* very light grey/white */
+  color: #1e3a8a; /* footer text dark blue */
+  padding: 40px 0;
+}
+
+.footer-brand {
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: #1d4ed8;
+}
+
+.footer-text {
+  color: #1e40af;
+}
+
+.footer-copy {
+  font-size: 14px;
+  color: #64748b; /* muted blue-grey */
+}
