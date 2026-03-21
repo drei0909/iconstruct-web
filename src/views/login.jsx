@@ -6,9 +6,9 @@ import LoginForm from "../components/forms/LoginForm";
 function Login() {
   return (
     <>
-      <Navbar />
+      {/* <Navbar /> */}
       <LoginForm />
-      <Footer />
+      {/* <Footer /> */}
     </>
   );
 }

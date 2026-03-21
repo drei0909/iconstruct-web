@@ -5,9 +5,9 @@ import RegisterForm from "../components/forms/RegisterForm";
 function Register() {
   return (
     <>
-      <Navbar />
+      {/* <Navbar /> */}
       <RegisterForm />
-      <Footer />
+      {/* <Footer /> */}
     </>
   );
 }

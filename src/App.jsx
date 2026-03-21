@@ -1,26 +1,26 @@
-import { useEffect } from "react";
+// src/App.jsx
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { db } from "./services/firebase";
+import Layout from "./components/layout/Layout";
 import Home from "./views/Home";
 import Login from "./views/Login";
 import Register from "./views/Register";
+import FAQs from "./components/layout/faqs";
+import AboutUs from "./components/layout/aboutUs";
+import ContactUs from "./components/layout/contactUs";
 
-function App() {
-  useEffect(() => {
-    console.log("Firebase connected:", db);
-  }, []);
-
+export default function App() {
   return (
-    <div className="d-flex flex-column min-vh-100">
-      <Router>
+    <Router>
+      <Layout>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/faqs" element={<FAQs />} />
+          <Route path="/about" element={<AboutUs />} />
+          <Route path="/contact-us" element={<ContactUs />} />
         </Routes>
-      </Router>
-    </div>
+      </Layout>
+    </Router>
   );
 }
-
-export default App;
