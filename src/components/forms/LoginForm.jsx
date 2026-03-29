@@ -1,21 +1,54 @@
+// src/components/forms/LoginForm.jsx
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { loginShop } from "../../services/Authservice";
+
 
 export default function LoginForm() {
-  const [form, setForm] = useState({ email: "", password: "" });
+  const navigate = useNavigate();
+
+  const [form, setForm]         = useState({ email: "", password: "" });
   const [showPass, setShowPass] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [firebaseError, setFirebaseError] = useState("");
 
   const handleChange = (e) =>
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setTimeout(() => setLoading(false), 1400);
-    console.log("Login:", form);
-    // TODO: connect to Firebase Auth
-  };
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setFirebaseError("");
+
+  try {
+    const { status } = await loginShop(form.email, form.password);
+
+    if (status === "pending") {
+      setFirebaseError("Your shop application is still under review. You'll be notified once approved.");
+      return;
+    }
+
+    if (status === "rejected") {
+      setFirebaseError("Your application was not approved. Please contact support for more information.");
+      return;
+    }
+
+    navigate("/dashboard");
+
+  } catch (err) {
+    const msg = {
+      "auth/user-not-found":     "No account found with this email.",
+      "auth/wrong-password":     "Incorrect password. Please try again.",
+      "auth/invalid-email":      "The email address is not valid.",
+      "auth/too-many-requests":  "Too many failed attempts. Please try again later.",
+      "auth/invalid-credential": "Invalid email or password.",
+      "no-shop":                 "Shop record not found. Please contact support.",
+    };
+    setFirebaseError(msg[err.message] || msg[err.code] || "Something went wrong. Please try again.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="login-page">
@@ -34,10 +67,9 @@ export default function LoginForm() {
             </h2>
             <p className="login-left-text">
               Sign in to your shop dashboard to post products,
-              update your inventory, and connect with
-              contractors and builders near you.
+              update your inventory, and connect with contractors
+              and builders near you.
             </p>
-
             <div className="login-bullets">
               {[
                 "Post and manage your products",
@@ -52,28 +84,20 @@ export default function LoginForm() {
             </div>
           </div>
 
-          {/* Approval reminder */}
           <div style={{
             background: "rgba(237,228,212,0.08)",
             border: "1px solid rgba(237,228,212,0.15)",
-            borderRadius: "10px",
-            padding: "16px 18px",
-            position: "relative",
-            zIndex: 1,
+            borderRadius: "10px", padding: "16px 18px",
+            position: "relative", zIndex: 1,
           }}>
-            <p style={{
-              fontSize: "10px", fontWeight: 600,
-              letterSpacing: "0.1em", textTransform: "uppercase",
-              color: "rgba(237,228,212,0.55)", marginBottom: "6px",
-            }}>
+            <p style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.1em",
+              textTransform: "uppercase", color: "rgba(237,228,212,0.55)", marginBottom: "6px" }}>
               New to iConstruct?
             </p>
-            <p style={{
-              fontSize: "12px", fontWeight: 300,
-              color: "rgba(237,228,212,0.4)", lineHeight: 1.65, margin: 0,
-            }}>
-              Register your hardware shop first. Your account
-              will be activated once approved by our admin team.
+            <p style={{ fontSize: "12px", fontWeight: 300,
+              color: "rgba(237,228,212,0.4)", lineHeight: 1.65, margin: 0 }}>
+              Register your hardware shop first. Your account will be
+              activated once approved by our admin team.
             </p>
           </div>
         </div>
@@ -91,12 +115,9 @@ export default function LoginForm() {
               <label className="login-label">Email Address</label>
               <input
                 className="login-input"
-                type="email"
-                name="email"
+                type="email" name="email"
                 placeholder="yourshop@email.com"
-                value={form.email}
-                onChange={handleChange}
-                required
+                value={form.email} onChange={handleChange} required
               />
             </div>
 
@@ -106,26 +127,22 @@ export default function LoginForm() {
                 <input
                   className="login-input has-toggle"
                   type={showPass ? "text" : "password"}
-                  name="password"
-                  placeholder="Enter your password"
-                  value={form.password}
-                  onChange={handleChange}
-                  required
+                  name="password" placeholder="Enter your password"
+                  value={form.password} onChange={handleChange} required
                 />
-                <button
-                  type="button"
-                  className="login-toggle"
-                  onClick={() => setShowPass((v) => !v)}
-                  aria-label={showPass ? "Hide password" : "Show password"}
-                >
+                <button type="button" className="login-toggle"
+                  onClick={() => setShowPass(v => !v)}
+                  aria-label={showPass ? "Hide password" : "Show password"}>
                   {showPass ? (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                      strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
                       <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
                       <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
                       <line x1="1" y1="1" x2="23" y2="23"/>
                     </svg>
                   ) : (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                      strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                       <circle cx="12" cy="12" r="3"/>
                     </svg>
@@ -136,16 +153,24 @@ export default function LoginForm() {
 
             <a href="#" className="login-forgot">Forgot password?</a>
 
+            {/* Firebase error banner */}
+            {firebaseError && (
+              <div style={{
+                background: "rgba(180,40,40,0.07)", border: "1px solid rgba(180,40,40,0.2)",
+                borderRadius: "8px", padding: "12px 16px", marginBottom: "16px",
+                fontSize: "13px", color: "rgba(160,30,30,0.9)", lineHeight: 1.5,
+              }}>
+                {firebaseError}
+              </div>
+            )}
+
             <button className="login-submit" type="submit" disabled={loading}>
               {loading ? (
-                <>
-                  <span className="login-spinner" />
-                  Signing In...
-                </>
+                <><span className="login-spinner" /> Signing In...</>
               ) : (
-                <>
-                  Sign In to Dashboard
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
+                <>Sign In to Dashboard
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                    strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
                     <line x1="5" y1="12" x2="19" y2="12"/>
                     <polyline points="12 5 19 12 12 19"/>
                   </svg>
