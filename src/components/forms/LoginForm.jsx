@@ -1,7 +1,7 @@
 // src/components/forms/LoginForm.jsx
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { loginShop } from "../../services/Authservice";
+import { loginShop } from "../../controllers/authController";
 
 
 export default function LoginForm() {

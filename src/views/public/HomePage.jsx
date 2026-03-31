@@ -1,7 +1,7 @@
 import React from "react";
 
-import Hero from "../components/layout/Hero";
-import Features from "../components/layout/Features";
+import Hero     from "../../components/layout/Hero";
+import Features from "../../components/layout/Features";
 
 
 function Home() {

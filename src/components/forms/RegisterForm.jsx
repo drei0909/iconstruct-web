@@ -1,7 +1,7 @@
 // src/components/forms/RegisterForm.jsx
 import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
-import { sendOTP, verifyOTP, registerShop } from "../../services/authService";
+import { sendOTP, verifyOTP, registerShop } from "../../controllers/authController";
 
 const STEPS = [
   { number: "01", label: "Account"     },

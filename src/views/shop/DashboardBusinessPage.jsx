@@ -11,7 +11,7 @@ import {
   submitQuotation,
   getQuotationAnalytics,
   logoutShop,
-} from "../../services/shopService";
+} from "../../controllers/shopController";
 
 /* ─── constants ─── */
 const PLAN = {

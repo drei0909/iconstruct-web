@@ -14,7 +14,7 @@ import {
   getPaymentStats,
   confirmPayment,
   rejectPayment,
-} from "../../services/adminService";
+} from "../../controllers/adminController";
 
 /* ─────────────────── helpers ─────────────────── */
 const STATUS_COLOR = {

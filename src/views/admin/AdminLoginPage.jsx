@@ -1,7 +1,7 @@
 // src/views/admin/AdminLogin.jsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { loginAdmin } from "../../services/adminService";
+import { loginAdmin } from "../../controllers/adminController";
 
 export default function AdminLogin() {
   const navigate = useNavigate();

@@ -4,7 +4,7 @@
 // Submits a payment request to Firestore for admin review
 
 import { useState } from "react";
-import { submitPaymentRequest, getMyPaymentRequest } from "../../services/shopService";
+import { submitPaymentRequest, getMyPaymentRequest } from "../../controllers/shopController";
 
 const PLANS = [
   {

@@ -11,8 +11,7 @@ import {
   submitQuotation,
   getQuotationAnalytics,
   logoutShop,
-} from "../../services/shopService";
-
+} from "../../controllers/shopController";
 /* ─── constants ─── */
 const PLAN = { name: "Business", color: "#7C3AED", bg: "#F5F3FF", badge: "BUSINESS" };
 

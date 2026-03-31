@@ -15,11 +15,11 @@ import { useState, useEffect } from "react";
 import { useNavigate }         from "react-router-dom";
 import { onAuthStateChanged }  from "firebase/auth";
 import { auth }                from "../services/firebase";
-import { getShopProfile }      from "../services/shopService";
+import { getShopProfile } from "../controllers/shopController";
 
-import ShopDashboardBasic    from "../components/layout/shopdashboardbasic";
-import ShopDashboardPro      from "../components/layout/shopdashboardpro";
-import ShopDashboardBusiness from "../components/layout/shopdashboardbusiness";
+import ShopDashboardBasic    from "../views/shop/DashboardBasicPage";
+import ShopDashboardPro      from "../views/shop/DashboardProPage";
+import ShopDashboardBusiness from "../views/shop/DashboardBusinessPage";
 
 export default function ShopDashboardRouter() {
   const navigate = useNavigate();

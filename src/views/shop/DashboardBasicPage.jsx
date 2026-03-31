@@ -12,8 +12,9 @@ import { useNavigate } from "react-router-dom";
 import {
   getShopProfile, getShopQuotations, getPostedProjects,
   submitQuotation, logoutShop, getMyPaymentRequest,
-} from "../../services/shopService";
-import PaymentForm from "../forms/Paymentform";
+} from "../../controllers/shopController";
+
+import PaymentForm from "../../components/forms/Paymentform";
 
 const QUOTA_LIMIT   = 3;
 const PROJECT_LIMIT = 5;
