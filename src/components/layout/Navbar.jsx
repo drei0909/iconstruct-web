@@ -47,9 +47,9 @@ function Navbar() {
         {/* ── Main navbar ── */}
         <nav className={`nb-nav ${scrolled ? "scrolled" : ""}`}>
 
-          <Link className="nb-logo" to="/">
+          {/* <Link className="nb-logo" to="/">
             <img src={logo} alt="iConstruct" />
-          </Link>
+          </Link> */}
 
           {/* Desktop links */}
           <ul className="nb-links">

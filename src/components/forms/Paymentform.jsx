@@ -138,7 +138,7 @@ export default function PaymentForm({ onSuccess, existingRequest }) {
   const steps = ["Choose Plan", "Payment Method", "Submit Proof", "Done"];
 
   return (
-    <div style={{ maxWidth: 560, margin: "0 auto", fontFamily: "'DM Sans', sans-serif" }}>
+    <div style={{ maxWidth: 560, margin: "0 auto", fontFamily: "'Inter', sans-serif" }}>
 
       {/* Step bar */}
       {step < 4 && (
@@ -196,7 +196,7 @@ export default function PaymentForm({ onSuccess, existingRequest }) {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 14, color: "#0F172A" }}>{plan.name}</div>
-                    <div style={{ fontSize: 20, fontWeight: 900, color: plan.color, fontFamily: "'Playfair Display', serif" }}>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: plan.color, fontFamily: "'Lora', Georgia, serif" }}>
                       {plan.price}<span style={{ fontSize: 12, fontWeight: 400, color: "#94A3B8" }}>{plan.period}</span>
                     </div>
                   </div>
@@ -230,7 +230,7 @@ export default function PaymentForm({ onSuccess, existingRequest }) {
               borderRadius: 10, border: "none", cursor: selectedPlan ? "pointer" : "not-allowed",
               background: selectedPlan ? "linear-gradient(135deg,#2C3E50,#648DB6)" : "#E2E8F0",
               color: selectedPlan ? "#fff" : "#94A3B8",
-              fontWeight: 700, fontSize: 13, fontFamily: "'DM Sans', sans-serif",
+              fontWeight: 700, fontSize: 13, fontFamily: "'Inter', sans-serif",
               transition: "all 0.2s",
             }}>
             Continue with {selectedPlan?.name || "a plan"} →
@@ -280,7 +280,7 @@ export default function PaymentForm({ onSuccess, existingRequest }) {
               padding: "12px 20px", borderRadius: 10,
               border: "1px solid #E2E8F0", background: "#F8FAFC",
               color: "#64748B", fontWeight: 500, fontSize: 13,
-              fontFamily: "'DM Sans', sans-serif", cursor: "pointer",
+              fontFamily: "'Inter', sans-serif", cursor: "pointer",
             }}>← Back</button>
             <button
               disabled={!selectedMethod}
@@ -290,7 +290,7 @@ export default function PaymentForm({ onSuccess, existingRequest }) {
                 border: "none", cursor: selectedMethod ? "pointer" : "not-allowed",
                 background: selectedMethod ? "linear-gradient(135deg,#2C3E50,#648DB6)" : "#E2E8F0",
                 color: selectedMethod ? "#fff" : "#94A3B8",
-                fontWeight: 700, fontSize: 13, fontFamily: "'DM Sans', sans-serif",
+                fontWeight: 700, fontSize: 13, fontFamily: "'Inter', sans-serif",
                 transition: "all 0.2s",
               }}>
               Continue →
@@ -325,7 +325,7 @@ export default function PaymentForm({ onSuccess, existingRequest }) {
               style={{
                 width: "100%", padding: "11px 14px",
                 border: "1.5px solid #E2E8F0", borderRadius: 8,
-                fontSize: 13, fontFamily: "'DM Sans', sans-serif",
+                fontSize: 13, fontFamily: "'Inter', sans-serif",
                 color: "#0F172A", outline: "none",
                 transition: "border-color 0.15s",
               }}
@@ -374,7 +374,7 @@ export default function PaymentForm({ onSuccess, existingRequest }) {
               padding: "12px 20px", borderRadius: 10,
               border: "1px solid #E2E8F0", background: "#F8FAFC",
               color: "#64748B", fontWeight: 500, fontSize: 13,
-              fontFamily: "'DM Sans', sans-serif", cursor: "pointer",
+              fontFamily: "'Inter', sans-serif", cursor: "pointer",
             }}>← Back</button>
             <button
               disabled={submitting || !reference.trim()}
@@ -385,7 +385,7 @@ export default function PaymentForm({ onSuccess, existingRequest }) {
                 cursor: submitting || !reference.trim() ? "not-allowed" : "pointer",
                 background: reference.trim() ? "linear-gradient(135deg,#059669,#10B981)" : "#E2E8F0",
                 color: reference.trim() ? "#fff" : "#94A3B8",
-                fontWeight: 700, fontSize: 13, fontFamily: "'DM Sans', sans-serif",
+                fontWeight: 700, fontSize: 13, fontFamily: "'Inter', sans-serif",
                 transition: "all 0.2s",
                 opacity: submitting ? 0.7 : 1,
               }}>
@@ -405,13 +405,26 @@ export default function PaymentForm({ onSuccess, existingRequest }) {
             display: "flex", alignItems: "center", justifyContent: "center",
             margin: "0 auto 16px", fontSize: 28,
           }}>✅</div>
-          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 900, color: "#0F172A", marginBottom: 8 }}>
+          <div style={{ fontFamily: "'Lora', Georgia, serif", fontSize: 20, fontWeight: 900, color: "#0F172A", marginBottom: 8 }}>
             Payment Submitted!
           </div>
           <p style={{ fontSize: 13, color: "#64748B", lineHeight: 1.7, maxWidth: 360, margin: "0 auto 20px" }}>
             Your <strong style={{ color: "#0F172A" }}>{selectedPlan.name}</strong> payment request has been sent to the admin.
             You'll receive an email at your registered address once confirmed — usually within 24 hours.
           </p>
+
+           <button
+            onClick={() => window.location.reload()}
+            style={{
+              marginTop: 20, padding: "12px 28px",
+              borderRadius: 10, border: "none", cursor: "pointer",
+              background: "linear-gradient(135deg,#2C3E50,#648DB6)",
+              color: "#fff", fontWeight: 700, fontSize: 13,
+              fontFamily: "'Inter', sans-serif",
+            }}>
+            Refresh to see your plan status
+          </button>
+
           <div style={{
             background: "#F8FAFC", border: "1px solid #E2E8F0",
             borderRadius: 10, padding: "14px 18px", textAlign: "left",

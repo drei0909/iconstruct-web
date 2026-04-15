@@ -1,13 +1,12 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap');
- @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@300;400;500;600&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500&display=swap');
- @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap');
- @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Bungee&family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
 
 
 
@@ -34,7 +33,7 @@
           position: fixed;
           top: 0; left: 0; right: 0;
           z-index: 1000;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
         }
 
         /* ─── Main nav ─────────────────────────────── */
@@ -440,7 +439,7 @@
           font-size: 24px;
         }
         .nb-modal-title {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 22px;
           font-weight: 700;
           color: #2C3E50;
@@ -509,7 +508,7 @@
           height: 100vh;
           min-height: 720px;
           overflow: hidden;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           background: #1a1a1a;
         }
 
@@ -626,7 +625,7 @@
         }
 
         .hero-headline {
-          font-family: 'Playfair Display', Georgia, serif;
+          font-family: 'Lora', Georgia, serif;
           font-weight: 900;
           font-size: clamp(44px, 6vw, 78px);
           line-height: 1.08;
@@ -636,7 +635,7 @@
           letter-spacing: -0.01em;
         }
         .hero-headline-highlight {
-          font-family: 'Playfair Display', Georgia, serif;
+          font-family: 'Lora', Georgia, serif;
           font-weight: 900;
           font-size: clamp(44px, 6vw, 78px);
           line-height: 1.08;
@@ -671,7 +670,7 @@
           gap: 10px;
           background: linear-gradient(180deg, #2C3E50 30.29%, #648DB6 87.5%);
           color: rgba(237,228,212,1);
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 16px;
           font-weight: 500;
           padding: 15px 34px;
@@ -703,7 +702,7 @@
           gap: 8px;
           background: transparent;
           color: rgba(237, 228, 212, 0.8);
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 15px;
           font-weight: 400;
           padding: 15px 20px;
@@ -737,7 +736,7 @@
           gap: 3px;
         }
         .hero-stat-num {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 28px;
           font-weight: 700;
           color: rgba(237,228,212,0.95);
@@ -887,7 +886,7 @@
         .ft-section {
           background: #f8f6f2;
           padding: 96px 0 80px;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           position: relative;
           overflow: hidden;
         }
@@ -940,7 +939,7 @@
         }
 
         .ft-title {
-          font-family: 'Playfair Display', Georgia, serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: clamp(28px, 3.5vw, 42px);
           font-weight: 900;
           color: #2C3E50;
@@ -1015,7 +1014,7 @@
               position: absolute;
               top: -10px;
               right: 16px;
-              font-family: 'Playfair Display', serif;
+              font-family: 'Lora', Georgia, serif;
               font-size: 96px;
               font-weight: 900;
               color: rgba(44, 62, 80, 0.045);
@@ -1037,7 +1036,7 @@
 
             /* Number badge */
             .ft-number-badge {
-              font-family: 'Playfair Display', serif;
+              font-family: 'Lora', Georgia, serif;
               font-size: 13px;
               font-weight: 700;
               color: rgba(237, 228, 212, 1);
@@ -1143,7 +1142,7 @@
           }
 
           .ft-card-title {
-            font-family: 'Playfair Display', serif;
+            font-family: 'Lora', Georgia, serif;
             font-size: 19px;
             font-weight: 700;
             color: #2C3E50;
@@ -1245,7 +1244,7 @@
           box-shadow: 0 12px 40px rgba(44,62,80,0.28);
         }
         .ft-cta-text {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 18px;
           font-weight: 700;
           color: rgba(237,228,212,1);
@@ -1257,7 +1256,7 @@
           gap: 8px;
           background: rgba(237,228,212,1);
           color: #2C3E50;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 13px;
           font-weight: 700;
           letter-spacing: 0.08em;
@@ -1288,7 +1287,7 @@
         .sp-section {
           background: #ffffff;
           padding: 88px 0 80px;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           position: relative;
           overflow: hidden;
         }
@@ -1322,7 +1321,7 @@
         }
 
         .sp-title {
-          font-family: 'Playfair Display', Georgia, serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: clamp(26px, 3.2vw, 40px);
           font-weight: 900;
           color: #2C3E50;
@@ -1465,7 +1464,7 @@
           margin-bottom: 24px;
         }
         .sp-plan-amount {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 38px;
           font-weight: 900;
           color: #2C3E50;
@@ -1500,7 +1499,7 @@
         .sp-plan-cta {
           display: block;
           text-align: center;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 12.5px;
           font-weight: 700;
           letter-spacing: 0.07em;
@@ -1578,7 +1577,76 @@
         }
 
 
+        /* ── Add these rules to your existing CSS (inside the sp-section block) ── */
 
+/* Product limit indicator box */
+.sp-limit-box {
+  background: rgba(44, 62, 80, 0.05);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 20px;
+}
+
+/* Featured card gets a lighter tinted box */
+.sp-plan-featured .sp-limit-box {
+  background: rgba(237, 228, 212, 0.1);
+}
+
+.sp-limit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.sp-limit-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(44, 62, 80, 0.45);
+}
+
+/* Featured card label */
+.sp-plan-featured .sp-limit-label {
+  color: rgba(237, 228, 212, 0.45);
+}
+
+.sp-limit-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: #2C3E50;
+}
+
+/* Featured card value */
+.sp-plan-featured .sp-limit-value {
+  color: rgba(237, 228, 212, 0.9);
+}
+
+/* Progress bar track */
+.sp-limit-bar {
+  height: 5px;
+  background: rgba(44, 62, 80, 0.1);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.sp-plan-featured .sp-limit-bar {
+  background: rgba(237, 228, 212, 0.15);
+}
+
+/* Progress bar fill */
+.sp-limit-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: #648DB6;
+  transition: width 0.4s ease;
+}
+
+/* Unlimited tier — green fill */
+.sp-limit-fill--full {
+  background: #22c55e;
+}
 
 
 
@@ -1594,7 +1662,7 @@
 
         
         .fo-root {
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           background: linear-gradient(180deg, #2C3E50 30.29%, #1a2a3a 100%);
           position: relative;
           overflow: hidden;
@@ -1700,7 +1768,7 @@
 
         /* Link columns */
         .fo-col-title {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 13px;
           font-weight: 700;
           color: rgba(237,228,212,0.95);
@@ -1852,7 +1920,7 @@
         /* FAQS */
        
         .faq-page {
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           background: #f8f6f2;
           min-height: 100vh;
           padding-top: 140px;
@@ -1883,7 +1951,7 @@
           border-radius: 2px;
         }
         .faq-title {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: clamp(32px, 4vw, 52px);
           font-weight: 900;
           color: #2C3E50;
@@ -1915,7 +1983,7 @@
           margin-bottom: 48px;
         }
         .faq-filter-btn {
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 12px;
           font-weight: 600;
           letter-spacing: 0.1em;
@@ -1983,7 +2051,7 @@
         }
 
         .faq-q-num {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 11px;
           font-weight: 700;
           color: rgba(237,228,212,1);
@@ -2072,7 +2140,7 @@
           box-shadow: 0 12px 40px rgba(44,62,80,0.25);
         }
         .faq-cta-left h4 {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 20px;
           font-weight: 700;
           color: rgba(237,228,212,1);
@@ -2089,7 +2157,7 @@
           gap: 8px;
           background: rgba(237,228,212,1);
           color: #2C3E50;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 13px;
           font-weight: 700;
           letter-spacing: 0.08em;
@@ -2130,7 +2198,7 @@
         
       
         .about-page {
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           background: #f8f6f2;
           padding-top: 140px;
           padding-bottom: 96px;
@@ -2165,7 +2233,7 @@
           content: 'iConstruct';
           position: absolute;
           right: -20px; bottom: -20px;
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 120px;
           font-weight: 900;
           color: rgba(237,228,212,0.05);
@@ -2196,7 +2264,7 @@
         }
 
         .about-hero-title {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: clamp(36px, 4.5vw, 58px);
           font-weight: 900;
           color: #fff;
@@ -2243,7 +2311,7 @@
           .about-stat { text-align: left; flex: 1 1 40%; }
         }
         .about-stat-num {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 30px;
           font-weight: 700;
           color: rgba(237,228,212,0.95);
@@ -2302,7 +2370,7 @@
         }
 
         .about-card-num {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 11px;
           font-weight: 700;
           color: rgba(237,228,212,1);
@@ -2319,7 +2387,7 @@
         }
 
         .about-card-title {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 20px;
           font-weight: 700;
           color: #2C3E50;
@@ -2395,7 +2463,7 @@
           margin-bottom: 8px;
         }
         .about-capstone-title {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 19px;
           font-weight: 700;
           color: #2C3E50;
@@ -2411,7 +2479,7 @@
 
         /* ── Team section ── */
         .about-section-title {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: clamp(24px, 3vw, 34px);
           font-weight: 900;
           color: #2C3E50;
@@ -2461,7 +2529,7 @@
         .about-team-watermark {
           position: absolute;
           top: -8px; right: 12px;
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 72px;
           font-weight: 900;
           color: rgba(44,62,80,0.04);
@@ -2471,7 +2539,7 @@
         }
 
         .about-team-num {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 11px;
           font-weight: 700;
           color: rgba(237,228,212,1);
@@ -2488,7 +2556,7 @@
         }
 
         .about-team-name {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 15px;
           font-weight: 700;
           color: #2C3E50;
@@ -2531,7 +2599,7 @@
 
 
         .ct-page {
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           background: #f8f6f2;
           padding-top: 140px;
           padding-bottom: 96px;
@@ -2560,7 +2628,7 @@
           border-radius: 2px;
         }
         .ct-title {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: clamp(32px, 4vw, 52px);
           font-weight: 900;
           color: #2C3E50;
@@ -2635,7 +2703,7 @@
         .ct-info-card:hover::before { opacity: 1; }
 
         .ct-info-num {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 11px;
           font-weight: 700;
           color: rgba(237,228,212,1);
@@ -2688,7 +2756,7 @@
           pointer-events: none;
         }
         .ct-note-title {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 16px;
           font-weight: 700;
           color: rgba(237,228,212,0.95);
@@ -2721,7 +2789,7 @@
         }
 
         .ct-form-title {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 22px;
           font-weight: 700;
           color: #2C3E50;
@@ -2760,7 +2828,7 @@
         .ct-input,
         .ct-textarea {
           width: 100%;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 14px;
           font-weight: 400;
           color: #2C3E50;
@@ -2793,7 +2861,7 @@
           gap: 10px;
           background: linear-gradient(180deg, #2C3E50 30.29%, #648DB6 87.5%);
           color: rgba(237,228,212,1);
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 14px;
           font-weight: 600;
           letter-spacing: 0.06em;
@@ -2839,7 +2907,7 @@
           margin: 0 auto 20px;
         }
         .ct-success-title {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 22px;
           font-weight: 700;
           color: #2C3E50;
@@ -2858,7 +2926,7 @@
           gap: 8px;
           background: linear-gradient(180deg, #2C3E50 30.29%, #648DB6 87.5%);
           color: rgba(237,228,212,1);
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 13px;
           font-weight: 600;
           padding: 11px 24px;
@@ -2882,7 +2950,7 @@
         
 
         .login-page {
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           min-height: 100vh;
           display: flex;
           align-items: center;
@@ -2946,7 +3014,7 @@
           content: 'iConstruct';
           position: absolute;
           bottom: -24px; left: -10px;
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 72px;
           font-weight: 900;
           color: rgba(237,228,212,0.06);
@@ -2986,7 +3054,7 @@
         }
 
         .login-left-title {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: clamp(26px, 3vw, 34px);
           font-weight: 900;
           color: #fff;
@@ -3041,7 +3109,7 @@
           z-index: 1;
         }
         .login-left-stat-num {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 22px;
           font-weight: 700;
           color: rgba(237,228,212,0.9);
@@ -3075,7 +3143,7 @@
         }
 
         .login-form-title {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 26px;
           font-weight: 900;
           color: #2C3E50;
@@ -3110,7 +3178,7 @@
 
         .login-input {
           width: 100%;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 14px;
           color: #2C3E50;
           background: #f8f6f2;
@@ -3168,7 +3236,7 @@
           gap: 10px;
           background: linear-gradient(180deg, #2C3E50 30.29%, #648DB6 87.5%);
           color: rgba(237,228,212,1);
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 14px;
           font-weight: 600;
           letter-spacing: 0.06em;
@@ -3243,10 +3311,23 @@
         /* register */
 
 
+
+        .reg-global-error {
+  background: rgba(180, 40, 40, 0.07);
+  border: 1px solid rgba(180, 40, 40, 0.2);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: rgba(160, 30, 30, 0.9);
+  line-height: 1.5;
+}
+
+
         
         /* ── Register page ── */
         .reg-page {
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           min-height: 100vh;
           display: flex;
           align-items: center;
@@ -3313,7 +3394,7 @@
           content: 'iConstruct';
           position: absolute;
           bottom: -24px; left: -10px;
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 72px;
           font-weight: 900;
           color: rgba(237,228,212,0.06);
@@ -3342,7 +3423,7 @@
         }
 
         .reg-left-title {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: clamp(24px, 2.8vw, 32px);
           font-weight: 900;
           color: #fff;
@@ -3397,7 +3478,7 @@
           border: 1.5px solid rgba(237,228,212,0.2);
           display: flex; align-items: center; justify-content: center;
           flex-shrink: 0;
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 11px;
           font-weight: 700;
           color: rgba(237,228,212,0.5);
@@ -3466,7 +3547,7 @@
           margin-bottom: 8px;
         }
         .reg-form-title {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 24px;
           font-weight: 900;
           color: #2C3E50;
@@ -3520,7 +3601,7 @@
         .reg-input,
         .reg-textarea {
           width: 100%;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 14px;
           color: #2C3E50;
           background: #f8f6f2;
@@ -3571,7 +3652,7 @@
           display: flex; align-items: center; justify-content: center; gap: 8px;
           background: transparent;
           color: rgba(44,62,80,0.6);
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 14px;
           font-weight: 500;
           padding: 13px 20px;
@@ -3588,7 +3669,7 @@
           display: flex; align-items: center; justify-content: center; gap: 10px;
           background: linear-gradient(180deg, #2C3E50 30.29%, #648DB6 87.5%);
           color: rgba(237,228,212,1);
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 14px;
           font-weight: 600;
           letter-spacing: 0.04em;
@@ -3679,7 +3760,7 @@
           margin: 0 auto 20px;
         }
         .reg-success-title {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 24px;
           font-weight: 900;
           color: #2C3E50;
@@ -3722,7 +3803,7 @@
           gap: 8px;
           background: linear-gradient(180deg, #2C3E50 30.29%, #648DB6 87.5%);
           color: rgba(237,228,212,1);
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 13px;
           font-weight: 600;
           padding: 12px 28px;
@@ -3752,7 +3833,7 @@
           border-radius: 10px;
           border: 1.5px solid rgba(44,62,80,0.15);
           background: #f8f6f2;
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 22px;
           font-weight: 700;
           color: #2C3E50;
@@ -3913,7 +3994,7 @@
           display: flex; align-items: center; justify-content: center; gap: 10px;
           background: linear-gradient(180deg, #2C3E50 30.29%, #648DB6 87.5%);
           color: rgba(237,228,212,1);
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 14px; font-weight: 600;
           padding: 14px 28px;
           border-radius: 8px; border: none;
@@ -3959,7 +4040,7 @@
 
         
         .adm-login-page {
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           min-height: 100vh;
           display: flex;
           align-items: center;
@@ -3982,7 +4063,7 @@
           content: 'ADMIN';
           position: absolute;
           bottom: -30px; left: -10px;
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 160px;
           font-weight: 900;
           color: rgba(237,228,212,0.03);
@@ -4028,7 +4109,7 @@
           background: #648DB6;
         }
         .adm-login-title {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 28px;
           font-weight: 900;
           color: #2C3E50;
@@ -4055,7 +4136,7 @@
         .adm-input-wrap { position: relative; }
         .adm-input {
           width: 100%;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 14px;
           color: #2C3E50;
           background: #f8f6f2;
@@ -4095,7 +4176,7 @@
           display: flex; align-items: center; justify-content: center; gap: 10px;
           background: linear-gradient(180deg, #2C3E50 30.29%, #648DB6 87.5%);
           color: rgba(237,228,212,1);
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 14px; font-weight: 600;
           padding: 14px 28px;
           border-radius: 8px; border: none;
@@ -4136,7 +4217,7 @@
         * { box-sizing: border-box; }
 
         .adm-layout {
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           min-height: 100vh;
           background: #f0ede8;
           display: flex;
@@ -4162,7 +4243,7 @@
           gap: 12px;
         }
         .adm-nav-logo {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 20px;
           font-weight: 900;
           color: rgba(237,228,212,0.95);
@@ -4194,7 +4275,7 @@
           border: 1px solid rgba(237,228,212,0.15);
           border-radius: 8px;
           padding: 7px 14px;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 12px; font-weight: 500;
           color: rgba(237,228,212,0.7);
           cursor: pointer;
@@ -4221,7 +4302,7 @@
           margin-bottom: 6px;
         }
         .adm-page-title {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 28px;
           font-weight: 900;
           color: #2C3E50;
@@ -4265,7 +4346,7 @@
           border-radius: 14px 14px 0 0;
         }
         .adm-stat-num {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 36px;
           font-weight: 900;
           line-height: 1;
@@ -4306,7 +4387,7 @@
         }
         .adm-search {
           width: 100%;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 13px;
           color: #2C3E50;
           background: #ffffff;
@@ -4327,7 +4408,7 @@
           gap: 6px;
         }
         .adm-filter-btn {
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 11.5px; font-weight: 500;
           padding: 8px 14px;
           border-radius: 8px;
@@ -4392,7 +4473,7 @@
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 12px; font-weight: 600;
           padding: 7px 14px;
           border-radius: 7px;
@@ -4473,7 +4554,7 @@
           border-radius: 18px 18px 0 0;
         }
         .adm-modal-title {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 20px;
           font-weight: 900;
           color: #2C3E50;
@@ -4570,7 +4651,7 @@
           display: flex; align-items: center; justify-content: center; gap: 8px;
           background: linear-gradient(135deg, #166534, #22c55e);
           color: #fff;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 13px; font-weight: 600;
           padding: 13px 20px;
           border-radius: 8px; border: none;
@@ -4589,7 +4670,7 @@
           display: flex; align-items: center; justify-content: center; gap: 8px;
           background: transparent;
           color: #991b1b;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 13px; font-weight: 600;
           padding: 13px 20px;
           border-radius: 8px;
@@ -4614,7 +4695,7 @@
           animation: admslideup 0.3s cubic-bezier(0.22,1,0.36,1);
         }
         .adm-reject-modal-title {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Lora', Georgia, serif;
           font-size: 18px; font-weight: 700;
           color: #2C3E50; margin-bottom: 6px;
         }
@@ -4625,7 +4706,7 @@
         }
         .adm-reject-textarea {
           width: 100%;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 13.5px; color: #2C3E50;
           background: #f8f6f2;
           border: 1.5px solid rgba(44,62,80,0.1);
@@ -4647,7 +4728,7 @@
           padding: 12px;
           background: linear-gradient(135deg, #991b1b, #ef4444);
           color: #fff;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 13px; font-weight: 600;
           border-radius: 8px; border: none;
           cursor: pointer;
@@ -4658,7 +4739,7 @@
           padding: 12px 20px;
           background: transparent;
           color: rgba(44,62,80,0.6);
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 13px; font-weight: 500;
           border-radius: 8px;
           border: 1.5px solid rgba(44,62,80,0.15);
@@ -4750,8 +4831,8 @@
           --db-shadow-md:    0 4px 16px rgba(26,35,50,0.08), 0 2px 4px rgba(26,35,50,0.04);
           --db-shadow-lg:    0 12px 40px rgba(26,35,50,0.12);
 
-          --db-font-display: 'Sora', 'DM Sans', sans-serif;
-          --db-font-body:    'DM Sans', sans-serif;
+          --db-font-display: 'Sora', 'Inter', sans-serif;
+          --db-font-body:    'Inter', sans-serif;
         }
 
         /* ── Layout shell ── */
@@ -5888,3 +5969,355 @@
           .db-locked-grid { grid-template-columns: 1fr; }
           .db-content     { padding: 20px 16px; }
         }
+
+
+
+
+
+
+
+
+
+
+
+
+
+        /* ── ForgotPassword OTP boxes ── */
+   
+
+          /* Overlay */
+          .fp-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            background: rgba(20, 30, 40, 0.55);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            animation: fp-overlay-in 0.2s ease;
+          }
+
+          @keyframes fp-overlay-in {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+          }
+
+          /* Modal card */
+          .fp-modal {
+            position: relative;
+            background: #fff;
+            border-radius: 16px;
+            padding: 36px 36px 32px;
+            width: 100%;
+            max-width: 440px;
+            box-shadow: 0 4px 24px rgba(44, 62, 80, 0.08);
+            border: 1px solid rgba(44, 62, 80, 0.1);
+            box-sizing: border-box;   /* ← padding counted inside max-width */
+            animation: fp-modal-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+          }
+
+
+          @keyframes fp-modal-in {
+            from { opacity: 0; transform: translateY(16px) scale(0.97); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+          }
+
+          /* Close button */
+          .fp-close {
+              position: absolute;
+              top: 16px;
+              right: 16px;
+              width: 32px;
+              height: 32px;
+              border-radius: 8px;
+              border: 1.5px solid rgba(44, 62, 80, 0.12);
+              background: #fff;           /* ← solid white so it doesn't bleed over bar */
+              color: rgba(44, 62, 80, 0.4);
+              cursor: pointer;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              transition: background 0.15s, color 0.15s, border-color 0.15s;
+              z-index: 2;                  /* ← sits on top */
+            }
+          .fp-close:hover {
+            background: rgba(44, 62, 80, 0.06);
+            color: #2C3E50;
+            border-color: rgba(44, 62, 80, 0.25);
+          }
+
+          /* Progress bar */
+          .fp-progress {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 24px;
+            padding-right: 40px; /* ← clears the X button */
+          }
+          .fp-progress-seg {
+            flex: 1;
+            height: 3px;
+            border-radius: 2px;
+            background: rgba(44, 62, 80, 0.1);
+            transition: background 0.3s;
+          }
+          .fp-progress-seg--active {
+            background: #2C3E50;
+          }
+
+          /* Step label */
+          .fp-step-label {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: #648DB6;
+            margin-bottom: 10px;
+          }
+
+          /* Title */
+          .fp-title {
+            font-family: 'Lora', Georgia, serif;
+            font-size: 22px;
+            font-weight: 900;
+            color: #2C3E50;
+            margin-bottom: 6px;
+          }
+
+          /* Subtitle */
+          .fp-sub {
+            font-size: 13px;
+            font-weight: 300;
+            color: rgba(44, 62, 80, 0.55);
+            line-height: 1.65;
+            margin-bottom: 20px;
+          }
+
+          /* Field */
+          .fp-field {
+            margin-bottom: 16px;
+          }
+          .fp-label {
+            display: block;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: rgba(44, 62, 80, 0.55);
+            margin-bottom: 6px;
+          }
+          .fp-input {
+            width: 100%;
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            color: #2C3E50;
+            background: #fff;
+            border: 1.5px solid rgba(44, 62, 80, 0.12);
+            border-radius: 8px;
+            padding: 11px 14px;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            box-sizing: border-box;
+          }
+          .fp-input:focus {
+            border-color: #648DB6;
+            box-shadow: 0 0 0 3px rgba(100, 141, 182, 0.1);
+          }
+
+          /* Email badge */
+          .fp-email-badge {
+            display: inline-block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #2C3E50;
+            background: rgba(44, 62, 80, 0.05);
+            border: 1px solid rgba(44, 62, 80, 0.1);
+            border-radius: 8px;
+            padding: 8px 14px;
+            margin-bottom: 20px;
+          }
+
+          /* OTP row */
+          .fp-otp-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            width: 100%;
+            box-sizing: border-box;
+          }
+         .fp-otp-box {
+            flex: 1;
+            min-width: 0;        /* ← prevents flex children from overflowing */
+            max-width: 100%;
+            height: 52px;
+            text-align: center;
+            font-family: 'Lora', Georgia, serif;
+            font-size: 22px;
+            font-weight: 900;
+            color: #2C3E50;
+            background: rgba(44, 62, 80, 0.03);
+            border: 2px solid rgba(44, 62, 80, 0.15);
+            border-radius: 10px;
+            outline: none;
+            box-sizing: border-box;   /* ← border included in size calculation */
+            transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+          }
+          .fp-otp-box--filled {
+            background: #fff;
+            border-color: #2C3E50;
+          }
+          .fp-otp-box:focus {
+            border-color: #648DB6;
+            box-shadow: 0 0 0 3px rgba(100, 141, 182, 0.1);
+          }
+
+          /* Resend row */
+          .fp-resend {
+            text-align: center;
+            font-size: 12.5px;
+            color: rgba(44, 62, 80, 0.5);
+            margin-top: 14px;
+            margin-bottom: 8px;
+          }
+          .fp-resend-btn {
+            background: none;
+            border: none;
+            color: #648DB6;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 12.5px;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+          }
+          .fp-resend-btn:hover { text-decoration: underline; }
+
+          /* Info box (step 2) */
+          .fp-info-box {
+            background: rgba(100, 141, 182, 0.08);
+            border: 1px solid rgba(100, 141, 182, 0.2);
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 20px;
+            font-size: 12.5px;
+            color: rgba(44, 62, 80, 0.7);
+            line-height: 1.65;
+          }
+
+          /* Error box */
+          .fp-error {
+            background: rgba(180, 40, 40, 0.07);
+            border: 1px solid rgba(180, 40, 40, 0.2);
+            border-radius: 8px;
+            padding: 11px 14px;
+            margin-bottom: 14px;
+            font-size: 12.5px;
+            color: rgba(160, 30, 30, 0.9);
+            line-height: 1.5;
+          }
+
+          /* Primary button */
+          .fp-btn-primary {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 13px 20px;
+            border-radius: 10px;
+            border: none;
+            background: linear-gradient(180deg, #2C3E50 30.29%, #648DB6 87.5%);
+            color: rgba(237, 228, 212, 1);
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(44, 62, 80, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+            margin-bottom: 10px;
+          }
+          .fp-btn-primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(44, 62, 80, 0.35);
+          }
+          .fp-btn-primary:disabled,
+          .fp-btn-primary[data-disabled="true"] {
+            opacity: 0.5;
+            cursor: not-allowed;
+          }
+
+          /* Ghost button */
+          .fp-btn-ghost {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1.5px solid rgba(44, 62, 80, 0.12);
+            background: transparent;
+            color: rgba(44, 62, 80, 0.55);
+            font-family: 'Inter', sans-serif;
+            font-size: 12.5px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: border-color 0.2s, color 0.2s;
+          }
+          .fp-btn-ghost:hover {
+            border-color: rgba(44, 62, 80, 0.3);
+            color: #2C3E50;
+          }
+
+          /* Spinner */
+          @keyframes fp-spin {
+            to { transform: rotate(360deg); }
+          }
+          .fp-spinner {
+            display: inline-block;
+            width: 13px;
+            height: 13px;
+            border: 2px solid rgba(237, 228, 212, 0.3);
+            border-top-color: rgba(237, 228, 212, 0.9);
+            border-radius: 50%;
+            animation: fp-spin 0.7s linear infinite;
+            flex-shrink: 0;
+          }
+
+          /* Done state */
+          .fp-done {
+            text-align: center;
+            padding-top: 8px;
+          }
+          .fp-done-icon {
+            width: 68px;
+            height: 68px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #D1FAE5, #A7F3D0);
+            border: 2px solid #6EE7B7;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+          }
+
+          /* Also move login-error out of inline style in LoginForm */
+          .login-error {
+            background: rgba(180, 40, 40, 0.07);
+            border: 1px solid rgba(180, 40, 40, 0.2);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            color: rgba(160, 30, 30, 0.9);
+            line-height: 1.5;
+          }
+
+          .login-forgot {
+            background: none;
+            border: none;
+            padding: 0;
+            display: block;
+            cursor: pointer;
+            /* keep whatever color/font you already have */
+          }

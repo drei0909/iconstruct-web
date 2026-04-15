@@ -7,23 +7,33 @@
 //    component (it was re-mounting on every render, resetting state)
 // 3. existingPayment fetch moved to main useEffect alongside other data
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   getShopProfile, getShopQuotations, getPostedProjects,
   submitQuotation, logoutShop, getMyPaymentRequest,
 } from "../../controllers/shopController";
 
-import PaymentForm from "../../components/forms/Paymentform";
+import ProductsTab from "../../components/ProductsTab";
 
+import PaymentForm from "../../components/forms/Paymentform";
+import { auth, db } from "../../services/firebase";
+import { doc, onSnapshot } from "firebase/firestore";
 const QUOTA_LIMIT   = 3;
 const PROJECT_LIMIT = 5;
+
+
+
+
+
+
 
 const NAV = [
   { key: "overview",   label: "Overview"    },
   { key: "projects",   label: "Projects"    },
   { key: "quotations", label: "Quotations"  },
   { key: "profile",    label: "Shop Profile"},
+   { key: "products",   label: "My Products" },
   { key: "upgrade",    label: "Upgrade Plan", isUpgrade: true },
 ];
 
@@ -79,7 +89,8 @@ export default function ShopDashboardBasic() {
   // inside ShopDashboardBasic, every parent re-render would unmount/remount
   // Projects, wiping the search state. Moving it to the parent keeps it stable.
   const [projectSearch, setProjectSearch] = useState("");
-
+  const [showPlanActivatedModal, setShowPlanActivatedModal] = useState(false);
+  const prevStatusRef = useRef(null);
   const now = new Date();
   const quotaUsed = quotations.filter(q => {
     const d = q.createdAt?.toDate?.() || new Date(q.createdAt);
@@ -113,6 +124,32 @@ export default function ShopDashboardBasic() {
       setLoading(false);
     }
   })();
+}, []);
+
+
+useEffect(() => {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  const unsubscribe = onSnapshot(doc(db, "shops", user.uid), (snap) => {
+    if (!snap.exists()) return;
+    const data = snap.data();
+    const currentPlan = data.subscriptionPlan;
+    const currentStatus = data.subscriptionStatus;
+
+    // Only show modal if subscription just became active (wasn't active before)
+    if (
+      prevStatusRef.current !== null &&           // not first load
+      prevStatusRef.current !== "active" &&       // was not active before
+      currentStatus === "active"                  // now it's active
+    ) {
+      setShowPlanActivatedModal(true);
+    }
+
+    prevStatusRef.current = currentStatus;
+  });
+
+  return () => unsubscribe();
 }, []);
 
   const showToast = (msg, type = "success") => {
@@ -242,7 +279,7 @@ export default function ShopDashboardBasic() {
             style={{
               paddingLeft:32, paddingRight:14, paddingTop:8, paddingBottom:8,
               border:"1.5px solid #E2E8F0", borderRadius:8,
-              fontSize:12, fontFamily:"'DM Sans', sans-serif",
+              fontSize:12, fontFamily:"'Inter', sans-serif",
               color:"#0F172A", outline:"none", width:220,
               background:"#fff",
               transition:"border-color 0.15s",
@@ -430,6 +467,7 @@ export default function ShopDashboardBasic() {
       case "projects":   return <Projects />;
       case "quotations": return <Quotations />;
       case "profile":    return <Profile />;
+       case "products":   return <ProductsTab planColor="#F59E0B" />;
       case "upgrade":    return <Upgrade />;
       default:           return <Overview />;
     }
@@ -517,6 +555,89 @@ export default function ShopDashboardBasic() {
 
       <QuoteModal />
       {toast && <div className={`db-toast ${toast.type}`}>{toast.msg}</div>}
+
+
+    </div>
+  );
+
+
+  return (
+    <div className="db-shell">
+      <aside className="db-sidebar">
+        <div className="db-sidebar-logo">
+          <div className="db-sidebar-brand">iConstruct</div>
+          <div className="db-sidebar-sub">Shop Manager</div>
+          <div className="db-sidebar-plan-wrap"><PlanBadge /></div>
+        </div>
+        <nav className="db-sidebar-nav">
+          <div className="db-nav-section-label">Navigation</div>
+          {NAV.map(item => (
+            <button key={item.key}
+              className={`db-nav-item${activeTab===item.key?" active":""}${item.isUpgrade?" upgrade-item":""}`}
+              onClick={() => setActiveTab(item.key)}>
+              <span>{item.label}</span>
+              {item.isUpgrade && <span className="db-nav-badge-new">UPGRADE</span>}
+            </button>
+          ))}
+        </nav>
+        <div className="db-sidebar-footer">
+          <div className="db-sidebar-user">
+            <div className="db-sidebar-avatar">{initials(shop?.shopName)}</div>
+            <div style={{ minWidth:0 }}>
+              <div className="db-sidebar-user-name">{shop?.shopName || "Loading..."}</div>
+              <div className="db-sidebar-user-role">{shop?.ownerName || ""}</div>
+            </div>
+          </div>
+          <button className="db-signout-btn" onClick={async () => { await logoutShop(); navigate("/login"); }}>
+            Sign Out
+          </button>
+        </div>
+      </aside>
+
+      <div className="db-main-col">
+        <header className="db-topbar">
+          <div>
+            <div className="db-topbar-title">{NAV.find(n=>n.key===activeTab)?.label}</div>
+            <div className="db-topbar-breadcrumb">iConstruct · Shop Manager</div>
+          </div>
+          <div className="db-topbar-right">
+            <PlanBadge />
+            <div className="db-topbar-avatar">{initials(shop?.shopName)}</div>
+          </div>
+        </header>
+        <main className="db-content">{renderContent()}</main>
+      </div>
+
+      <QuoteModal />
+
+      {toast && <div className={`db-toast ${toast.type}`}>{toast.msg}</div>}
+
+      {showPlanActivatedModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.6)", backdropFilter:"blur(8px)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div style={{ background:"#fff", borderRadius:20, padding:"40px 36px", width:"100%", maxWidth:420, textAlign:"center", boxShadow:"0 32px 80px rgba(0,0,0,0.25)", position:"relative", overflow:"hidden" }}>
+            <div style={{ position:"absolute", top:0, left:0, right:0, height:4, background:"linear-gradient(90deg,#7C3AED,#6D28D9)", borderRadius:"20px 20px 0 0" }} />
+            <div style={{ width:72, height:72, borderRadius:"50%", background:"linear-gradient(135deg,#D1FAE5,#A7F3D0)", border:"2px solid #6EE7B7", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px", fontSize:32 }}>🎉</div>
+            <div style={{ fontFamily:"'Lora', Georgia, serif", fontSize:22, fontWeight:900, color:"#0F172A", marginBottom:8 }}>Subscription Activated!</div>
+            <p style={{ fontSize:14, color:"#64748B", lineHeight:1.7, marginBottom:8 }}>
+              Your plan has been confirmed by the admin and is now <strong style={{ color:"#059669" }}>active</strong>.
+            </p>
+            <p style={{ fontSize:13, color:"#94A3B8", lineHeight:1.6, marginBottom:28 }}>
+              To apply your new subscription features, please <strong style={{ color:"#0F172A" }}>sign out and log back in</strong>.
+            </p>
+            <div style={{ background:"#FFF7ED", border:"1px solid #FED7AA", borderRadius:10, padding:"12px 16px", marginBottom:24, fontSize:12.5, color:"#92400E", lineHeight:1.6 }}>
+              ⚠️ You must sign out and sign back in for your upgraded plan to take effect.
+            </div>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => setShowPlanActivatedModal(false)} style={{ flex:1, padding:"12px", borderRadius:10, border:"1.5px solid rgba(44,62,80,0.15)", background:"transparent", color:"rgba(44,62,80,0.6)", fontSize:13, fontWeight:500, cursor:"pointer", fontFamily:"'Inter', sans-serif" }}>
+                Remind Me Later
+              </button>
+              <button onClick={async () => { await logoutShop(); navigate("/login"); }} style={{ flex:2, padding:"12px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#7C3AED,#6D28D9)", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Inter', sans-serif", boxShadow:"0 4px 14px rgba(124,58,237,0.3)" }}>
+                Sign Out &amp; Log In Again →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

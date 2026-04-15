@@ -53,6 +53,7 @@ const plans = [
     badge: null,
     color: "#648DB6",
     features: [
+      "List up to 20 products",
       "Shop profile listing",
       "View limited project postings",
       "Submit up to 3 quotations/month",
@@ -60,6 +61,8 @@ const plans = [
     ],
     cta: "Included on Registration",
     ctaStyle: "outline",
+    limitNote: "20 products max",
+    limitPct: 15,
   },
   {
     name: "Pro",
@@ -68,6 +71,7 @@ const plans = [
     badge: "Most Popular",
     color: "#2C3E50",
     features: [
+      "List up to 150 products",
       "Everything in Basic",
       "Priority listing in search",
       "Unlimited project bidding",
@@ -76,6 +80,8 @@ const plans = [
     ],
     cta: "Get Pro — ₱499/mo",
     ctaStyle: "filled",
+    limitNote: "150 products max",
+    limitPct: 58,
   },
   {
     name: "Business",
@@ -84,14 +90,18 @@ const plans = [
     badge: "Best Value",
     color: "#648DB6",
     features: [
+      "Unlimited product listings",
       "Everything in Pro",
       "Featured placement on platform",
       "Priority customer support",
       "Advanced analytics dashboard",
+      "Bulk product import (CSV/Excel)",
       "Save ₱1,489 vs monthly",
     ],
     cta: "Get Business — ₱4,499/yr",
     ctaStyle: "outline",
+    limitNote: "No product cap",
+    limitPct: 100,
   },
 ];
 
@@ -205,7 +215,7 @@ export default function Features() {
             </h2>
             <p className="sp-subtitle">
               Start free after your shop is approved. Upgrade any time to unlock
-              priority listings, unlimited bidding, and powerful analytics.
+              more product listings, priority visibility, and powerful analytics.
             </p>
 
             {/* Flow hint pill */}
@@ -234,10 +244,7 @@ export default function Features() {
                 )}
 
                 <div className="sp-plan-top">
-                  <div
-                    className="sp-plan-dot"
-                    style={{ background: plan.color }}
-                  />
+                  <div className="sp-plan-dot" style={{ background: plan.color }} />
                   <span className="sp-plan-name">{plan.name}</span>
                 </div>
 
@@ -248,6 +255,20 @@ export default function Features() {
                   )}
                 </div>
 
+                {/* Product limit indicator */}
+                <div className="sp-limit-box">
+                  <div className="sp-limit-header">
+                    <span className="sp-limit-label">Product listings</span>
+                    <span className="sp-limit-value">{plan.limitNote}</span>
+                  </div>
+                  <div className="sp-limit-bar">
+                    <div
+                      className={`sp-limit-fill ${plan.limitPct === 100 ? "sp-limit-fill--full" : ""}`}
+                      style={{ width: `${plan.limitPct}%` }}
+                    />
+                  </div>
+                </div>
+
                 <ul className="sp-plan-features">
                   {plan.features.map((feat, j) => (
                     <li key={j} className="sp-plan-feature-item">
@@ -255,7 +276,11 @@ export default function Features() {
                         strokeLinecap="round" strokeLinejoin="round" width="13" height="13" style={{ flexShrink: 0 }}>
                         <path d="M2.5 7.5l3 3 6-6" />
                       </svg>
-                      {feat}
+                      {/* Bold the first feature (product limit) */}
+                      {j === 0
+                        ? <strong style={{ fontWeight: 600 }}>{feat}</strong>
+                        : feat
+                      }
                     </li>
                   ))}
                 </ul>
@@ -270,6 +295,11 @@ export default function Features() {
                 {plan.name === "Basic" && (
                   <p className="sp-plan-note">
                     Automatically granted after admin approval.
+                  </p>
+                )}
+                {plan.name === "Business" && (
+                  <p className="sp-plan-note">
+                    If downgraded, listings beyond your new plan's limit are hidden — not deleted.
                   </p>
                 )}
               </div>

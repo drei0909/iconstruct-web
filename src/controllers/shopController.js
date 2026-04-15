@@ -11,9 +11,16 @@ import {
   fetchLatestPaymentByShop,
   fetchPendingPaymentByShop,
   insertPaymentRequest,
+  fetchProductsByShop,
+  insertProduct,
+  updateProductAvailability,
+  updateProduct,
+  removeProduct,
 } from "../models/shopModel";
 import { getDoc, doc } from "firebase/firestore";
 import { db } from "../services/firebase";
+
+// ── Shop Profile ──────────────────────────────────────────────────────────────
 
 export async function getShopProfile() {
   const user = auth.currentUser;
@@ -21,9 +28,13 @@ export async function getShopProfile() {
   return fetchShopById(user.uid);
 }
 
+// ── Projects ──────────────────────────────────────────────────────────────────
+
 export async function getPostedProjects() {
   return fetchOpenProjects();
 }
+
+// ── Quotations ────────────────────────────────────────────────────────────────
 
 export async function getShopQuotations() {
   const user = auth.currentUser;
@@ -35,7 +46,6 @@ export async function submitQuotation({ projectId, amount, note }) {
   const user = auth.currentUser;
   if (!user) throw new Error("Not authenticated");
 
-  // Get project title from Firestore
   const projectSnap = await getDoc(doc(db, "projects", projectId));
   const projectTitle = projectSnap.data()?.title || "Project";
 
@@ -48,17 +58,20 @@ export async function submitQuotation({ projectId, amount, note }) {
   });
 }
 
+// ── Payments ──────────────────────────────────────────────────────────────────
+
 export async function getMyPaymentRequest() {
   const user = auth.currentUser;
   if (!user) throw new Error("Not authenticated");
   return fetchLatestPaymentByShop(user.uid);
 }
 
-export async function submitPaymentRequest({ planName, planPrice, paymentMethod, referenceNumber, screenshotBase64 }) {
+export async function submitPaymentRequest({
+  planName, planPrice, paymentMethod, referenceNumber, screenshotBase64,
+}) {
   const user = auth.currentUser;
   if (!user) throw new Error("Not authenticated");
 
-  // Business rule: block duplicate pending requests
   const hasPending = await fetchPendingPaymentByShop(user.uid);
   if (hasPending) {
     throw new Error("You already have a pending payment request. Please wait for admin confirmation.");
@@ -67,10 +80,10 @@ export async function submitPaymentRequest({ planName, planPrice, paymentMethod,
   const shop = await fetchShopById(user.uid);
 
   await insertPaymentRequest({
-    shopId: user.uid,
-    shopName: shop.shopName,
-    ownerName: shop.ownerName,
-    email: shop.email,
+    shopId:          user.uid,
+    shopName:        shop.shopName,
+    ownerName:       shop.ownerName,
+    email:           shop.email,
     planName,
     planPrice,
     paymentMethod,
@@ -78,6 +91,8 @@ export async function submitPaymentRequest({ planName, planPrice, paymentMethod,
     screenshotBase64: screenshotBase64 || "",
   });
 }
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
 
 export async function getQuotationAnalytics() {
   const quotations = await getShopQuotations();
@@ -89,6 +104,60 @@ export async function getQuotationAnalytics() {
   return { total, accepted, rejected, pending, winRate };
 }
 
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
 export async function logoutShop() {
   await signOut(auth);
+}
+
+// ── Products (NEW) ────────────────────────────────────────────────────────────
+// When a shop owner adds a product here, the mobile app reads it from Firestore.
+// Both use the same Firebase project — no extra server needed.
+
+// Get all products for the logged-in shop
+export async function getMyProducts() {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Not authenticated");
+  return fetchProductsByShop(user.uid);
+}
+
+// Add a new product (shows up in app immediately via Firestore real-time)
+export async function addProduct({
+  name, description, price, unit, category, imageBase64,
+}) {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Not authenticated");
+
+  if (!name || !name.trim()) throw new Error("Product name is required.");
+  if (!price || isNaN(parseFloat(price))) throw new Error("Valid price is required.");
+
+  const shop = await fetchShopById(user.uid);
+
+  const productId = await insertProduct({
+    shopId:      user.uid,
+    shopName:    shop.shopName,
+    name:        name.trim(),
+    description: description || "",
+    price,
+    unit:        unit     || "piece",
+    category:    category || "general",
+    imageBase64: imageBase64 || "",
+  });
+
+  return productId;
+}
+
+// Toggle product availability (in stock / out of stock)
+export async function toggleProductAvailability(productId, available) {
+  await updateProductAvailability(productId, available);
+}
+
+// Edit product details
+export async function editProduct(productId, data) {
+  await updateProduct(productId, data);
+}
+
+// Remove a product from the catalog
+export async function deleteProduct(productId) {
+  await removeProduct(productId);
 }
