@@ -1,11 +1,6 @@
-// src/components/layout/shopdashboardbasic.jsx
-// iConstruct — Shop Owner Dashboard (Basic / Free Plan)
-//
-// FIXES IN THIS VERSION:
-// 1. "Failed to load data" → shopService now uses getAuthUser() helper
-// 2. Search bar unresponsive → moved searchQuery state OUT of Projects
-//    component (it was re-mounting on every render, resetting state)
-// 3. existingPayment fetch moved to main useEffect alongside other data
+// src/views/shop/DashboardBasicPage.jsx
+// FIX: All tab components moved OUTSIDE ShopDashboardBasic to prevent
+// remount-on-every-keystroke. Each gets only the props it needs.
 
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -13,27 +8,27 @@ import {
   getShopProfile, getShopQuotations, getPostedProjects,
   submitQuotation, logoutShop, getMyPaymentRequest,
 } from "../../controllers/shopController";
-
-import ProductsTab from "../../components/ProductsTab";
-
-import PaymentForm from "../../components/forms/Paymentform";
+import ProductsTab  from "../../components/ProductsTab";
+import PaymentForm  from "../../components/forms/Paymentform";
+import SearchBar    from "../../components/ui/SearchBar";
+import { useSearch } from "../../hooks/useSearch";
 import { auth, db } from "../../services/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
-const QUOTA_LIMIT   = 3;
-const PROJECT_LIMIT = 5;
+import { getPlanConfig } from "../../config/planConfig";
 
+import StripePaymentForm from "../../components/forms/StripePaymentForm";
+import React from "react";
 
-
-
-
-
+const cfg           = getPlanConfig("basic");
+const QUOTA_LIMIT   = cfg.quotaLimit;
+const PROJECT_LIMIT = cfg.projectLimit;
 
 const NAV = [
   { key: "overview",   label: "Overview"    },
   { key: "projects",   label: "Projects"    },
   { key: "quotations", label: "Quotations"  },
-  { key: "profile",    label: "Shop Profile"},
-   { key: "products",   label: "My Products" },
+  { key: "profile",    label: "Shop Profile" },
+  { key: "products",   label: "My Products" },
   { key: "upgrade",    label: "Upgrade Plan", isUpgrade: true },
 ];
 
@@ -66,198 +61,72 @@ function StatCard({ label, value, color, sub }) {
   );
 }
 
-export default function ShopDashboardBasic() {
-  const navigate = useNavigate();
+// ─── TAB COMPONENTS (defined OUTSIDE parent — stable identity, no remount) ────
 
-  // ── Core data ──
-  const [shop, setShop]                   = useState(null);
-  const [projects, setProjects]           = useState([]);
-  const [quotations, setQuotations]       = useState([]);
-  const [existingPayment, setExistingPayment] = useState(undefined);
-
-  // ── UI state ──
-  const [loading, setLoading]     = useState(true);
-  const [activeTab, setActiveTab] = useState("overview");
-  const [toast, setToast]         = useState(null);
-  const [quoteModal, setQuoteModal] = useState(null);
-  const [quoteForm, setQuoteForm]   = useState({ amount: "", note: "" });
-  const [submitting, setSubmitting] = useState(false);
-
-  // ── SEARCH STATE lives here (not inside Projects component) ──
-  // BUG FIX: React re-creates function components on every render.
-  // If searchQuery was inside the Projects() function component defined
-  // inside ShopDashboardBasic, every parent re-render would unmount/remount
-  // Projects, wiping the search state. Moving it to the parent keeps it stable.
-  const [projectSearch, setProjectSearch] = useState("");
-  const [showPlanActivatedModal, setShowPlanActivatedModal] = useState(false);
-  const prevStatusRef = useRef(null);
-  const now = new Date();
-  const quotaUsed = quotations.filter(q => {
-    const d = q.createdAt?.toDate?.() || new Date(q.createdAt);
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  }).length;
-
- useEffect(() => {
-  (async () => {
-    try {
-      const [shopData, quotData, paymentData] = await Promise.all([
-        getShopProfile(),
-        getShopQuotations(),
-        getMyPaymentRequest().catch(() => null),
-      ]);
-
-      // Fetch projects separately so it doesn't crash everything
-      const projectData = await getPostedProjects().catch(err => {
-        console.warn("Projects fetch failed (index missing?):", err.message);
-        return [];
-      });
-
-      setShop(shopData);
-      setProjects(projectData.slice(0, PROJECT_LIMIT));
-      setQuotations(quotData);
-      setExistingPayment(paymentData);
-    } catch (err) {
-      console.error("Dashboard load error:", err);
-      showToast("Failed to load data. Please refresh.", "error");
-      setExistingPayment(null);
-    } finally {
-      setLoading(false);
-    }
-  })();
-}, []);
-
-
-useEffect(() => {
-  const user = auth.currentUser;
-  if (!user) return;
-
-  const unsubscribe = onSnapshot(doc(db, "shops", user.uid), (snap) => {
-    if (!snap.exists()) return;
-    const data = snap.data();
-    const currentPlan = data.subscriptionPlan;
-    const currentStatus = data.subscriptionStatus;
-
-    // Only show modal if subscription just became active (wasn't active before)
-    if (
-      prevStatusRef.current !== null &&           // not first load
-      prevStatusRef.current !== "active" &&       // was not active before
-      currentStatus === "active"                  // now it's active
-    ) {
-      setShowPlanActivatedModal(true);
-    }
-
-    prevStatusRef.current = currentStatus;
-  });
-
-  return () => unsubscribe();
-}, []);
-
-  const showToast = (msg, type = "success") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
-  };
-
-  const handleQuote = async () => {
-    if (!quoteForm.amount) return;
-    if (quotaUsed >= QUOTA_LIMIT) {
-      showToast("Monthly quota reached. Upgrade to Pro.", "error");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await submitQuotation({ projectId: quoteModal.id, ...quoteForm });
-      showToast("Quotation submitted!");
-      setQuoteModal(null);
-      setQuoteForm({ amount: "", note: "" });
-      const updated = await getShopQuotations();
-      setQuotations(updated);
-    } catch (err) {
-      showToast(err.message || "Failed to submit.", "error");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  // Filtered projects based on search — computed here so Projects tab can use it
-  const filteredProjects = projects.filter(p => {
-    const q = projectSearch.toLowerCase();
-    return (
-      p.title?.toLowerCase().includes(q) ||
-      p.city?.toLowerCase().includes(q) ||
-      p.materials?.join(" ").toLowerCase().includes(q)
-    );
-  });
-
-  /* ─────────────── TAB COMPONENTS ─────────────── */
-
-  const Overview = () => {
-    const accepted = quotations.filter(q => q.status === "accepted").length;
-    const pct = Math.min((quotaUsed / QUOTA_LIMIT) * 100, 100);
-    const barColor = pct >= 100 ? "var(--db-red)" : pct >= 66 ? "var(--db-amber)" : "var(--db-green)";
-
-    return (
-      <div>
-        <div className="db-upgrade-banner">
+function Overview({ quotations, projects, quotaUsed, setActiveTab }) {
+  const accepted = quotations.filter(q => q.status === "accepted").length;
+  const pct      = Math.min((quotaUsed / QUOTA_LIMIT) * 100, 100);
+  const barColor = pct >= 100 ? "var(--db-red)" : pct >= 66 ? "var(--db-amber)" : "var(--db-green)";
+  return (
+    <div>
+      <div className="db-upgrade-banner">
+        <div>
+          <div className="db-upgrade-banner-title">⚡ You're on the Free Plan</div>
+          <div className="db-upgrade-banner-sub">Unlock unlimited bidding, priority listing &amp; analytics.</div>
+        </div>
+        <button className="db-upgrade-cta-btn" onClick={() => setActiveTab("upgrade")}>Upgrade Now →</button>
+      </div>
+      <div className="db-quota-card">
+        <div className="db-quota-header">
+          <span className="db-quota-label">Monthly Quotation Quota</span>
+          <span className="db-quota-count" style={{ color: barColor }}>{quotaUsed} / {QUOTA_LIMIT} used</span>
+        </div>
+        <div className="db-quota-track">
+          <div className="db-quota-fill" style={{ width: `${pct}%`, background: barColor }} />
+        </div>
+        {pct >= 100 && (
+          <p className="db-quota-hint" style={{ color: "var(--db-red)" }}>
+            Quota reached.{" "}
+            <span style={{ color:"var(--db-accent-mid)", cursor:"pointer", textDecoration:"underline" }} onClick={() => setActiveTab("upgrade")}>
+              Upgrade to Pro for unlimited access.
+            </span>
+          </p>
+        )}
+      </div>
+      <div className="db-stat-grid">
+        <StatCard label="Quotations Submitted" value={quotations.length} color="var(--db-accent-mid)" sub="All time" />
+        <StatCard label="This Month"            value={quotaUsed}         color="var(--db-amber)"      sub={`of ${QUOTA_LIMIT} allowed`} />
+        <StatCard label="Accepted"              value={accepted}          color="var(--db-green)"      sub="Won quotations" />
+      </div>
+      <div className="db-card">
+        <div className="db-card-header">
           <div>
-            <div className="db-upgrade-banner-title">⚡ You're on the Free Plan</div>
-            <div className="db-upgrade-banner-sub">Unlock unlimited bidding, priority listing &amp; analytics.</div>
+            <div className="db-card-title">Premium Features</div>
+            <div className="db-card-subtitle">Available on Pro &amp; Business plans</div>
           </div>
-          <button className="db-upgrade-cta-btn" onClick={() => setActiveTab("upgrade")}>Upgrade Now →</button>
+          <span style={{ fontSize:10, fontWeight:700, background:"#FEF3C7", color:"#92400E", border:"1px solid #FCD34D", borderRadius:20, padding:"2px 10px" }}>LOCKED</span>
         </div>
-
-        <div className="db-quota-card">
-          <div className="db-quota-header">
-            <span className="db-quota-label">Monthly Quotation Quota</span>
-            <span className="db-quota-count" style={{ color: barColor }}>{quotaUsed} / {QUOTA_LIMIT} used</span>
-          </div>
-          <div className="db-quota-track">
-            <div className="db-quota-fill" style={{ width: `${pct}%`, background: barColor }} />
-          </div>
-          {pct >= 100 && (
-            <p className="db-quota-hint" style={{ color: "var(--db-red)" }}>
-              Quota reached.{" "}
-              <span style={{ color: "var(--db-accent-mid)", cursor: "pointer", textDecoration: "underline" }}
-                onClick={() => setActiveTab("upgrade")}>Upgrade to Pro for unlimited access.</span>
-            </p>
-          )}
-        </div>
-
-        <div className="db-stat-grid">
-          <StatCard label="Quotations Submitted" value={quotations.length} color="var(--db-accent-mid)" sub="All time" />
-          <StatCard label="This Month"            value={quotaUsed}         color="var(--db-amber)"      sub={`of ${QUOTA_LIMIT} allowed`} />
-          <StatCard label="Accepted"              value={accepted}          color="var(--db-green)"      sub="Won quotations" />
-        </div>
-
-        <div className="db-card">
-          <div className="db-card-header">
-            <div>
-              <div className="db-card-title">Premium Features</div>
-              <div className="db-card-subtitle">Available on Pro &amp; Business plans</div>
+        <div className="db-locked-grid">
+          {LOCKED.map((f, i) => (
+            <div key={i} className="db-locked-cell">
+              <div className="db-locked-title">{f.title}</div>
+              <div className="db-locked-desc">{f.desc}</div>
+              <div className="db-locked-tag"> Requires Pro or Business</div>
             </div>
-            <span style={{ fontSize:10, fontWeight:700, background:"#FEF3C7", color:"#92400E", border:"1px solid #FCD34D", borderRadius:20, padding:"2px 10px" }}>🔒 LOCKED</span>
-          </div>
-          <div className="db-locked-grid">
-            {LOCKED.map((f, i) => (
-              <div key={i} className="db-locked-cell">
-                <div className="db-locked-title">{f.title}</div>
-                <div className="db-locked-desc">{f.desc}</div>
-                <div className="db-locked-tag">🔒 Requires Pro or Business</div>
-              </div>
-            ))}
-          </div>
-          <div className="db-locked-footer">
-            <button className="db-btn-primary" onClick={() => setActiveTab("upgrade")}
-              style={{ background:"linear-gradient(135deg,#D97706,#F59E0B)", boxShadow:"0 2px 8px rgba(217,119,6,0.35)" }}>
-              Unlock All Features — Upgrade Now
-            </button>
-          </div>
+          ))}
+        </div>
+        <div className="db-locked-footer">
+          <button className="db-btn-primary" onClick={() => setActiveTab("upgrade")} style={{ background:"linear-gradient(135deg,#D97706,#F59E0B)", boxShadow:"0 2px 8px rgba(217,119,6,0.35)" }}>
+            Unlock All Features — Upgrade Now
+          </button>
         </div>
       </div>
-    );
-  };
+    </div>
+  );
+}
 
-  // Projects tab uses projectSearch / filteredProjects from parent scope — no re-mount issue
-  const Projects = () => (
+function Projects({ filteredProjects, projects, projectSearch, setProjectSearch, quotaUsed, setQuoteModal, setActiveTab, loading }) {
+  return (
     <div>
       <div className="db-page-header" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
         <div>
@@ -267,27 +136,13 @@ useEffect(() => {
             <span style={{ color:"var(--db-amber)", fontWeight:600 }}>Basic: limited to {PROJECT_LIMIT}.</span>
           </div>
         </div>
-
-        {/* FIXED SEARCH BAR — value/onChange bound to parent state */}
-        <div style={{ position:"relative", minWidth:220 }}>
-          <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:"#94A3B8", fontSize:13 }}>🔍</span>
-          <input
-            type="text"
-            placeholder="Search projects..."
-            value={projectSearch}
-            onChange={e => setProjectSearch(e.target.value)}
-            style={{
-              paddingLeft:32, paddingRight:14, paddingTop:8, paddingBottom:8,
-              border:"1.5px solid #E2E8F0", borderRadius:8,
-              fontSize:12, fontFamily:"'Inter', sans-serif",
-              color:"#0F172A", outline:"none", width:220,
-              background:"#fff",
-              transition:"border-color 0.15s",
-            }}
-            onFocus={e => e.target.style.borderColor = "#3B82F6"}
-            onBlur={e  => e.target.style.borderColor = "#E2E8F0"}
-          />
-        </div>
+        <SearchBar
+          value={projectSearch}
+          onChange={e => setProjectSearch(e.target.value)}
+          placeholder="Search projects..."
+          accentColor="#3B82F6"
+          width={220}
+        />
       </div>
 
       {loading ? (
@@ -295,14 +150,15 @@ useEffect(() => {
       ) : filteredProjects.length === 0 ? (
         <div className="db-card">
           <div className="db-empty-state">
-            <div className="db-empty-icon">📋</div>
+            <div className="db-empty-icon"></div>
             <div className="db-empty-title">
               {projectSearch ? "No projects match your search" : "No projects available"}
             </div>
             <div className="db-empty-sub">
-              {projectSearch ? (
-                <button className="db-btn-ghost" onClick={() => setProjectSearch("")}>Clear search</button>
-              ) : "Check back later."}
+              {projectSearch
+                ? <button className="db-btn-ghost" onClick={() => setProjectSearch("")}>Clear search</button>
+                : "Check back later."
+              }
             </div>
           </div>
         </div>
@@ -331,15 +187,17 @@ useEffect(() => {
       )}
 
       <div className="db-notice-dashed">
-        <div style={{ fontSize:12.5, color:"var(--db-ink-3)", marginBottom:8 }}>🔒 More projects are hidden on Basic plan.</div>
+        <div style={{ fontSize:12.5, color:"var(--db-ink-3)", marginBottom:8 }}>More projects are hidden on Basic plan.</div>
         <button className="db-btn-ghost" style={{ color:"var(--db-accent-mid)", fontWeight:600 }} onClick={() => setActiveTab("upgrade")}>
           Upgrade to see all →
         </button>
       </div>
     </div>
   );
+}
 
-  const Quotations = () => (
+function Quotations({ quotations }) {
+  return (
     <div>
       <div className="db-page-header">
         <div className="db-page-title">My Quotations</div>
@@ -348,7 +206,7 @@ useEffect(() => {
       {quotations.length === 0 ? (
         <div className="db-card">
           <div className="db-empty-state">
-            <div className="db-empty-icon">📄</div>
+            <div className="db-empty-icon"></div>
             <div className="db-empty-title">No quotations yet</div>
             <div className="db-empty-sub">Go to Projects to submit your first quote.</div>
           </div>
@@ -374,8 +232,10 @@ useEffect(() => {
       )}
     </div>
   );
+}
 
-  const Profile = () => (
+function Profile({ shop, setActiveTab }) {
+  return (
     <div>
       <div className="db-page-header">
         <div className="db-page-title">Shop Profile</div>
@@ -416,46 +276,230 @@ useEffect(() => {
       )}
     </div>
   );
+}
 
-  const Upgrade = () => {
-    if (existingPayment === undefined) {
-      return <div className="db-loading-center"><div className="db-spinner" /></div>;
-    }
-    return (
-      <div>
-        <div className="db-page-header">
-          <div className="db-page-title">Upgrade Your Plan</div>
-          <div className="db-page-sub">
-            Submit your payment reference after sending via GCash, Maya, BDO, BPI, Visa/MC, or UnionBank.
-            The admin will confirm within 24 hours and activate your plan automatically.
+// REPLACE ONLY the Upgrade function in DashboardBasicPage.jsx
+// Also add this import at the TOP of DashboardBasicPage.jsx:
+// import StripePaymentForm from "../../components/forms/StripePaymentForm";
+
+function Upgrade({ existingPayment, onPaymentSuccess }) {
+  const [paymentMode, setPaymentMode] = React.useState("choose"); // "choose" | "stripe" | "manual"
+
+  if (existingPayment === undefined) {
+    return <div className="db-loading-center"><div className="db-spinner" /></div>;
+  }
+
+  return (
+    <div>
+      <div className="db-page-header">
+        <div className="db-page-title">Upgrade Your Plan</div>
+        <div className="db-page-sub">
+          Choose how you'd like to pay — instant card payment via Stripe, or manual bank transfer.
+        </div>
+      </div>
+
+      {/* Payment Mode Chooser */}
+      {paymentMode === "choose" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+          {/* Stripe Option */}
+          <div
+            onClick={() => setPaymentMode("stripe")}
+            style={{
+              background: "#fff", borderRadius: 14,
+              border: "2px solid #BFDBFE", padding: "24px 20px",
+              cursor: "pointer", textAlign: "center",
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = "#3B82F6"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(59,130,246,0.12)"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = "#BFDBFE"; e.currentTarget.style.boxShadow = "none"; }}
+          >
+            <div style={{ fontSize: 32, marginBottom: 10 }}>💳</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "#0F172A", marginBottom: 6 }}>Pay with Card</div>
+            <div style={{ fontSize: 11.5, color: "#64748B", lineHeight: 1.6, marginBottom: 12 }}>
+              Instant activation via Stripe.<br />Visa, Mastercard accepted.
+            </div>
+            <span style={{
+              display: "inline-block", fontSize: 10, fontWeight: 700,
+              background: "#EFF6FF", color: "#1D4ED8",
+              border: "1px solid #BFDBFE", borderRadius: 20, padding: "2px 10px",
+            }}>RECOMMENDED</span>
+          </div>
+
+          {/* Manual Option */}
+          <div
+            onClick={() => setPaymentMode("manual")}
+            style={{
+              background: "#fff", borderRadius: 14,
+              border: "2px solid #E2E8F0", padding: "24px 20px",
+              cursor: "pointer", textAlign: "center",
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = "#94A3B8"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.06)"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.boxShadow = "none"; }}
+          >
+            <div style={{ fontSize: 32, marginBottom: 10 }}>🏦</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "#0F172A", marginBottom: 6 }}>Manual Transfer</div>
+            <div style={{ fontSize: 11.5, color: "#64748B", lineHeight: 1.6, marginBottom: 12 }}>
+              GCash, Maya, BDO, BPI.<br />Admin confirms within 24hrs.
+            </div>
+            <span style={{
+              display: "inline-block", fontSize: 10, fontWeight: 700,
+              background: "#F8FAFC", color: "#64748B",
+              border: "1px solid #E2E8F0", borderRadius: 20, padding: "2px 10px",
+            }}>MANUAL</span>
           </div>
         </div>
+      )}
 
-        <div style={{ background:"#fff", borderRadius:14, border:"1px solid #E2E8F0", padding:"28px" }}>
+      {/* Stripe Form */}
+      {paymentMode === "stripe" && (
+        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #E2E8F0", padding: "28px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+            <button
+              onClick={() => setPaymentMode("choose")}
+              style={{ fontSize: 12, color: "#64748B", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            >← Back</button>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#0F172A" }}>Pay with Card (Stripe)</div>
+          </div>
+          <StripePaymentForm onCancel={() => setPaymentMode("choose")} />
+        </div>
+      )}
+
+      {/* Manual Form */}
+      {paymentMode === "manual" && (
+        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #E2E8F0", padding: "28px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+            <button
+              onClick={() => setPaymentMode("choose")}
+              style={{ fontSize: 12, color: "#64748B", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            >← Back</button>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#0F172A" }}>Manual Bank Transfer</div>
+          </div>
           <PaymentForm
             existingRequest={existingPayment || null}
-            onSuccess={() => {
-              getMyPaymentRequest()
-                .then(r => setExistingPayment(r))
-                .catch(() => {});
-            }}
+            onSuccess={onPaymentSuccess}
           />
         </div>
+      )}
 
-        {!existingPayment && (
-          <div className="db-info-box blue" style={{ marginTop:20 }}>
-            <div className="db-info-box-title">💳 How Payment Works</div>
-            <ol style={{ paddingLeft:18, fontSize:12.5, lineHeight:2, color:"var(--db-ink-2)" }}>
-              <li>Choose your plan (Pro ₱499/mo or Business ₱4,499/yr)</li>
-              <li>Select a payment method and send the exact amount</li>
-              <li>Enter your reference number and upload a screenshot</li>
-              <li>The Super Admin reviews and activates your plan within 24 hours</li>
-              <li>You'll receive a confirmation email once your plan is active</li>
-            </ol>
+      {/* Info box shown only on chooser screen */}
+      {paymentMode === "choose" && (
+        <div className="db-info-box blue">
+          <div className="db-info-box-title">Which should I choose?</div>
+          <div style={{ fontSize: 12.5, color: "var(--db-ink-2)", lineHeight: 1.8 }}>
+            <strong>Stripe (Card):</strong> Instant — your plan activates immediately after payment.<br />
+            <strong>Manual Transfer:</strong> Slower — admin must verify within 24 hours before activation.
           </div>
-        )}
-      </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── MAIN COMPONENT ────────────────────────────────────────────────────────
+
+export default function ShopDashboardBasic() {
+  const navigate = useNavigate();
+
+  const [shop, setShop]                       = useState(null);
+  const [projects, setProjects]               = useState([]);
+  const [quotations, setQuotations]           = useState([]);
+  const [existingPayment, setExistingPayment] = useState(undefined);
+  const [loading, setLoading]                 = useState(true);
+  const [activeTab, setActiveTab]             = useState("overview");
+  const [toast, setToast]                     = useState(null);
+  const [quoteModal, setQuoteModal]           = useState(null);
+  const [quoteForm, setQuoteForm]             = useState({ amount: "", note: "" });
+  const [submitting, setSubmitting]           = useState(false);
+  const [showPlanActivatedModal, setShowPlanActivatedModal] = useState(false);
+  const prevStatusRef = useRef(null);
+
+  // Search state lives in parent — passed as props, NOT causing tab remount
+  const [projectSearch, setProjectSearch, debouncedSearch] = useSearch("");
+
+  const now = new Date();
+  const quotaUsed = quotations.filter(q => {
+    const d = q.createdAt?.toDate?.() || new Date(q.createdAt);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }).length;
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [shopData, quotData, paymentData] = await Promise.all([
+          getShopProfile(),
+          getShopQuotations(),
+          getMyPaymentRequest().catch(() => null),
+        ]);
+        const projectData = await getPostedProjects().catch(err => {
+          console.warn("Projects fetch failed:", err.message);
+          return [];
+        });
+        setShop(shopData);
+        setProjects(projectData.slice(0, PROJECT_LIMIT));
+        setQuotations(quotData);
+        setExistingPayment(paymentData);
+      } catch (err) {
+        console.error("Dashboard load error:", err);
+        showToast("Failed to load data. Please refresh.", "error");
+        setExistingPayment(null);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const unsubscribe = onSnapshot(doc(db, "shops", user.uid), (snap) => {
+      if (!snap.exists()) return;
+      const { subscriptionStatus } = snap.data();
+      if (prevStatusRef.current !== null && prevStatusRef.current !== "active" && subscriptionStatus === "active") {
+        setShowPlanActivatedModal(true);
+      }
+      prevStatusRef.current = subscriptionStatus;
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const showToast = (msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  const handleQuote = async () => {
+    if (!quoteForm.amount) return;
+    if (quotaUsed >= QUOTA_LIMIT) {
+      showToast("Monthly quota reached. Upgrade to Pro.", "error");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await submitQuotation({ projectId: quoteModal.id, ...quoteForm });
+      showToast("Quotation submitted!");
+      setQuoteModal(null);
+      setQuoteForm({ amount: "", note: "" });
+      const updated = await getShopQuotations();
+      setQuotations(updated);
+    } catch (err) {
+      showToast(err.message || "Failed to submit.", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const filteredProjects = projects.filter(p => {
+    const q = debouncedSearch.toLowerCase();
+    return (
+      p.title?.toLowerCase().includes(q) ||
+      p.city?.toLowerCase().includes(q) ||
+      p.materials?.join(" ").toLowerCase().includes(q)
     );
+  });
+
+  const handlePaymentSuccess = () => {
+    getMyPaymentRequest().then(r => setExistingPayment(r)).catch(() => {});
   };
 
   const renderContent = () => {
@@ -463,49 +507,16 @@ useEffect(() => {
       return <div className="db-loading-center"><div className="db-spinner" />Loading dashboard...</div>;
     }
     switch (activeTab) {
-      case "overview":   return <Overview />;
-      case "projects":   return <Projects />;
-      case "quotations": return <Quotations />;
-      case "profile":    return <Profile />;
-       case "products":   return <ProductsTab planColor="#F59E0B" />;
-      case "upgrade":    return <Upgrade />;
-      default:           return <Overview />;
+      case "overview":   return <Overview quotations={quotations} projects={projects} quotaUsed={quotaUsed} setActiveTab={setActiveTab} />;
+      case "projects":   return <Projects filteredProjects={filteredProjects} projects={projects} projectSearch={projectSearch} setProjectSearch={setProjectSearch} quotaUsed={quotaUsed} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} loading={loading} />;
+      case "quotations": return <Quotations quotations={quotations} />;
+      case "profile":    return <Profile shop={shop} setActiveTab={setActiveTab} />;
+      case "products":   return <ProductsTab plan="basic" />;
+      case "upgrade":    return <Upgrade existingPayment={existingPayment} onPaymentSuccess={handlePaymentSuccess} />;
+      default:           return <Overview quotations={quotations} projects={projects} quotaUsed={quotaUsed} setActiveTab={setActiveTab} />;
     }
   };
 
-  const QuoteModal = () => quoteModal && (
-    <div className="db-modal-overlay" onClick={e => { if (e.target === e.currentTarget) setQuoteModal(null); }}>
-      <div className="db-modal">
-        <div className="db-modal-title">Submit Quotation</div>
-        <div className="db-modal-sub">
-          For: <strong style={{ color:"var(--db-ink)" }}>{quoteModal.title || "Project"}</strong><br />
-          Remaining quota: <strong style={{ color: quotaUsed >= QUOTA_LIMIT ? "var(--db-red)" : "var(--db-green)" }}>
-            {QUOTA_LIMIT - quotaUsed} of {QUOTA_LIMIT}
-          </strong>
-        </div>
-        <div className="db-form-group">
-          <label className="db-form-label">Quote Amount (₱)</label>
-          <input type="number" className="db-form-input" placeholder="e.g. 15000"
-            value={quoteForm.amount}
-            onChange={e => setQuoteForm(f => ({...f, amount: e.target.value}))} />
-        </div>
-        <div className="db-form-group">
-          <label className="db-form-label">Notes (optional)</label>
-          <textarea rows={3} className="db-form-textarea" placeholder="Delivery, availability, conditions..."
-            value={quoteForm.note}
-            onChange={e => setQuoteForm(f => ({...f, note: e.target.value}))} />
-        </div>
-        <div className="db-modal-actions">
-          <button className="db-btn-secondary" onClick={() => setQuoteModal(null)}>Cancel</button>
-          <button className="db-btn-primary" disabled={!quoteForm.amount || submitting}
-            onClick={handleQuote} style={{ flex:1, justifyContent:"center" }}>
-            {submitting ? "Submitting..." : "Submit Quotation"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <div className="db-shell">
       <aside className="db-sidebar">
@@ -553,65 +564,50 @@ useEffect(() => {
         <main className="db-content">{renderContent()}</main>
       </div>
 
-      <QuoteModal />
-      {toast && <div className={`db-toast ${toast.type}`}>{toast.msg}</div>}
-
-
-    </div>
-  );
-
-
-  return (
-    <div className="db-shell">
-      <aside className="db-sidebar">
-        <div className="db-sidebar-logo">
-          <div className="db-sidebar-brand">iConstruct</div>
-          <div className="db-sidebar-sub">Shop Manager</div>
-          <div className="db-sidebar-plan-wrap"><PlanBadge /></div>
-        </div>
-        <nav className="db-sidebar-nav">
-          <div className="db-nav-section-label">Navigation</div>
-          {NAV.map(item => (
-            <button key={item.key}
-              className={`db-nav-item${activeTab===item.key?" active":""}${item.isUpgrade?" upgrade-item":""}`}
-              onClick={() => setActiveTab(item.key)}>
-              <span>{item.label}</span>
-              {item.isUpgrade && <span className="db-nav-badge-new">UPGRADE</span>}
-            </button>
-          ))}
-        </nav>
-        <div className="db-sidebar-footer">
-          <div className="db-sidebar-user">
-            <div className="db-sidebar-avatar">{initials(shop?.shopName)}</div>
-            <div style={{ minWidth:0 }}>
-              <div className="db-sidebar-user-name">{shop?.shopName || "Loading..."}</div>
-              <div className="db-sidebar-user-role">{shop?.ownerName || ""}</div>
+      {/* Quote Modal */}
+      {quoteModal && (
+        <div className="db-modal-overlay" onClick={e => { if (e.target === e.currentTarget) setQuoteModal(null); }}>
+          <div className="db-modal">
+            <div className="db-modal-title">Submit Quotation</div>
+            <div className="db-modal-sub">
+              For: <strong style={{ color:"var(--db-ink)" }}>{quoteModal.title || "Project"}</strong><br />
+              Remaining quota: <strong style={{ color: quotaUsed >= QUOTA_LIMIT ? "var(--db-red)" : "var(--db-green)" }}>
+                {QUOTA_LIMIT - quotaUsed} of {QUOTA_LIMIT}
+              </strong>
+            </div>
+            <div className="db-form-group">
+              <label className="db-form-label">Quote Amount (₱)</label>
+              <input
+                type="number"
+                className="db-form-input"
+                placeholder="e.g. 15000"
+                value={quoteForm.amount}
+                onChange={e => setQuoteForm(f => ({...f, amount: e.target.value}))}
+              />
+            </div>
+            <div className="db-form-group">
+              <label className="db-form-label">Notes (optional)</label>
+              <textarea
+                rows={3}
+                className="db-form-textarea"
+                placeholder="Delivery, availability, conditions..."
+                value={quoteForm.note}
+                onChange={e => setQuoteForm(f => ({...f, note: e.target.value}))}
+              />
+            </div>
+            <div className="db-modal-actions">
+              <button className="db-btn-secondary" onClick={() => setQuoteModal(null)}>Cancel</button>
+              <button className="db-btn-primary" disabled={!quoteForm.amount || submitting} onClick={handleQuote} style={{ flex:1, justifyContent:"center" }}>
+                {submitting ? "Submitting..." : "Submit Quotation"}
+              </button>
             </div>
           </div>
-          <button className="db-signout-btn" onClick={async () => { await logoutShop(); navigate("/login"); }}>
-            Sign Out
-          </button>
         </div>
-      </aside>
-
-      <div className="db-main-col">
-        <header className="db-topbar">
-          <div>
-            <div className="db-topbar-title">{NAV.find(n=>n.key===activeTab)?.label}</div>
-            <div className="db-topbar-breadcrumb">iConstruct · Shop Manager</div>
-          </div>
-          <div className="db-topbar-right">
-            <PlanBadge />
-            <div className="db-topbar-avatar">{initials(shop?.shopName)}</div>
-          </div>
-        </header>
-        <main className="db-content">{renderContent()}</main>
-      </div>
-
-      <QuoteModal />
+      )}
 
       {toast && <div className={`db-toast ${toast.type}`}>{toast.msg}</div>}
 
+      {/* Plan Activation Modal */}
       {showPlanActivatedModal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.6)", backdropFilter:"blur(8px)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
           <div style={{ background:"#fff", borderRadius:20, padding:"40px 36px", width:"100%", maxWidth:420, textAlign:"center", boxShadow:"0 32px 80px rgba(0,0,0,0.25)", position:"relative", overflow:"hidden" }}>
@@ -625,13 +621,13 @@ useEffect(() => {
               To apply your new subscription features, please <strong style={{ color:"#0F172A" }}>sign out and log back in</strong>.
             </p>
             <div style={{ background:"#FFF7ED", border:"1px solid #FED7AA", borderRadius:10, padding:"12px 16px", marginBottom:24, fontSize:12.5, color:"#92400E", lineHeight:1.6 }}>
-              ⚠️ You must sign out and sign back in for your upgraded plan to take effect.
+              You must sign out and sign back in for your upgraded plan to take effect.
             </div>
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={() => setShowPlanActivatedModal(false)} style={{ flex:1, padding:"12px", borderRadius:10, border:"1.5px solid rgba(44,62,80,0.15)", background:"transparent", color:"rgba(44,62,80,0.6)", fontSize:13, fontWeight:500, cursor:"pointer", fontFamily:"'Inter', sans-serif" }}>
+              <button onClick={() => setShowPlanActivatedModal(false)} style={{ flex:1, padding:"12px", borderRadius:10, border:"1.5px solid rgba(44,62,80,0.15)", background:"transparent", color:"rgba(44,62,80,0.6)", fontSize:13, fontWeight:500, cursor:"pointer" }}>
                 Remind Me Later
               </button>
-              <button onClick={async () => { await logoutShop(); navigate("/login"); }} style={{ flex:2, padding:"12px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#7C3AED,#6D28D9)", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Inter', sans-serif", boxShadow:"0 4px 14px rgba(124,58,237,0.3)" }}>
+              <button onClick={async () => { await logoutShop(); navigate("/login"); }} style={{ flex:2, padding:"12px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#7C3AED,#6D28D9)", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", boxShadow:"0 4px 14px rgba(124,58,237,0.3)" }}>
                 Sign Out &amp; Log In Again →
               </button>
             </div>

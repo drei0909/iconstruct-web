@@ -6,6 +6,10 @@
 import { useState } from "react";
 import { submitPaymentRequest, getMyPaymentRequest } from "../../controllers/shopController";
 
+import { redirectToStripeCheckout } from "../../controllers/stripeController";
+import { auth } from "../../services/firebase";
+
+
 const PLANS = [
   {
     id: "pro",
@@ -29,12 +33,12 @@ const PLANS = [
 ];
 
 const PAYMENT_METHODS = [
-  { id: "GCash",          label: "GCash",           icon: "📱", color: "#007aff", hint: "Send to: 0917-XXX-XXXX (iConstruct)" },
-  { id: "Maya",           label: "Maya",             icon: "💳", color: "#00b4d8", hint: "Send to: 0961-XXX-XXXX (iConstruct)" },
-  { id: "BDO",            label: "BDO Transfer",     icon: "🏦", color: "#1a3c6e", hint: "Account: 0012-3456-7890 (iConstruct Inc.)" },
-  { id: "BPI",            label: "BPI Transfer",     icon: "🏦", color: "#c00",    hint: "Account: 1234-5678-90 (iConstruct Inc.)" },
-  { id: "Visa/Mastercard",label: "Visa / Mastercard",icon: "💳", color: "#1a1a2e", hint: "Pay link will be emailed within 1 hour." },
-  { id: "UnionBank",      label: "UnionBank Online", icon: "🏦", color: "#f7931e", hint: "Account: 109-500-123456-7 (iConstruct)" },
+  { id: "GCash",          label: "GCash",          color: "#007aff", hint: "Send to: 0917-XXX-XXXX (iConstruct)" },
+  { id: "Maya",           label: "Maya",              color: "#00b4d8", hint: "Send to: 0961-XXX-XXXX (iConstruct)" },
+  { id: "BDO",            label: "BDO Transfer",      color: "#1a3c6e", hint: "Account: 0012-3456-7890 (iConstruct Inc.)" },
+  { id: "BPI",            label: "BPI Transfer",      color: "#c00",    hint: "Account: 1234-5678-90 (iConstruct Inc.)" },
+  { id: "Visa/Mastercard",label: "Visa / Mastercard", color: "#1a1a2e", hint: "Pay link will be emailed within 1 hour." },
+  { id: "UnionBank",      label: "UnionBank Online",  color: "#f7931e", hint: "Account: 109-500-123456-7 (iConstruct)" },
 ];
 
 export default function PaymentForm({ onSuccess, existingRequest }) {
@@ -80,18 +84,18 @@ export default function PaymentForm({ onSuccess, existingRequest }) {
           </div>
           {existingRequest.status === "pending" && (
             <p style={{ fontSize: 12, color: statusColor.text, opacity: 0.75, borderTop: `1px solid ${statusColor.border}`, paddingTop: 12, marginTop: 4 }}>
-              ⏳ The admin is reviewing your payment. You'll receive an email once confirmed. This usually takes within 24 hours.
+              The admin is reviewing your payment. You'll receive an email once confirmed. This usually takes within 24 hours.
             </p>
           )}
           {existingRequest.status === "confirmed" && (
             <p style={{ fontSize: 12, color: statusColor.text, opacity: 0.75, borderTop: `1px solid ${statusColor.border}`, paddingTop: 12, marginTop: 4 }}>
-              ✅ Your plan is now active! Refresh the page to access your upgraded dashboard.
+              Your plan is now active! Refresh the page to access your upgraded dashboard.
             </p>
           )}
           {existingRequest.status === "rejected" && (
             <div style={{ borderTop: `1px solid ${statusColor.border}`, paddingTop: 12, marginTop: 4 }}>
               <p style={{ fontSize: 12, color: statusColor.text, opacity: 0.75, marginBottom: 10 }}>
-                ❌ Reason: {existingRequest.rejectionReason || "Payment could not be verified."}
+                 Reason: {existingRequest.rejectionReason || "Payment could not be verified."}
               </p>
               <button onClick={() => window.location.reload()} style={{
                 fontSize: 12, fontWeight: 600, padding: "7px 16px",
@@ -267,10 +271,10 @@ export default function PaymentForm({ onSuccess, existingRequest }) {
               background: "#F0F9FF", border: "1px solid #BAE6FD",
               borderRadius: 10, padding: "12px 16px", marginBottom: 16,
             }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#0369A1", marginBottom: 3 }}>📋 PAYMENT DETAILS</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#0369A1", marginBottom: 3 }}>PAYMENT DETAILS</div>
               <div style={{ fontSize: 12.5, color: "#0C4A6E" }}>{selectedMethod.hint}</div>
               <div style={{ fontSize: 11, color: "#0369A1", marginTop: 6 }}>
-                ℹ️ Send exactly <strong>{selectedPlan.price}</strong> then keep your reference number.
+                Send exactly <strong>{selectedPlan.price}</strong> then keep your reference number.
               </div>
             </div>
           )}
@@ -284,7 +288,23 @@ export default function PaymentForm({ onSuccess, existingRequest }) {
             }}>← Back</button>
             <button
               disabled={!selectedMethod}
-              onClick={() => setStep(3)}
+              onClick={async () => {
+                    if (selectedMethod.id === "GCash" || selectedMethod.id === "Maya") {
+                      try {
+                        const user = auth.currentUser;
+                        await redirectToStripeCheckout({
+                          planId:    selectedPlan.id,
+                          shopId:    user?.uid   || "",
+                          shopEmail: user?.email || "",
+                        });
+                        // Browser redirects to Stripe — nothing runs after this
+                      } catch (err) {
+                        setError(err.message || "Failed to connect to Stripe. Please try again.");
+                      }
+                    } else {
+                      setStep(3); // BDO, BPI, UnionBank, Visa/Mastercard → manual flow
+                    }
+                  }}
               style={{
                 flex: 1, padding: "12px", borderRadius: 10,
                 border: "none", cursor: selectedMethod ? "pointer" : "not-allowed",
@@ -311,7 +331,7 @@ export default function PaymentForm({ onSuccess, existingRequest }) {
             borderRadius: 10, padding: "10px 14px", marginBottom: 20, fontSize: 12,
             color: "#92400E",
           }}>
-            ⚠️ Make sure you've already sent payment before submitting. The admin will verify your reference number and activate your plan within 24 hours.
+            Make sure you've already sent payment before submitting. The admin will verify your reference number and activate your plan within 24 hours.
           </div>
 
           <div style={{ marginBottom: 16 }}>
@@ -352,7 +372,7 @@ export default function PaymentForm({ onSuccess, existingRequest }) {
                 <img src={screenshot} alt="proof" style={{ maxHeight: 120, maxWidth: "100%", borderRadius: 6, objectFit: "contain" }} />
               ) : (
                 <>
-                  <span style={{ fontSize: 24, marginBottom: 6 }}>📎</span>
+                  <span style={{ fontSize: 24, marginBottom: 6 }}></span>
                   <span style={{ fontSize: 12, color: "#64748B" }}>Click to upload screenshot</span>
                   <span style={{ fontSize: 11, color: "#94A3B8" }}>PNG, JPG up to 5MB</span>
                 </>

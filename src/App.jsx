@@ -13,6 +13,9 @@ import FAQs      from "./components/layout/faqs";
 import AboutUs   from "./components/layout/aboutUs";
 import ContactUs from "./components/layout/contactUs";
 
+// Shop pages
+import PaymentSuccessPage from "./views/shop/PaymentSuccessPage";
+
 // Admin pages — updated paths
 import AdminLoginPage     from "./views/admin/AdminLoginPage";
 import AdminDashboardPage from "./views/admin/AdminDashboardPage";
@@ -53,9 +56,10 @@ export default function App() {
             </AdminRoute>
           }
         />
-
+                  
         {/* Shop dashboard — no Layout */}
-        <Route path="/dashboard" element={<ShopDashboardRouter />} />
+        <Route path="/shop/dashboard" element={<ShopDashboardRouter />} />
+        <Route path="/shop/payment-success" element={<PaymentSuccessPage />} />
 
       </Routes>
     </Router>

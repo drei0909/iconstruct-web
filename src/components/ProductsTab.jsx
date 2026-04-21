@@ -1,854 +1,1081 @@
 // src/components/ProductsTab.jsx
-// Plan-aware Products tab — works in Basic, Pro, and Business dashboards
+// ─────────────────────────────────────────────────────────────
+// "My Products" tab used by all three dashboards.
 //
-// PLAN LIMITS (aligned with pricing page):
-//   Basic    → 20 products max, no bulk import
-//   Pro      → 150 products max, no bulk import
-//   Business → No product cap, CSV/Excel bulk import with smart features
+// FLOW:
+//   1. Shop owner creates a Category first (shops/{uid}/categories/{id})
+//   2. Under each Category, they add Products (top-level `products` collection
+//      with shopId + categoryId fields)
+//   3. The mobile app reads both collections from the same Firebase project
 //
-// SMART FEATURES (Business only):
-//   - CSV/Excel bulk import via SheetJS
-//   - Preview table before importing (confirm rows)
-//   - Auto-correct: trim spaces, convert strings to numbers
-//   - Flag duplicate product names automatically
-//   - Maps CSV columns → Firestore fields automatically
+// BACKWARDS COMPATIBLE:
+//   Products without a categoryId show under "Uncategorized".
+//
+// Props
+// ─────
+//   plan  {string}  "basic" | "pro" | "business"
+// ─────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { auth, db, storage } from "../services/firebase";
 import {
-  getMyProducts, addProduct, deleteProduct, toggleProductAvailability,
-} from "../controllers/shopController";
+  collection, addDoc, getDocs, deleteDoc,
+  doc, query, where, serverTimestamp,
+} from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getPlanConfig, formatProductLimit, isAtProductLimit } from "../config/planConfig";
+import { getMyCategories, addCategory, editCategory, removeCategory } from "../controllers/shopCategoryController";
 
-// ── Plan configuration ─────────────────────────────────────────────────────
-// planColor is passed from the dashboard. planLimit controls the product cap.
-// planTier is derived from planColor to determine features.
-const PLAN_LIMITS = {
-  "#F59E0B": { label: "Basic",    max: 20,       csvImport: false }, // amber  = Basic
-  "#3B82F6": { label: "Pro",      max: 150,      csvImport: false }, // blue   = Pro
-  "#7C3AED": { label: "Business", max: Infinity, csvImport: true  }, // purple = Business
+// ── Design tokens ─────────────────────────────────────────────
+const T = {
+  fontDisplay : "'Lora', Georgia, serif",
+  fontBody    : "'Inter', sans-serif",
+  ink         : "#1A2332",
+  ink2        : "#3D5166",
+  ink3        : "#6B7F96",
+  ink4        : "#A8B8C8",
+  border      : "#E4E9F0",
+  borderLight : "#EEF2F7",
+  surface     : "#FFFFFF",
+  surface2    : "#F8FAFC",
+  green       : "#059669",
+  greenLight  : "#ECFDF5",
+  greenBorder : "#6EE7B7",
+  red         : "#DC2626",
+  redLight    : "#FEF2F2",
+  amber       : "#D97706",
+  amberLight  : "#FFFBEB",
+  radius      : "12px",
+  radiusSm    : "8px",
+  shadowSm    : "0 1px 3px rgba(26,35,50,0.06)",
+  shadowMd    : "0 4px 16px rgba(26,35,50,0.08)",
 };
 
-// ── Constants ──────────────────────────────────────────────────────────────
-const PRODUCT_CATEGORIES = [
-  "general", "lumber", "cement", "steel", "paint",
-  "electrical", "plumbing", "tools", "hardware",
-  "tiles", "roofing", "glass", "pipes", "fasteners",
-];
+const peso = (n) =>
+  new Intl.NumberFormat("en-PH", {
+    style: "currency", currency: "PHP", maximumFractionDigits: 0,
+  }).format(n ?? 0);
 
-const UNITS = [
-  "piece", "bag", "sack", "roll", "sheet",
-  "meter", "liter", "set", "box", "pair",
-  "kilogram", "ton", "bundle",
-];
+// ── Reusable Field wrapper ────────────────────────────────────
+function Field({ label, required, children }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label style={{
+        fontSize: 11.5, fontWeight: 600, color: T.ink2,
+        display: "block", marginBottom: 5, fontFamily: T.fontBody,
+      }}>
+        {label}{required && <span style={{ color: T.red, marginLeft: 2 }}>*</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
 
-const CATEGORY_ICONS = {
-  general:"📦", lumber:"🪵", cement:"🏗️", steel:"⚙️", paint:"🎨",
-  electrical:"⚡", plumbing:"🔧", tools:"🛠️", hardware:"🔩",
-  tiles:"🟦", roofing:"🏠", glass:"🪟", pipes:"🔌", fasteners:"📌",
-};
+// ── Shared input style ────────────────────────────────────────
+const inputStyle = (accentColor) => ({
+  width: "100%", padding: "10px 14px",
+  border: `1.5px solid ${T.border}`, borderRadius: T.radiusSm,
+  fontSize: 13, fontFamily: T.fontBody, color: T.ink,
+  background: T.surface, outline: "none",
+  transition: "border-color 0.15s", boxSizing: "border-box",
+});
 
-// CSV column → Firestore field mapping (case-insensitive, flexible headers)
-const CSV_FIELD_MAP = {
-  name:        ["name","product","product name","item","item name"],
-  price:       ["price","cost","amount","unit price"],
-  unit:        ["unit","unit of measure","uom","sold per"],
-  category:    ["category","type","product type"],
-  description: ["description","desc","details","notes"],
-};
+// ── Modal shell ───────────────────────────────────────────────
+function Modal({ title, subtitle, accentColor, onClose, children }) {
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0,
+        background: "rgba(26,35,50,0.55)", backdropFilter: "blur(6px)",
+        zIndex: 300, display: "flex", alignItems: "center",
+        justifyContent: "center", padding: 24,
+      }}
+      onClick={e => e.target === e.currentTarget && onClose()}
+    >
+      <div style={{
+        background: T.surface, borderRadius: 16,
+        width: "100%", maxWidth: 480, padding: "32px 28px",
+        boxShadow: "0 32px 80px rgba(26,35,50,0.2)",
+        maxHeight: "90vh", overflowY: "auto", position: "relative",
+      }}>
+        {/* Top accent bar */}
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0, height: 4,
+          background: accentColor, borderRadius: "16px 16px 0 0",
+        }} />
+        <div style={{
+          fontFamily: T.fontDisplay, fontSize: 18, fontWeight: 700,
+          color: T.ink, marginBottom: 4, marginTop: 8,
+        }}>{title}</div>
+        {subtitle && (
+          <div style={{ fontSize: 13, color: T.ink3, marginBottom: 22, lineHeight: 1.5 }}>
+            {subtitle}
+          </div>
+        )}
+        {children}
+      </div>
+    </div>
+  );
+}
 
-const initialForm = {
-  name:"", description:"", price:"", unit:"piece", category:"general", imageBase64:"",
-};
+// ─────────────────────────────────────────────────────────────
+// MAIN COMPONENT
+// ─────────────────────────────────────────────────────────────
+export default function ProductsTab({ plan = "basic" }) {
+  const cfg        = getPlanConfig(plan);
+  const limit      = cfg.productLimit;
+  const isUnlimited = limit === Infinity;
+  const uid        = auth.currentUser?.uid;
 
-// ── Helper: parse CSV text → array of row objects ──────────────────────────
-function parseCSVText(text) {
-  const lines = text.trim().split(/\r?\n/);
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, "").toLowerCase());
-  return lines.slice(1).map(line => {
-    const vals = line.split(",").map(v => v.trim().replace(/^"|"$/g, ""));
-    const row  = {};
-    headers.forEach((h, i) => { row[h] = vals[i] || ""; });
-    return row;
+  // ── View state: "categories" | "products" ────────────────────
+  const [view, setView] = useState("categories"); // start on categories list
+
+  // ── Data ─────────────────────────────────────────────────────
+  const [categories, setCategories] = useState([]);
+  const [products,   setProducts]   = useState([]);
+  const [loadingCats, setLoadingCats] = useState(true);
+  const [loadingProds, setLoadingProds] = useState(false);
+
+  // ── Selected category (when drilling into products) ───────────
+  const [selectedCat, setSelectedCat] = useState(null); // { id, name, icon }
+
+  // ── Modals ────────────────────────────────────────────────────
+  const [showCatModal,  setShowCatModal]  = useState(false);
+  const [editCatData,   setEditCatData]   = useState(null); // null = add mode
+  const [showProdModal, setShowProdModal] = useState(false);
+
+  // ── Forms ─────────────────────────────────────────────────────
+  const [catForm,  setCatForm]  = useState({ name: "", description: "", icon: "📦" });
+  const [prodForm, setProdForm] = useState({
+    name: "", unit: "", price: "", description: "",
+    inStock: true, imageFile: null, imagePreview: null,
   });
-}
 
-// ── Helper: map raw CSV row → product fields ───────────────────────────────
-// Auto-corrects: trims whitespace, converts price strings → numbers
-function mapRowToProduct(row) {
-  const get = (fieldKey) => {
-    const aliases = CSV_FIELD_MAP[fieldKey] || [];
-    for (const alias of aliases) {
-      if (row[alias] !== undefined && row[alias] !== "") return row[alias].trim();
-    }
-    return "";
-  };
+  // ── UI state ──────────────────────────────────────────────────
+  const [saving,    setSaving]    = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [searchQ,   setSearchQ]   = useState("");
+  const [toast,     setToast]     = useState(null);
+  const fileRef = useRef(null);
 
-  const rawPrice = get("price").replace(/[₱,\s]/g, "");
-  const price    = parseFloat(rawPrice) || 0;
+  // ── Derived ───────────────────────────────────────────────────
+  const totalProducts = products.length; // across all categories for this shop
+  const atLimit = isAtProductLimit(totalProducts, limit);
 
-  const rawCat  = get("category").toLowerCase();
-  const category = PRODUCT_CATEGORIES.includes(rawCat) ? rawCat : "general";
+  const filteredProducts = products.filter(p => {
+    const q = searchQ.toLowerCase();
+    return (
+      p.name?.toLowerCase().includes(q) ||
+      p.description?.toLowerCase().includes(q) ||
+      p.unit?.toLowerCase().includes(q)
+    );
+  });
 
-  const rawUnit = get("unit").toLowerCase();
-  const unit    = UNITS.includes(rawUnit) ? rawUnit : "piece";
-
-  return {
-    name:        get("name"),
-    price:       price.toString(),
-    unit,
-    category,
-    description: get("description"),
-    imageBase64: "",
-  };
-}
-
-export default function ProductsTab({ planColor = "#2C5282" }) {
-  // ── Resolve plan config from planColor ──
-  const planCfg  = PLAN_LIMITS[planColor] || { label:"Basic", max:20, csvImport:false };
-  const planMax  = planCfg.max;
-  const canCSV   = planCfg.csvImport;
-  const planLabel = planCfg.label;
-
-  // ── State ──────────────────────────────────────────────────────────────
-  const [products, setProducts]         = useState([]);
-  const [loading, setLoading]           = useState(true);
-  const [showModal, setShowModal]       = useState(false);
-  const [form, setForm]                 = useState(initialForm);
-  const [formErrors, setFormErrors]     = useState({});
-  const [submitting, setSubmitting]     = useState(false);
-  const [toast, setToast]               = useState(null);
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [searchQ, setSearchQ]           = useState("");
-  const [filterCat, setFilterCat]       = useState("all");
-
-  // ── CSV import state (Business only) ───────────────────────────────────
-  const [showCSVModal, setShowCSVModal]   = useState(false);
-  const [csvRows, setCSVRows]             = useState([]);      // parsed + mapped rows
-  const [csvFileName, setCSVFileName]     = useState("");
-  const [csvParsing, setCSVParsing]       = useState(false);
-  const [csvImporting, setCSVImporting]   = useState(false);
-  const [csvErrors, setCSVErrors]         = useState([]);      // per-row issues flagged
-  const [selectedRows, setSelectedRows]   = useState([]);      // rows user confirmed
-
-  const imageRef = useRef(null);
-  const csvRef   = useRef(null);
-
-  useEffect(() => { loadProducts(); }, []);
-
-  const loadProducts = async () => {
-    setLoading(true);
-    try {
-      const data = await getMyProducts();
-      setProducts(data);
-    } catch {
-      showToast("Failed to load products.", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // ── Toast helper ──────────────────────────────────────────────
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
-    setTimeout(() => setToast(null), 3200);
+    setTimeout(() => setToast(null), 3500);
   };
 
-  // ── Image upload ──────────────────────────────────────────────────────
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (file.size > 3 * 1024 * 1024) { showToast("Image must be under 3MB.", "error"); return; }
-    const reader = new FileReader();
-    reader.onload = (ev) => setForm(f => ({ ...f, imageBase64: ev.target.result }));
-    reader.readAsDataURL(file);
-    if (imageRef.current) imageRef.current.value = "";
-  };
-
-  // ── Form validation ───────────────────────────────────────────────────
-  const validateForm = () => {
-    const e = {};
-    if (!form.name.trim()) e.name = "Product name is required.";
-    if (!form.price || isNaN(parseFloat(form.price)) || parseFloat(form.price) <= 0)
-      e.price = "Enter a valid price greater than 0.";
-    setFormErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
-  // ── Add single product ────────────────────────────────────────────────
-  const handleSubmit = async () => {
-    if (!validateForm()) return;
-    // Plan limit check
-    if (products.length >= planMax) {
-      showToast(`${planLabel} plan allows up to ${planMax} products. Upgrade to add more.`, "error");
-      return;
-    }
-    setSubmitting(true);
+  // ── Fetch categories ──────────────────────────────────────────
+  const fetchCategories = useCallback(async () => {
+    if (!uid) return;
+    setLoadingCats(true);
     try {
-      await addProduct(form);
-      showToast("Product added! Visible in the app. 📱");
-      setShowModal(false);
-      setForm(initialForm);
-      setFormErrors({});
-      await loadProducts();
+      const cats = await getMyCategories();
+      setCategories(cats);
     } catch (err) {
-      showToast(err.message || "Failed to add product.", "error");
+      console.error("fetchCategories:", err);
+      showToast("Could not load categories.", "error");
     } finally {
-      setSubmitting(false);
+      setLoadingCats(false);
+    }
+  }, [uid]);
+
+  useEffect(() => { fetchCategories(); }, [fetchCategories]);
+
+  // ── Fetch products for ALL shop (for limit counting) and for
+  //    selected category (for the product list view) ────────────
+ const fetchAllProducts = useCallback(async () => {
+  if (!uid) return;
+  try {
+    const snap = await getDocs(
+      query(
+        collection(db, "products"),
+        where("shopId", "==", uid)
+      )
+    );
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.error("fetchAllProducts:", err);
+    return [];
+  }
+}, [uid]);
+
+ const fetchProductsForCategory = useCallback(async (categoryId) => {
+  if (!uid) return;
+  setLoadingProds(true);
+  try {
+    const snap = await getDocs(
+      query(
+        collection(db, "products"),
+        where("shopId", "==", uid),
+        where("categoryId", "==", categoryId)
+      )
+    );
+    const docs = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+    setProducts(docs);
+  } catch (err) {
+    console.error("fetchProductsForCategory:", err);
+    showToast("Could not load products.", "error");
+  } finally {
+    setLoadingProds(false);
+  }
+}, [uid]);
+
+  // Also keep a running total for the limit bar
+  const [allProducts, setAllProducts] = useState([]);
+  useEffect(() => {
+    fetchAllProducts().then(p => { if (p) setAllProducts(p); });
+  }, [fetchAllProducts]);
+
+  // ── Open a category → switch to product view ──────────────────
+  const openCategory = (cat) => {
+    setSelectedCat(cat);
+    setView("products");
+    setSearchQ("");
+    fetchProductsForCategory(cat.id);
+  };
+
+  // ── Back to categories view ───────────────────────────────────
+  const backToCategories = () => {
+    setView("categories");
+    setSelectedCat(null);
+    setProducts([]);
+    setSearchQ("");
+    // Refresh categories in case product counts changed
+    fetchCategories();
+    // Refresh total count
+    fetchAllProducts().then(p => { if (p) setAllProducts(p); });
+  };
+
+  // ── Category CRUD ─────────────────────────────────────────────
+  const resetCatForm = () => setCatForm({ name: "", description: "", icon: "📦" });
+
+  const openAddCat = () => {
+    setEditCatData(null);
+    resetCatForm();
+    setShowCatModal(true);
+  };
+
+  const openEditCat = (e, cat) => {
+    e.stopPropagation(); // don't open the category
+    setEditCatData(cat);
+    setCatForm({ name: cat.name, description: cat.description || "", icon: cat.icon || "📦" });
+    setShowCatModal(true);
+  };
+
+  const handleSaveCategory = async () => {
+    if (!catForm.name.trim()) { showToast("Category name is required.", "error"); return; }
+    setSaving(true);
+    try {
+      if (editCatData) {
+        await editCategory(editCatData.id, catForm);
+        showToast("Category updated.");
+      } else {
+        await addCategory(catForm);
+        showToast("Category created.");
+      }
+      setShowCatModal(false);
+      resetCatForm();
+      await fetchCategories();
+    } catch (err) {
+      console.error("handleSaveCategory:", err);
+      showToast(err.message || "Failed to save category.", "error");
+    } finally {
+      setSaving(false);
     }
   };
 
-  // ── Delete product ────────────────────────────────────────────────────
-  const handleDelete = async (productId, productName) => {
-    if (deleteConfirm !== productId) {
-      setDeleteConfirm(productId);
-      setTimeout(() => setDeleteConfirm(null), 3000);
+  const handleDeleteCategory = async (e, cat) => {
+    e.stopPropagation();
+    const productCount = allProducts.filter(p => p.categoryId === cat.id).length;
+    const msg = productCount > 0
+      ? `Delete "${cat.name}"? It has ${productCount} product(s) that will become uncategorized.`
+      : `Delete "${cat.name}"?`;
+    if (!window.confirm(msg)) return;
+    try {
+      await removeCategory(cat.id);
+      showToast("Category deleted.");
+      await fetchCategories();
+      fetchAllProducts().then(p => { if (p) setAllProducts(p); });
+    } catch (err) {
+      console.error("handleDeleteCategory:", err);
+      showToast("Failed to delete category.", "error");
+    }
+  };
+
+  // ── Product CRUD ──────────────────────────────────────────────
+  const resetProdForm = () => setProdForm({
+    name: "", unit: "", price: "", description: "",
+    inStock: true, imageFile: null, imagePreview: null,
+  });
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setProdForm(f => ({ ...f, imageFile: file, imagePreview: URL.createObjectURL(file) }));
+  };
+
+  const handleSaveProduct = async () => {
+    if (!prodForm.name || !prodForm.price) {
+      showToast("Name and price are required.", "error");
       return;
     }
+    if (isAtProductLimit(allProducts.length, limit)) {
+      showToast(`${cfg.label} plan limit reached.`, "error");
+      return;
+    }
+    setUploading(true);
     try {
-      await deleteProduct(productId);
-      showToast(`"${productName}" removed.`);
-      setDeleteConfirm(null);
-      await loadProducts();
-    } catch {
+      let imageUrl = "";
+      if (prodForm.imageFile) {
+        const imgRef = ref(storage, `products/${uid}/${Date.now()}_${prodForm.imageFile.name}`);
+        await uploadBytes(imgRef, prodForm.imageFile);
+        imageUrl = await getDownloadURL(imgRef);
+      }
+      await addDoc(collection(db, "products"), {
+        shopId     : uid,
+        categoryId : selectedCat.id,
+        category   : selectedCat.name, // kept for backwards compat with old queries
+        name       : prodForm.name.trim(),
+        unit       : prodForm.unit.trim(),
+        price      : Number(prodForm.price),
+        description: prodForm.description.trim(),
+        inStock    : prodForm.inStock,
+        imageUrl,
+        createdAt  : serverTimestamp(),
+      });
+      showToast("Product added!");
+      setShowProdModal(false);
+      resetProdForm();
+      // Refresh both lists
+      await fetchProductsForCategory(selectedCat.id);
+      fetchAllProducts().then(p => { if (p) setAllProducts(p); });
+    } catch (err) {
+      console.error("handleSaveProduct:", err);
+      showToast("Failed to add product.", "error");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeleteProduct = async (productId, productName) => {
+    if (!window.confirm(`Remove "${productName}"?`)) return;
+    try {
+      await deleteDoc(doc(db, "products", productId));
+      showToast("Product removed.");
+      await fetchProductsForCategory(selectedCat.id);
+      fetchAllProducts().then(p => { if (p) setAllProducts(p); });
+    } catch (err) {
+      console.error("handleDeleteProduct:", err);
       showToast("Failed to remove product.", "error");
     }
   };
 
-  // ── Toggle availability ───────────────────────────────────────────────
-  const handleToggleAvailability = async (productId, currentAvailable) => {
-    try {
-      await toggleProductAvailability(productId, !currentAvailable);
-      setProducts(prev => prev.map(p =>
-        p.id === productId ? { ...p, available: !currentAvailable } : p
-      ));
-      showToast(!currentAvailable ? "Marked as available." : "Marked as out of stock.");
-    } catch {
-      showToast("Failed to update availability.", "error");
-    }
-  };
+  // ── Product count per category (derived from allProducts) ──────
+  const countForCat = (catId) => allProducts.filter(p => p.categoryId === catId).length;
 
-  // ── CSV/Excel file picked ─────────────────────────────────────────────
-  // Uses SheetJS (xlsx) loaded via CDN to parse both .csv and .xlsx files.
-  // Then maps columns → product fields and flags issues automatically.
-  const handleCSVFile = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (csvRef.current) csvRef.current.value = "";
+  // ── Quota bar values ──────────────────────────────────────────
+  const totalCount = allProducts.length;
+  const pct        = isUnlimited ? 100 : Math.min((totalCount / limit) * 100, 100);
+  const barColor   = isUnlimited ? T.green : pct >= 100 ? T.red : pct >= 75 ? T.amber : T.green;
+  const limitLabel = isUnlimited ? `${totalCount} listed · no cap` : `${totalCount} / ${limit} used`;
 
-    setCSVParsing(true);
-    setCSVFileName(file.name);
-    setCSVErrors([]);
-    setCSVRows([]);
-    setSelectedRows([]);
+  // ── ICON PICKER options ───────────────────────────────────────
+  const ICONS = ["📦","🧱","🪨","🔩","🪟","🚪","💡","🎨","🔧","🪚","🛠️","🪣","🧰","🛁","🚿","🏗️","🪜","📐","📏","🔌"];
 
-    try {
-      // ── Load SheetJS dynamically ──
-      let XLSX;
-      try {
-        XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
-      } catch {
-        // Fallback: load via script tag
-        await new Promise((res, rej) => {
-          if (window.XLSX) { res(); return; }
-          const s = document.createElement("script");
-          s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-          s.onload = res; s.onerror = rej;
-          document.head.appendChild(s);
-        });
-        XLSX = window.XLSX;
-      }
-
-      // ── Parse file ──
-      const arrayBuffer = await file.arrayBuffer();
-      const workbook    = XLSX.read(arrayBuffer, { type:"array" });
-      const sheetName   = workbook.SheetNames[0];
-      const sheet       = workbook.Sheets[sheetName];
-      const rawRows     = XLSX.utils.sheet_to_json(sheet, { defval:"", raw:false });
-
-      if (rawRows.length === 0) {
-        showToast("File is empty or has no data rows.", "error");
-        setCSVParsing(false);
-        return;
-      }
-
-      // ── Map + auto-correct each row ──
-      const existingNames = products.map(p => p.name.toLowerCase().trim());
-      const mappedRows    = [];
-      const errors        = [];
-
-      rawRows.forEach((raw, i) => {
-        // Normalize all keys to lowercase
-        const normalized = {};
-        Object.keys(raw).forEach(k => { normalized[k.toLowerCase().trim()] = raw[k]; });
-
-        const product = mapRowToProduct(normalized);
-        const rowNum  = i + 2; // +2 because row 1 is header
-        const rowErrors = [];
-
-        // ── Validation ──
-        if (!product.name) {
-          rowErrors.push("Missing product name");
-        }
-        if (!product.price || parseFloat(product.price) <= 0) {
-          rowErrors.push("Invalid or missing price");
-        }
-
-        // ── Flag duplicates ──
-        const isDuplicate = existingNames.includes(product.name.toLowerCase().trim()) ||
-          mappedRows.some(r => r.name.toLowerCase().trim() === product.name.toLowerCase().trim());
-        if (isDuplicate && product.name) {
-          rowErrors.push(`Duplicate: "${product.name}" already exists`);
-        }
-
-        mappedRows.push({
-          ...product,
-          _rowNum:    rowNum,
-          _errors:    rowErrors,
-          _duplicate: isDuplicate,
-          _raw:       normalized,
-        });
-
-        if (rowErrors.length > 0) {
-          errors.push({ rowNum, name: product.name || "(unnamed)", issues: rowErrors });
-        }
-      });
-
-      setCSVRows(mappedRows);
-      setCSVErrors(errors);
-      // Pre-select all valid (no error) rows
-      setSelectedRows(mappedRows.filter(r => r._errors.length === 0).map(r => r._rowNum));
-      setShowCSVModal(true);
-
-    } catch (err) {
-      showToast("Failed to parse file. Make sure it's a valid CSV or Excel file.", "error");
-      console.error("CSV parse error:", err);
-    } finally {
-      setCSVParsing(false);
-    }
-  };
-
-  // ── Confirm & import selected rows ────────────────────────────────────
-  const handleCSVImport = async () => {
-    const toImport = csvRows.filter(r => selectedRows.includes(r._rowNum));
-    if (toImport.length === 0) {
-      showToast("No rows selected to import.", "error");
-      return;
-    }
-    // Check plan limit
-    if (products.length + toImport.length > planMax) {
-      showToast(`Importing ${toImport.length} products would exceed your plan limit of ${planMax}.`, "error");
-      return;
-    }
-
-    setCSVImporting(true);
-    let success = 0;
-    let failed  = 0;
-
-    for (const row of toImport) {
-      try {
-        await addProduct({
-          name:        row.name,
-          price:       row.price,
-          unit:        row.unit,
-          category:    row.category,
-          description: row.description,
-          imageBase64: "",
-        });
-        success++;
-      } catch {
-        failed++;
-      }
-    }
-
-    setCSVImporting(false);
-    setShowCSVModal(false);
-    setCSVRows([]);
-    setSelectedRows([]);
-    setCSVFileName("");
-    await loadProducts();
-
-    if (failed === 0) {
-      showToast(`✅ ${success} product${success !== 1 ? "s" : ""} imported successfully!`);
-    } else {
-      showToast(`Imported ${success}, failed ${failed}. Check and retry.`, "error");
-    }
-  };
-
-  // ── Filter + search ───────────────────────────────────────────────────
-  const displayed = products.filter(p => {
-    const q = searchQ.toLowerCase();
-    const matchSearch =
-      p.name?.toLowerCase().includes(q) ||
-      p.description?.toLowerCase().includes(q) ||
-      p.category?.toLowerCase().includes(q);
-    const matchCat = filterCat === "all" || p.category === filterCat;
-    return matchSearch && matchCat;
-  });
-
-  const usedCategories = [...new Set(products.map(p => p.category).filter(Boolean))];
-
-  // ── Computed plan limit display ───────────────────────────────────────
-  const atLimit     = planMax !== Infinity && products.length >= planMax;
-  const limitPct    = planMax !== Infinity ? Math.min((products.length / planMax) * 100, 100) : 0;
-  const limitColor  = limitPct >= 100 ? "#EF4444" : limitPct >= 80 ? "#F59E0B" : "#10B981";
-
+  // ─────────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────────
   return (
-    <div>
-      {/* ── Header row ────────────────────────────────────────────────── */}
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:18, flexWrap:"wrap", gap:12 }}>
+    <div style={{ fontFamily: T.fontBody }}>
+
+      {/* ── PAGE HEADER ─────────────────────────────────────── */}
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:16, marginBottom:24, flexWrap:"wrap" }}>
         <div>
-          <div style={{ fontFamily:"'Lora', Georgia, serif", fontSize:20, fontWeight:900, color:"#0F172A", marginBottom:4 }}>
-            My Products
-          </div>
-          <div style={{ fontSize:12.5, color:"#64748B", maxWidth:480 }}>
-            Products you add here appear in the iConstruct app in real time.
-            {planMax !== Infinity
-              ? ` ${planLabel} plan: up to ${planMax} products.`
-              : " Business plan: unlimited products."}
-          </div>
-        </div>
-        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-          {/* Bulk import button — Business only */}
-          {canCSV && (
-            <label
+          {/* Breadcrumb */}
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
+            <button
+              onClick={view === "products" ? backToCategories : undefined}
               style={{
-                display:"flex", alignItems:"center", gap:7,
-                padding:"10px 16px", borderRadius:9,
-                border:`1.5px solid ${planColor}`,
-                background:"transparent", color:planColor,
-                fontSize:13, fontWeight:700, cursor: atLimit ? "not-allowed" : "pointer",
-                fontFamily:"'Inter', sans-serif", opacity: atLimit ? 0.5 : 1,
-                transition:"all 0.15s",
+                fontFamily: T.fontDisplay, fontSize: 22, fontWeight: 700,
+                color: view === "products" ? cfg.color : T.ink,
+                background: "none", border: "none", cursor: view === "products" ? "pointer" : "default",
+                padding: 0, letterSpacing: "-0.01em",
+                textDecoration: view === "products" ? "underline" : "none",
               }}
-              title={atLimit ? `Product limit reached (${planMax})` : "Import products from CSV or Excel"}
             >
-              <input
-                ref={csvRef}
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                style={{ display:"none" }}
-                disabled={atLimit || csvParsing}
-                onChange={handleCSVFile}
-              />
-              {csvParsing ? "Parsing..." : "📊 Bulk Import CSV/Excel"}
-            </label>
-          )}
-          {/* Add single product button */}
+              My Products
+            </button>
+            {view === "products" && selectedCat && (
+              <>
+                <span style={{ color: T.ink4, fontSize: 18 }}>›</span>
+                <span style={{ fontFamily: T.fontDisplay, fontSize: 22, fontWeight: 700, color: T.ink }}>
+                  {selectedCat.icon} {selectedCat.name}
+                </span>
+              </>
+            )}
+          </div>
+          <p style={{ fontSize: 13, color: T.ink3, lineHeight: 1.55, maxWidth: 480 }}>
+            {view === "categories"
+              ? "Create categories first, then add products inside each one."
+              : `Products in "${selectedCat?.name}". These appear in the iConstruct app instantly.`
+            }
+            {" "}<strong style={{ color: cfg.color, fontWeight: 600 }}>
+              {cfg.label}: {isUnlimited ? "unlimited products." : `up to ${formatProductLimit(limit)} products total.`}
+            </strong>
+          </p>
+        </div>
+
+        {/* Action button */}
+        {view === "categories" ? (
           <button
-            onClick={() => { setShowModal(true); setForm(initialForm); setFormErrors({}); }}
-            disabled={atLimit}
+            onClick={openAddCat}
             style={{
-              display:"flex", alignItems:"center", gap:7,
-              padding:"10px 20px", borderRadius:9, border:"none",
-              background: atLimit ? "#E2E8F0" : `linear-gradient(135deg, ${planColor}, ${planColor}CC)`,
-              color: atLimit ? "#94A3B8" : "#fff",
-              fontSize:13, fontWeight:700,
-              cursor: atLimit ? "not-allowed" : "pointer",
-              fontFamily:"'Inter', sans-serif",
-              boxShadow: atLimit ? "none" : `0 4px 14px ${planColor}40`,
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "10px 20px", borderRadius: T.radiusSm,
+              border: "none", cursor: "pointer",
+              background: cfg.accentGradient, color: "#fff",
+              fontSize: 13, fontWeight: 600, fontFamily: T.fontBody,
+              boxShadow: `0 2px 8px ${cfg.color}40`, flexShrink: 0,
             }}
-            title={atLimit ? `${planLabel} plan limit reached (${planMax} products)` : "Add a product"}
           >
-            + Add Product
+            + Add Category
           </button>
+        ) : (
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={backToCategories}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "10px 18px", borderRadius: T.radiusSm,
+                border: `1.5px solid ${T.border}`, cursor: "pointer",
+                background: T.surface2, color: T.ink2,
+                fontSize: 13, fontWeight: 600, fontFamily: T.fontBody,
+              }}
+            >
+              ← Back
+            </button>
+            <button
+              onClick={() => atLimit
+                ? showToast("Limit reached — upgrade to add more.", "error")
+                : setShowProdModal(true)
+              }
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "10px 20px", borderRadius: T.radiusSm,
+                border: "none", cursor: atLimit ? "not-allowed" : "pointer",
+                background: atLimit ? T.border : cfg.accentGradient,
+                color: atLimit ? T.ink3 : "#fff",
+                fontSize: 13, fontWeight: 600, fontFamily: T.fontBody,
+                opacity: atLimit ? 0.7 : 1, flexShrink: 0,
+              }}
+            >
+              {atLimit ? "Limit Reached" : "+ Add Product"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── QUOTA BAR ───────────────────────────────────────── */}
+      <div style={{
+        background: T.surface, borderRadius: T.radius,
+        border: `1px solid ${T.border}`, padding: "14px 20px",
+        marginBottom: 20, boxShadow: T.shadowSm,
+      }}>
+        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+          <span style={{ fontSize:12, fontWeight:600, color:T.ink2 }}>Total Product Listings</span>
+          <span style={{ fontSize:12, fontWeight:700, color:barColor }}>{limitLabel}</span>
+        </div>
+        <div style={{ height:6, background:T.borderLight, borderRadius:99, overflow:"hidden" }}>
+          <div style={{ height:"100%", width:`${pct}%`, background:barColor, borderRadius:99, transition:"width 0.6s ease" }} />
+        </div>
+        <div style={{ fontSize:11, color:T.ink4, marginTop:6 }}>
+          {categories.length} {categories.length === 1 ? "category" : "categories"} · {allProducts.length} total products
         </div>
       </div>
 
-      {/* ── Plan limit bar ────────────────────────────────────────────── */}
-      {planMax !== Infinity && (
-        <div style={{ background:"#fff", borderRadius:10, border:"1px solid #E2E8F0", padding:"12px 16px", marginBottom:16 }}>
-          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
-            <span style={{ fontSize:12, fontWeight:600, color:"#334155" }}>Product Listings</span>
-            <span style={{ fontSize:12, fontWeight:700, color: limitColor }}>
-              {products.length} / {planMax} used
+      {/* ── LIMIT BANNER ────────────────────────────────────── */}
+      {isAtProductLimit(allProducts.length, limit) && (
+        <div style={{
+          background: T.amberLight, border: `1px solid #FCD34D`,
+          borderRadius: T.radiusSm, padding: "12px 16px", marginBottom: 20,
+          fontSize: 12.5, color: "#92400E", lineHeight: 1.6,
+          display: "flex", gap: 10, alignItems: "flex-start",
+        }}>
+          <span style={{ fontSize:16, flexShrink:0 }}>⚠️</span>
+          <div>
+            <strong>Product limit reached.</strong>{" "}
+            Your {cfg.label} plan allows up to {formatProductLimit(limit)} product listings.
+            Upgrade your plan to add more.
+          </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════
+          VIEW: CATEGORIES
+      ════════════════════════════════════════════════════════ */}
+      {view === "categories" && (
+        <div>
+          {loadingCats ? (
+            <div style={{ textAlign:"center", padding:"64px 24px", color:T.ink4 }}>
+              <div style={{
+                width:28, height:28, border:`3px solid ${T.border}`,
+                borderTopColor:cfg.color, borderRadius:"50%",
+                animation:"pt-spin 0.8s linear infinite", margin:"0 auto 12px",
+              }} />
+              <div style={{ fontSize:13 }}>Loading categories...</div>
+            </div>
+          ) : categories.length === 0 ? (
+            <div style={{
+              background: T.surface, borderRadius: T.radius,
+              border: `2px dashed ${T.border}`, padding: "64px 24px",
+              textAlign: "center",
+            }}>
+              <div style={{ fontSize:40, marginBottom:12 }}>🗂️</div>
+              <div style={{ fontFamily:T.fontDisplay, fontSize:16, fontWeight:700, color:T.ink2, marginBottom:6 }}>
+                No categories yet
+              </div>
+              <div style={{ fontSize:13, color:T.ink4, marginBottom:20 }}>
+                Create a category (e.g. "Cement", "Tiles", "Hardware") before adding products.
+              </div>
+              <button
+                onClick={openAddCat}
+                style={{
+                  padding:"10px 24px", borderRadius:T.radiusSm,
+                  border:"none", cursor:"pointer",
+                  background:cfg.accentGradient, color:"#fff",
+                  fontSize:13, fontWeight:600, fontFamily:T.fontBody,
+                }}
+              >
+                + Create First Category
+              </button>
+            </div>
+          ) : (
+            <div style={{
+              display:"grid",
+              gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))",
+              gap:16,
+            }}>
+              {categories.map(cat => {
+                const count = countForCat(cat.id);
+                return (
+                  <div
+                    key={cat.id}
+                    onClick={() => openCategory(cat)}
+                    style={{
+                      background: T.surface, borderRadius: T.radius,
+                      border: `1.5px solid ${T.border}`, padding: "20px",
+                      cursor: "pointer", transition: "all 0.2s",
+                      position: "relative",
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.borderColor = cfg.color;
+                      e.currentTarget.style.boxShadow = `0 4px 20px ${cfg.color}20`;
+                      e.currentTarget.style.transform = "translateY(-2px)";
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.borderColor = T.border;
+                      e.currentTarget.style.boxShadow = "none";
+                      e.currentTarget.style.transform = "none";
+                    }}
+                  >
+                    {/* Icon + name */}
+                    <div style={{ fontSize:32, marginBottom:10 }}>{cat.icon || "📦"}</div>
+                    <div style={{ fontFamily:T.fontDisplay, fontSize:15, fontWeight:700, color:T.ink, marginBottom:4 }}>
+                      {cat.name}
+                    </div>
+                    {cat.description && (
+                      <div style={{ fontSize:12, color:T.ink3, lineHeight:1.5, marginBottom:8 }}>
+                        {cat.description}
+                      </div>
+                    )}
+
+                    {/* Product count badge */}
+                    <div style={{
+                      display:"inline-flex", alignItems:"center", gap:4,
+                      background: count > 0 ? `${cfg.color}15` : T.surface2,
+                      border: `1px solid ${count > 0 ? cfg.color + "40" : T.border}`,
+                      borderRadius:20, padding:"3px 10px",
+                      fontSize:11, fontWeight:600,
+                      color: count > 0 ? cfg.color : T.ink4,
+                    }}>
+                      {count} {count === 1 ? "product" : "products"}
+                    </div>
+
+                    {/* Action buttons */}
+                    <div style={{
+                      position:"absolute", top:12, right:12,
+                      display:"flex", gap:4,
+                    }}>
+                      <button
+                        onClick={e => openEditCat(e, cat)}
+                        title="Edit category"
+                        style={{
+                          width:28, height:28, borderRadius:6,
+                          border:`1px solid ${T.border}`, background:T.surface2,
+                          color:T.ink3, cursor:"pointer", fontSize:13,
+                          display:"flex", alignItems:"center", justifyContent:"center",
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background=`${cfg.color}15`; e.currentTarget.style.color=cfg.color; }}
+                        onMouseLeave={e => { e.currentTarget.style.background=T.surface2; e.currentTarget.style.color=T.ink3; }}
+                      >✏️</button>
+                      <button
+                        onClick={e => handleDeleteCategory(e, cat)}
+                        title="Delete category"
+                        style={{
+                          width:28, height:28, borderRadius:6,
+                          border:`1px solid ${T.border}`, background:T.surface2,
+                          color:T.ink3, cursor:"pointer", fontSize:13,
+                          display:"flex", alignItems:"center", justifyContent:"center",
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background=T.redLight; e.currentTarget.style.color=T.red; e.currentTarget.style.borderColor="#FCA5A5"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background=T.surface2; e.currentTarget.style.color=T.ink3; e.currentTarget.style.borderColor=T.border; }}
+                      >🗑</button>
+                    </div>
+
+                    {/* "Open" arrow */}
+                    <div style={{
+                      position:"absolute", bottom:16, right:16,
+                      color:T.ink4, fontSize:16,
+                    }}>›</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════
+          VIEW: PRODUCTS (inside a category)
+      ════════════════════════════════════════════════════════ */}
+      {view === "products" && (
+        <div style={{
+          background: T.surface, borderRadius: T.radius,
+          border: `1px solid ${T.border}`, boxShadow: T.shadowSm,
+          overflow: "hidden",
+        }}>
+
+          {/* Search row */}
+          <div style={{
+            padding:"14px 20px", borderBottom:`1px solid ${T.borderLight}`,
+            display:"flex", alignItems:"center", gap:12,
+          }}>
+            <div style={{ position:"relative", flex:1, maxWidth:300 }}>
+              <span style={{
+                position:"absolute", left:10, top:"50%",
+                transform:"translateY(-50%)", color:T.ink4, fontSize:13,
+                pointerEvents:"none",
+              }}></span>
+              <input
+                type="text"
+                placeholder={`Search in ${selectedCat?.name}...`}
+                value={searchQ}
+                onChange={e => setSearchQ(e.target.value)}
+                style={{ ...inputStyle(cfg.color), paddingLeft:34 }}
+                onFocus={e => e.target.style.borderColor = cfg.color}
+                onBlur={e  => e.target.style.borderColor = T.border}
+              />
+            </div>
+            <span style={{ fontSize:12, color:T.ink4 }}>
+              {filteredProducts.length} {filteredProducts.length === 1 ? "product" : "products"}
             </span>
           </div>
-          <div style={{ height:5, background:"#F1F5F9", borderRadius:4 }}>
-            <div style={{ height:"100%", width:`${limitPct}%`, background: limitColor, borderRadius:4, transition:"width 0.3s" }} />
-          </div>
-          {atLimit && (
-            <p style={{ fontSize:11.5, color:"#EF4444", marginTop:6 }}>
-              ⚠ Product limit reached.{" "}
-              {planLabel === "Basic" ? "Upgrade to Pro (150 products) or Business (unlimited)." :
-               planLabel === "Pro"   ? "Upgrade to Business for unlimited products + bulk import." : ""}
-            </p>
+
+          {/* Products grid */}
+          {loadingProds ? (
+            <div style={{ textAlign:"center", padding:"64px 24px", color:T.ink4 }}>
+              <div style={{
+                width:28, height:28, border:`3px solid ${T.border}`,
+                borderTopColor:cfg.color, borderRadius:"50%",
+                animation:"pt-spin 0.8s linear infinite", margin:"0 auto 12px",
+              }} />
+              <div style={{ fontSize:13 }}>Loading products...</div>
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div style={{ textAlign:"center", padding:"64px 24px", color:T.ink4 }}>
+              <div style={{ fontSize:36, marginBottom:12 }}>📦</div>
+              <div style={{ fontFamily:T.fontDisplay, fontSize:15, fontWeight:700, color:T.ink2, marginBottom:6 }}>
+                {searchQ ? "No products match your search" : "No products in this category"}
+              </div>
+              <div style={{ fontSize:12, color:T.ink4, marginBottom:16 }}>
+                {searchQ
+                  ? "Try a different search term."
+                  : "Add your first product to make it visible to builders."
+                }
+              </div>
+              {searchQ ? (
+                <button
+                  onClick={() => setSearchQ("")}
+                  style={{
+                    padding:"8px 18px", borderRadius:T.radiusSm,
+                    border:`1px solid ${T.border}`, background:T.surface2,
+                    fontSize:12, fontWeight:500, color:T.ink3,
+                    cursor:"pointer", fontFamily:T.fontBody,
+                  }}
+                >Clear search</button>
+              ) : (
+                <button
+                  onClick={() => setShowProdModal(true)}
+                  style={{
+                    padding:"10px 24px", borderRadius:T.radiusSm,
+                    border:"none", cursor:"pointer",
+                    background:cfg.accentGradient, color:"#fff",
+                    fontSize:13, fontWeight:600, fontFamily:T.fontBody,
+                  }}
+                >+ Add First Product</button>
+              )}
+            </div>
+          ) : (
+            <div style={{
+              display:"grid",
+              gridTemplateColumns:"repeat(auto-fill, minmax(200px, 1fr))",
+              gap:16, padding:20,
+            }}>
+              {filteredProducts.map(p => (
+                <div
+                  key={p.id}
+                  style={{
+                    background:T.surface, borderRadius:T.radiusSm,
+                    border:`1px solid ${T.border}`, overflow:"hidden",
+                    display:"flex", flexDirection:"column",
+                    transition:"box-shadow 0.2s, transform 0.2s",
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.boxShadow = `0 8px 24px ${cfg.color}20`;
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.boxShadow = "none";
+                    e.currentTarget.style.transform = "none";
+                  }}
+                >
+                  {/* Image */}
+                  {p.imageUrl ? (
+                    <img
+                      src={p.imageUrl} alt={p.name}
+                      style={{ width:"100%", aspectRatio:"4/3", objectFit:"cover", display:"block" }}
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div style={{
+                      width:"100%", aspectRatio:"4/3",
+                      background:T.surface2, display:"flex",
+                      alignItems:"center", justifyContent:"center",
+                    }}>
+                      <span style={{ fontSize:32, opacity:0.25 }}>📦</span>
+                    </div>
+                  )}
+
+                  {/* Body */}
+                  <div style={{ padding:"12px 14px", flex:1, display:"flex", flexDirection:"column", gap:4 }}>
+                    <div style={{ fontFamily:T.fontDisplay, fontSize:13.5, fontWeight:700, color:T.ink }}>
+                      {p.name}
+                    </div>
+                    {p.unit && (
+                      <div style={{ fontSize:11, color:T.ink3 }}>{p.unit}</div>
+                    )}
+                    {p.description && (
+                      <div style={{ fontSize:11.5, color:T.ink3, lineHeight:1.5, flex:1 }}>
+                        {p.description}
+                      </div>
+                    )}
+                    <div style={{ fontFamily:T.fontDisplay, fontSize:16, fontWeight:700, color:T.ink, marginTop:4 }}>
+                      {peso(p.price)}
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div style={{
+                    display:"flex", alignItems:"center", gap:8,
+                    padding:"10px 14px", borderTop:`1px solid ${T.borderLight}`,
+                  }}>
+                    <div style={{
+                      flex:1, padding:"5px 10px", borderRadius:T.radiusSm,
+                      fontSize:11.5, fontWeight:600, textAlign:"center",
+                      border:`1px solid ${p.inStock ? T.greenBorder : T.border}`,
+                      background:p.inStock ? T.greenLight : T.surface2,
+                      color:p.inStock ? "#065F46" : T.ink3,
+                    }}>
+                      {p.inStock ? "✓ In Stock" : "Out of Stock"}
+                    </div>
+                    <button
+                      onClick={() => handleDeleteProduct(p.id, p.name)}
+                      style={{
+                        width:30, height:30, borderRadius:T.radiusSm,
+                        border:`1px solid ${T.border}`, background:"transparent",
+                        color:T.ink4, cursor:"pointer", display:"flex",
+                        alignItems:"center", justifyContent:"center", fontSize:13,
+                        flexShrink:0,
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background=T.redLight; e.currentTarget.style.borderColor="#FCA5A5"; e.currentTarget.style.color=T.red; }}
+                      onMouseLeave={e => { e.currentTarget.style.background="transparent"; e.currentTarget.style.borderColor=T.border; e.currentTarget.style.color=T.ink4; }}
+                    >🗑</button>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}
 
-      {/* ── Firebase info banner ──────────────────────────────────────── */}
-      <div style={{ background:"#F0FDF4", border:"1px solid #BBF7D0", borderRadius:10, padding:"12px 16px", marginBottom:18, display:"flex", alignItems:"flex-start", gap:12 }}>
-        <span style={{ fontSize:20, flexShrink:0 }}>📱</span>
-        <div>
-          <div style={{ fontSize:12.5, fontWeight:700, color:"#065F46", marginBottom:3 }}>How this connects to the app</div>
-          <div style={{ fontSize:12, color:"#047857", lineHeight:1.6 }}>
-            Products saved here go to Firebase → your mobile app reads from the same database → builders see your products instantly.
-            {canCSV && " Business plan includes bulk CSV/Excel import for fast product uploads."}
-          </div>
-        </div>
-      </div>
+      {/* ════════════════════════════════════════════════════════
+          MODAL: ADD / EDIT CATEGORY
+      ════════════════════════════════════════════════════════ */}
+      {showCatModal && (
+        <Modal
+          title={editCatData ? "Edit Category" : "Add Category"}
+          subtitle={editCatData
+            ? "Update the name, icon, or description of this category."
+            : "Create a category first. You'll add products inside it next."
+          }
+          accentColor={cfg.accentGradient}
+          onClose={() => { setShowCatModal(false); resetCatForm(); }}
+        >
+          {/* Icon picker */}
+          <Field label="Icon">
+            <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:4 }}>
+              {ICONS.map(icon => (
+                <button
+                  key={icon}
+                  onClick={() => setCatForm(f => ({ ...f, icon }))}
+                  style={{
+                    width:38, height:38, borderRadius:8, fontSize:18,
+                    border:`2px solid ${catForm.icon === icon ? cfg.color : T.border}`,
+                    background: catForm.icon === icon ? `${cfg.color}15` : T.surface2,
+                    cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
+                    transition:"all 0.15s",
+                  }}
+                >{icon}</button>
+              ))}
+            </div>
+          </Field>
 
-      {/* ── Search + filter ───────────────────────────────────────────── */}
-      {products.length > 0 && (
-        <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap" }}>
-          <div style={{ position:"relative", flex:1, minWidth:200 }}>
-            <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:"#94A3B8", fontSize:14 }}>🔍</span>
-            <input type="text" placeholder="Search products..." value={searchQ}
-              onChange={e => setSearchQ(e.target.value)}
-              style={{ width:"100%", paddingLeft:32, paddingRight:12, paddingTop:9, paddingBottom:9, border:"1px solid #E2E8F0", borderRadius:8, fontSize:12.5, fontFamily:"'Inter', sans-serif", outline:"none", color:"#0F172A", background:"#fff" }}
-              onFocus={e => e.target.style.borderColor = planColor}
-              onBlur={e  => e.target.style.borderColor = "#E2E8F0"}
+          {/* Name */}
+          <Field label="Category Name" required>
+            <input
+              autoFocus
+              style={inputStyle(cfg.color)}
+              placeholder="e.g. Cement, Tiles, Hardware"
+              value={catForm.name}
+              onChange={e => setCatForm(f => ({ ...f, name: e.target.value }))}
+              onFocus={e => e.target.style.borderColor = cfg.color}
+              onBlur={e  => e.target.style.borderColor = T.border}
             />
-          </div>
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-            <button onClick={() => setFilterCat("all")}
-              style={{ padding:"8px 14px", borderRadius:8, border:`1px solid ${filterCat==="all" ? planColor : "#E2E8F0"}`, background: filterCat==="all" ? planColor : "#fff", color: filterCat==="all" ? "#fff" : "#64748B", fontSize:11.5, fontWeight:500, cursor:"pointer" }}>
-              All ({products.length})
+          </Field>
+
+          {/* Description */}
+          <Field label="Description (optional)">
+            <textarea
+              rows={2}
+              style={{ ...inputStyle(cfg.color), resize:"none" }}
+              placeholder="Short description of what's in this category"
+              value={catForm.description}
+              onChange={e => setCatForm(f => ({ ...f, description: e.target.value }))}
+              onFocus={e => e.target.style.borderColor = cfg.color}
+              onBlur={e  => e.target.style.borderColor = T.border}
+            />
+          </Field>
+
+          {/* Actions */}
+          <div style={{ display:"flex", gap:10, marginTop:4 }}>
+            <button
+              onClick={() => { setShowCatModal(false); resetCatForm(); }}
+              style={{
+                flex:1, padding:"11px", borderRadius:T.radiusSm,
+                border:`1px solid ${T.border}`, background:T.surface2,
+                color:T.ink3, fontSize:13, fontWeight:500,
+                cursor:"pointer", fontFamily:T.fontBody,
+              }}
+            >Cancel</button>
+            <button
+              onClick={handleSaveCategory}
+              disabled={saving || !catForm.name.trim()}
+              style={{
+                flex:2, padding:"11px", borderRadius:T.radiusSm,
+                border:"none", fontFamily:T.fontBody,
+                background: (!catForm.name.trim() || saving) ? T.border : cfg.accentGradient,
+                color: (!catForm.name.trim() || saving) ? T.ink3 : "#fff",
+                fontSize:13, fontWeight:600,
+                cursor: (!catForm.name.trim() || saving) ? "not-allowed" : "pointer",
+              }}
+            >
+              {saving ? "Saving..." : editCatData ? "Update Category" : "Create Category"}
             </button>
-            {usedCategories.map(cat => (
-              <button key={cat} onClick={() => setFilterCat(cat === filterCat ? "all" : cat)}
-                style={{ padding:"8px 14px", borderRadius:8, border:`1px solid ${filterCat===cat ? planColor : "#E2E8F0"}`, background: filterCat===cat ? planColor : "#fff", color: filterCat===cat ? "#fff" : "#64748B", fontSize:11.5, fontWeight:500, cursor:"pointer" }}>
-                {CATEGORY_ICONS[cat] || "📦"} {cat}
-              </button>
-            ))}
           </div>
-        </div>
+        </Modal>
       )}
 
-      {/* ── Products grid ─────────────────────────────────────────────── */}
-      {loading ? (
-        <div style={{ textAlign:"center", padding:"64px 0" }}>
-          <div style={{ width:32, height:32, border:`3px solid #E2E8F0`, borderTopColor: planColor, borderRadius:"50%", animation:"prodspin 0.8s linear infinite", margin:"0 auto 12px" }} />
-          <div style={{ fontSize:13, color:"#94A3B8" }}>Loading products...</div>
-          <style>{`@keyframes prodspin { to { transform: rotate(360deg); } }`}</style>
-        </div>
-      ) : products.length === 0 ? (
-        <div style={{ background:"#fff", borderRadius:14, border:"1px solid #E2E8F0", padding:"64px 24px", textAlign:"center" }}>
-          <div style={{ fontSize:48, marginBottom:16 }}>📦</div>
-          <div style={{ fontSize:16, fontWeight:700, color:"#0F172A", marginBottom:8 }}>No products yet</div>
-          <div style={{ fontSize:13, color:"#64748B", marginBottom:24, maxWidth:300, margin:"0 auto 24px" }}>
-            Add your first product and it will appear in the iConstruct app for builders to browse.
-          </div>
-          <div style={{ display:"flex", gap:8, justifyContent:"center", flexWrap:"wrap" }}>
-            <button onClick={() => { setShowModal(true); setForm(initialForm); setFormErrors({}); }}
-              style={{ padding:"11px 28px", borderRadius:9, border:"none", background: planColor, color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>
-              + Add Your First Product
-            </button>
-            {canCSV && (
-              <label style={{ padding:"11px 20px", borderRadius:9, border:`1.5px solid ${planColor}`, background:"transparent", color:planColor, fontSize:13, fontWeight:700, cursor:"pointer" }}>
-                <input ref={csvRef} type="file" accept=".csv,.xlsx,.xls" style={{ display:"none" }} onChange={handleCSVFile} />
-                📊 Import from CSV
-              </label>
-            )}
-          </div>
-        </div>
-      ) : displayed.length === 0 ? (
-        <div style={{ background:"#fff", borderRadius:14, border:"1px solid #E2E8F0", padding:"48px 24px", textAlign:"center" }}>
-          <div style={{ fontSize:32, marginBottom:12 }}>🔍</div>
-          <div style={{ fontSize:14, fontWeight:600, color:"#0F172A", marginBottom:6 }}>No products match your search</div>
-          <button onClick={() => { setSearchQ(""); setFilterCat("all"); }} style={{ fontSize:12, color: planColor, background:"none", border:"none", cursor:"pointer", fontWeight:600 }}>Clear filters</button>
-        </div>
-      ) : (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:14 }}>
-          {displayed.map(product => (
-            <div key={product.id}
-              style={{ background:"#fff", borderRadius:14, border:`1px solid ${product.available ? "#E2E8F0" : "#FEE2E2"}`, overflow:"hidden", position:"relative", transition:"transform 0.2s, box-shadow 0.2s" }}
-              onMouseEnter={e => { e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.boxShadow="0 10px 28px rgba(0,0,0,0.09)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}>
-              {!product.available && (
-                <div style={{ position:"absolute", top:8, left:0, right:0, zIndex:2, display:"flex", justifyContent:"center" }}>
-                  <span style={{ background:"rgba(220,38,38,0.9)", color:"#fff", fontSize:10, fontWeight:700, padding:"3px 10px", borderRadius:20, letterSpacing:"0.08em" }}>OUT OF STOCK</span>
-                </div>
-              )}
-              {product.imageBase64 ? (
-                <img src={product.imageBase64} alt={product.name} style={{ width:"100%", height:140, objectFit:"cover", display:"block", opacity: product.available ? 1 : 0.5 }} />
+      {/* ════════════════════════════════════════════════════════
+          MODAL: ADD PRODUCT
+      ════════════════════════════════════════════════════════ */}
+      {showProdModal && selectedCat && (
+        <Modal
+          title="Add Product"
+          subtitle={`Adding to category: ${selectedCat.icon} ${selectedCat.name}`}
+          accentColor={cfg.accentGradient}
+          onClose={() => { setShowProdModal(false); resetProdForm(); }}
+        >
+          {/* Image upload */}
+          <Field label="Product Image">
+            <div
+              onClick={() => fileRef.current?.click()}
+              style={{
+                border:`2px dashed ${prodForm.imagePreview ? cfg.color : T.border}`,
+                borderRadius:T.radiusSm, cursor:"pointer",
+                overflow:"hidden", background:T.surface2,
+                padding: prodForm.imagePreview ? 0 : "18px 16px",
+                textAlign:"center", transition:"border-color 0.15s",
+              }}
+            >
+              {prodForm.imagePreview ? (
+                <img
+                  src={prodForm.imagePreview} alt="Preview"
+                  style={{ width:"100%", maxHeight:160, objectFit:"cover", display:"block" }}
+                />
               ) : (
-                <div style={{ height:120, background:"#F8FAFC", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:6, opacity: product.available ? 1 : 0.5 }}>
-                  <span style={{ fontSize:36 }}>{CATEGORY_ICONS[product.category] || "📦"}</span>
-                  <span style={{ fontSize:10, color:"#CBD5E1", fontWeight:500, letterSpacing:"0.06em", textTransform:"uppercase" }}>{product.category}</span>
-                </div>
+                <>
+                  <div style={{ fontSize:22, marginBottom:4 }}>📷</div>
+                  <div style={{ fontSize:12, color:T.ink3 }}>Click to upload · PNG, JPG, WEBP</div>
+                </>
               )}
-              <div style={{ padding:"12px 14px" }}>
-                <div style={{ fontSize:13.5, fontWeight:700, color:"#0F172A", marginBottom:3, lineHeight:1.3 }}>{product.name}</div>
-                <div style={{ fontSize:10.5, color:"#64748B", marginBottom:6 }}>{CATEGORY_ICONS[product.category] || "📦"} {product.category} · per {product.unit}</div>
-                {product.description && (
-                  <div style={{ fontSize:11, color:"#94A3B8", marginBottom:8, lineHeight:1.5, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{product.description}</div>
-                )}
-                <div style={{ fontSize:18, fontWeight:900, color: planColor, fontFamily:"'Lora', Georgia, serif", marginBottom:10 }}>₱{Number(product.price).toLocaleString()}</div>
-                <div style={{ display:"flex", gap:6 }}>
-                  <button onClick={() => handleToggleAvailability(product.id, product.available)}
-                    style={{ flex:1, padding:"7px 10px", borderRadius:7, fontSize:10.5, fontWeight:600, cursor:"pointer", border: product.available ? "1px solid #BBF7D0" : "1px solid #FCA5A5", background: product.available ? "#F0FDF4" : "#FEF2F2", color: product.available ? "#065F46" : "#991B1B" }}>
-                    {product.available ? "✓ In Stock" : "✗ Out of Stock"}
-                  </button>
-                  <button onClick={() => handleDelete(product.id, product.name)}
-                    style={{ padding:"7px 10px", borderRadius:7, fontSize:10.5, fontWeight:600, cursor:"pointer", border: deleteConfirm === product.id ? "1px solid #EF4444" : "1px solid #E2E8F0", background: deleteConfirm === product.id ? "#EF4444" : "#F8FAFC", color: deleteConfirm === product.id ? "#fff" : "#94A3B8", transition:"all 0.2s" }}
-                    title={deleteConfirm === product.id ? "Click again to confirm" : "Delete"}>
-                    {deleteConfirm === product.id ? "Confirm?" : "🗑"}
-                  </button>
-                </div>
-              </div>
             </div>
-          ))}
-        </div>
-      )}
+            <input ref={fileRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handleImageChange} />
+          </Field>
 
-      {/* ── Stats bar ─────────────────────────────────────────────────── */}
-      {products.length > 0 && (
-        <div style={{ marginTop:20, display:"flex", gap:16, flexWrap:"wrap" }}>
-          {[
-            { label:"Total Products", value: products.length,                           color:"#0F172A" },
-            { label:"In Stock",       value: products.filter(p => p.available).length,  color:"#059669" },
-            { label:"Out of Stock",   value: products.filter(p => !p.available).length, color:"#DC2626" },
-          ].map(({ label, value, color }) => (
-            <div key={label} style={{ fontSize:12, color:"#64748B" }}>
-              <span style={{ fontWeight:700, color, fontSize:15 }}>{value}</span> {label}
-            </div>
-          ))}
-        </div>
-      )}
+          {/* Name + Unit */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+            <Field label="Product Name" required>
+              <input
+                autoFocus
+                style={inputStyle(cfg.color)}
+                placeholder="e.g. Portland Cement"
+                value={prodForm.name}
+                onChange={e => setProdForm(f => ({ ...f, name: e.target.value }))}
+                onFocus={e => e.target.style.borderColor = cfg.color}
+                onBlur={e  => e.target.style.borderColor = T.border}
+              />
+            </Field>
+            <Field label="Unit">
+              <input
+                style={inputStyle(cfg.color)}
+                placeholder="e.g. per bag, per sqm"
+                value={prodForm.unit}
+                onChange={e => setProdForm(f => ({ ...f, unit: e.target.value }))}
+                onFocus={e => e.target.style.borderColor = cfg.color}
+                onBlur={e  => e.target.style.borderColor = T.border}
+              />
+            </Field>
+          </div>
 
-      {/* ════════════════════════════════════════════════════════════════
-          ADD PRODUCT MODAL
-      ════════════════════════════════════════════════════════════════ */}
-      {showModal && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.55)", backdropFilter:"blur(6px)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
-          onClick={e => { if (e.target === e.currentTarget) setShowModal(false); }}>
-          <div style={{ background:"#fff", borderRadius:18, width:"100%", maxWidth:500, maxHeight:"90vh", overflowY:"auto", boxShadow:"0 40px 100px rgba(0,0,0,0.25)" }}>
-            <div style={{ padding:"22px 28px 18px", borderBottom:"1px solid #F1F5F9", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, background:"#fff", zIndex:2 }}>
-              <div>
-                <div style={{ fontFamily:"'Lora', Georgia, serif", fontSize:18, fontWeight:900, color:"#0F172A", marginBottom:2 }}>Add New Product</div>
-                <div style={{ fontSize:12, color:"#64748B" }}>Appears in the iConstruct app instantly.</div>
-              </div>
-              <button onClick={() => setShowModal(false)} style={{ width:32, height:32, borderRadius:"50%", background:"#F1F5F9", border:"none", cursor:"pointer", fontSize:18, color:"#64748B", display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
-            </div>
-            <div style={{ padding:"20px 28px 24px" }}>
-              {/* Photo upload */}
-              <div style={{ marginBottom:16 }}>
-                <label style={{ fontSize:11.5, fontWeight:600, color:"#64748B", display:"block", marginBottom:7, textTransform:"uppercase", letterSpacing:"0.08em" }}>Product Photo <span style={{ fontWeight:400, textTransform:"none" }}>(optional)</span></label>
-                {form.imageBase64 ? (
-                  <div style={{ position:"relative", borderRadius:10, overflow:"hidden", marginBottom:4 }}>
-                    <img src={form.imageBase64} alt="preview" style={{ width:"100%", height:160, objectFit:"cover", display:"block" }} />
-                    <button onClick={() => setForm(f => ({ ...f, imageBase64:"" }))} style={{ position:"absolute", top:8, right:8, width:28, height:28, borderRadius:"50%", background:"rgba(15,23,42,0.7)", border:"none", color:"#fff", cursor:"pointer", fontSize:14, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
-                  </div>
-                ) : (
-                  <label style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:8, padding:"20px", border:"2px dashed #E2E8F0", borderRadius:10, cursor:"pointer", background:"#F8FAFC" }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = planColor; e.currentTarget.style.background="#F0F9FF"; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background="#F8FAFC"; }}>
-                    <input ref={imageRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handleImageUpload} />
-                    <span style={{ fontSize:28 }}>📷</span>
-                    <span style={{ fontSize:12.5, color:"#64748B" }}>Click to upload product photo</span>
-                    <span style={{ fontSize:11, color:"#94A3B8" }}>JPG, PNG · Max 3MB</span>
-                  </label>
-                )}
-              </div>
-              {/* Name */}
-              <div style={{ marginBottom:14 }}>
-                <label style={{ fontSize:11.5, fontWeight:600, color:"#64748B", display:"block", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em" }}>Product Name *</label>
-                <input type="text" placeholder="e.g. Portland Cement 40kg" value={form.name}
-                  onChange={e => { setForm(f => ({...f, name: e.target.value})); setFormErrors(fe => ({...fe, name:""})); }}
-                  style={{ width:"100%", padding:"11px 14px", border:`1.5px solid ${formErrors.name ? "#EF4444" : "#E2E8F0"}`, borderRadius:8, fontSize:13.5, fontFamily:"'Inter', sans-serif", outline:"none", color:"#0F172A" }}
-                  onFocus={e => { if (!formErrors.name) e.target.style.borderColor = planColor; }}
-                  onBlur={e  => { if (!formErrors.name) e.target.style.borderColor = "#E2E8F0"; }}
-                />
-                {formErrors.name && <p style={{ fontSize:11, color:"#EF4444", marginTop:4 }}>⚠ {formErrors.name}</p>}
-              </div>
-              {/* Price + Unit */}
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:14 }}>
-                <div>
-                  <label style={{ fontSize:11.5, fontWeight:600, color:"#64748B", display:"block", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em" }}>Price (₱) *</label>
-                  <input type="number" min="0" step="0.01" placeholder="e.g. 285" value={form.price}
-                    onChange={e => { setForm(f => ({...f, price: e.target.value})); setFormErrors(fe => ({...fe, price:""})); }}
-                    style={{ width:"100%", padding:"11px 14px", border:`1.5px solid ${formErrors.price ? "#EF4444" : "#E2E8F0"}`, borderRadius:8, fontSize:13.5, fontFamily:"'Inter', sans-serif", outline:"none", color:"#0F172A" }}
-                    onFocus={e => { if (!formErrors.price) e.target.style.borderColor = planColor; }}
-                    onBlur={e  => { if (!formErrors.price) e.target.style.borderColor = "#E2E8F0"; }}
-                  />
-                  {formErrors.price && <p style={{ fontSize:11, color:"#EF4444", marginTop:4 }}>⚠ {formErrors.price}</p>}
-                </div>
-                <div>
-                  <label style={{ fontSize:11.5, fontWeight:600, color:"#64748B", display:"block", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em" }}>Unit</label>
-                  <select value={form.unit} onChange={e => setForm(f => ({...f, unit: e.target.value}))}
-                    style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E2E8F0", borderRadius:8, fontSize:13, fontFamily:"'Inter', sans-serif", outline:"none", color:"#0F172A", cursor:"pointer", background:"#fff" }}
-                    onFocus={e => e.target.style.borderColor = planColor}
-                    onBlur={e  => e.target.style.borderColor = "#E2E8F0"}>
-                    {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                  </select>
-                </div>
-              </div>
-              {/* Category */}
-              <div style={{ marginBottom:14 }}>
-                <label style={{ fontSize:11.5, fontWeight:600, color:"#64748B", display:"block", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em" }}>Category</label>
-                <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-                  {PRODUCT_CATEGORIES.map(cat => (
-                    <button key={cat} type="button" onClick={() => setForm(f => ({...f, category: cat}))}
-                      style={{ padding:"6px 12px", borderRadius:20, fontSize:11.5, fontWeight:500, cursor:"pointer", border: form.category === cat ? `1.5px solid ${planColor}` : "1.5px solid #E2E8F0", background: form.category === cat ? `${planColor}15` : "#F8FAFC", color: form.category === cat ? planColor : "#64748B" }}>
-                      {CATEGORY_ICONS[cat] || "📦"} {cat}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {/* Description */}
-              <div style={{ marginBottom:20 }}>
-                <label style={{ fontSize:11.5, fontWeight:600, color:"#64748B", display:"block", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em" }}>Description <span style={{ fontWeight:400, textTransform:"none" }}>(optional)</span></label>
-                <textarea rows={2} placeholder="Brand, size, specs, notes..." value={form.description}
-                  onChange={e => setForm(f => ({...f, description: e.target.value}))}
-                  style={{ width:"100%", padding:"11px 14px", border:"1.5px solid #E2E8F0", borderRadius:8, fontSize:13, fontFamily:"'Inter', sans-serif", outline:"none", resize:"none", color:"#0F172A" }}
-                  onFocus={e => e.target.style.borderColor = planColor}
-                  onBlur={e  => e.target.style.borderColor = "#E2E8F0"}
-                />
-              </div>
-              {/* Buttons */}
-              <div style={{ display:"flex", gap:10 }}>
-                <button onClick={() => setShowModal(false)} style={{ padding:"12px 20px", borderRadius:9, border:"1px solid #E2E8F0", background:"#F8FAFC", fontSize:13, fontWeight:500, color:"#64748B", cursor:"pointer" }}>Cancel</button>
-                <button onClick={handleSubmit} disabled={submitting}
-                  style={{ flex:1, padding:"12px", borderRadius:9, border:"none", background: submitting ? "#E2E8F0" : `linear-gradient(135deg, ${planColor}, ${planColor}BB)`, color: submitting ? "#94A3B8" : "#fff", fontSize:13, fontWeight:700, cursor: submitting ? "not-allowed" : "pointer", boxShadow: submitting ? "none" : `0 4px 14px ${planColor}40` }}>
-                  {submitting ? "Adding..." : "Add to Catalog 📱"}
+          {/* Price */}
+          <Field label="Price (₱)" required>
+            <input
+              type="number" min="0"
+              style={inputStyle(cfg.color)}
+              placeholder="e.g. 280"
+              value={prodForm.price}
+              onChange={e => setProdForm(f => ({ ...f, price: e.target.value }))}
+              onFocus={e => e.target.style.borderColor = cfg.color}
+              onBlur={e  => e.target.style.borderColor = T.border}
+            />
+          </Field>
+
+          {/* Description */}
+          <Field label="Description (optional)">
+            <textarea
+              rows={2}
+              style={{ ...inputStyle(cfg.color), resize:"none" }}
+              placeholder="Brief description of this product"
+              value={prodForm.description}
+              onChange={e => setProdForm(f => ({ ...f, description: e.target.value }))}
+              onFocus={e => e.target.style.borderColor = cfg.color}
+              onBlur={e  => e.target.style.borderColor = T.border}
+            />
+          </Field>
+
+          {/* Stock status */}
+          <Field label="Stock Status">
+            <div style={{ display:"flex", gap:8 }}>
+              {[true, false].map(val => (
+                <button
+                  key={String(val)}
+                  onClick={() => setProdForm(f => ({ ...f, inStock: val }))}
+                  style={{
+                    flex:1, padding:"8px 12px", borderRadius:T.radiusSm,
+                    fontSize:12.5, fontWeight:600, cursor:"pointer",
+                    fontFamily:T.fontBody,
+                    border:`1.5px solid ${prodForm.inStock === val ? (val ? T.green : T.red) : T.border}`,
+                    background: prodForm.inStock === val ? (val ? T.greenLight : T.redLight) : "transparent",
+                    color: prodForm.inStock === val ? (val ? "#065F46" : T.red) : T.ink3,
+                    transition:"all 0.15s",
+                  }}
+                >
+                  {val ? "✓ In Stock" : "Out of Stock"}
                 </button>
-              </div>
+              ))}
             </div>
+          </Field>
+
+          {/* Actions */}
+          <div style={{ display:"flex", gap:10, marginTop:4 }}>
+            <button
+              onClick={() => { setShowProdModal(false); resetProdForm(); }}
+              style={{
+                flex:1, padding:"11px", borderRadius:T.radiusSm,
+                border:`1px solid ${T.border}`, background:T.surface2,
+                color:T.ink3, fontSize:13, fontWeight:500,
+                cursor:"pointer", fontFamily:T.fontBody,
+              }}
+            >Cancel</button>
+            <button
+              onClick={handleSaveProduct}
+              disabled={uploading || !prodForm.name || !prodForm.price}
+              style={{
+                flex:2, padding:"11px", borderRadius:T.radiusSm,
+                border:"none", fontFamily:T.fontBody,
+                background: (!prodForm.name || !prodForm.price || uploading) ? T.border : cfg.accentGradient,
+                color: (!prodForm.name || !prodForm.price || uploading) ? T.ink3 : "#fff",
+                fontSize:13, fontWeight:600,
+                cursor: (!prodForm.name || !prodForm.price || uploading) ? "not-allowed" : "pointer",
+              }}
+            >
+              {uploading ? "Saving..." : "Save Product"}
+            </button>
           </div>
-        </div>
+        </Modal>
       )}
 
-      {/* ════════════════════════════════════════════════════════════════
-          CSV PREVIEW + IMPORT MODAL (Business only)
-          Smart features:
-          - Shows parsed rows before importing
-          - Flags duplicates and invalid rows in red
-          - User can uncheck rows to skip them
-          - Auto-corrected values shown in the preview
-      ════════════════════════════════════════════════════════════════ */}
-      {showCSVModal && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.6)", backdropFilter:"blur(8px)", zIndex:600, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
-          onClick={e => { if (e.target === e.currentTarget && !csvImporting) setShowCSVModal(false); }}>
-          <div style={{ background:"#fff", borderRadius:18, width:"100%", maxWidth:820, maxHeight:"90vh", display:"flex", flexDirection:"column", boxShadow:"0 40px 100px rgba(0,0,0,0.3)" }}>
-            {/* Modal header */}
-            <div style={{ padding:"20px 26px 16px", borderBottom:"1px solid #F1F5F9", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <div>
-                <div style={{ fontFamily:"'Lora', Georgia, serif", fontSize:17, fontWeight:900, color:"#0F172A", marginBottom:3 }}>
-                  📊 Import Preview — {csvFileName}
-                </div>
-                <div style={{ fontSize:12, color:"#64748B" }}>
-                  {csvRows.length} rows found · {selectedRows.length} selected to import ·{" "}
-                  <span style={{ color:"#EF4444" }}>{csvErrors.length} with issues</span>
-                </div>
-              </div>
-              {!csvImporting && (
-                <button onClick={() => setShowCSVModal(false)} style={{ width:32, height:32, borderRadius:"50%", background:"#F1F5F9", border:"none", cursor:"pointer", fontSize:18, color:"#64748B", display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
-              )}
-            </div>
-
-            {/* Smart features info */}
-            <div style={{ margin:"12px 26px 0", padding:"10px 14px", background:"#F0FDF4", border:"1px solid #BBF7D0", borderRadius:8, fontSize:12, color:"#065F46" }}>
-              ✅ Auto-corrected: spaces trimmed, prices cleaned, categories & units validated.
-              Uncheck any row you don't want to import. Rows with errors are pre-deselected.
-            </div>
-
-            {/* Error summary */}
-            {csvErrors.length > 0 && (
-              <div style={{ margin:"10px 26px 0", padding:"10px 14px", background:"#FEF2F2", border:"1px solid #FECACA", borderRadius:8 }}>
-                <div style={{ fontSize:12, fontWeight:700, color:"#991B1B", marginBottom:4 }}>⚠ Issues found in {csvErrors.length} row{csvErrors.length>1?"s":""}:</div>
-                {csvErrors.slice(0,3).map((e, i) => (
-                  <div key={i} style={{ fontSize:11.5, color:"#DC2626", marginBottom:2 }}>
-                    Row {e.rowNum} ({e.name || "unnamed"}): {e.issues.join(" · ")}
-                  </div>
-                ))}
-                {csvErrors.length > 3 && <div style={{ fontSize:11, color:"#DC2626" }}>...and {csvErrors.length - 3} more</div>}
-              </div>
-            )}
-
-            {/* Preview table */}
-            <div style={{ flex:1, overflowY:"auto", margin:"12px 0 0" }}>
-              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-                <thead style={{ position:"sticky", top:0, background:"#F8FAFC", zIndex:1 }}>
-                  <tr>
-                    <th style={{ padding:"10px 14px", textAlign:"left", borderBottom:"1px solid #E2E8F0", width:36 }}>
-                      <input type="checkbox"
-                        checked={selectedRows.length === csvRows.filter(r => r._errors.length === 0).length && csvRows.filter(r => r._errors.length === 0).length > 0}
-                        onChange={e => {
-                          if (e.target.checked) {
-                            setSelectedRows(csvRows.filter(r => r._errors.length === 0).map(r => r._rowNum));
-                          } else {
-                            setSelectedRows([]);
-                          }
-                        }}
-                      />
-                    </th>
-                    {["Row","Name","Price","Unit","Category","Description","Status"].map(h => (
-                      <th key={h} style={{ padding:"10px 12px", textAlign:"left", fontSize:10, fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", color:"#94A3B8", borderBottom:"1px solid #E2E8F0" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {csvRows.map((row) => {
-                    const hasError  = row._errors.length > 0;
-                    const isChecked = selectedRows.includes(row._rowNum);
-                    const rowBg     = hasError ? "#FFF8F8" : isChecked ? "#F0FDF4" : "#fff";
-                    return (
-                      <tr key={row._rowNum} style={{ background: rowBg, borderBottom:"1px solid #F1F5F9" }}>
-                        <td style={{ padding:"10px 14px" }}>
-                          <input type="checkbox" disabled={hasError} checked={isChecked && !hasError}
-                            onChange={e => {
-                              if (e.target.checked) setSelectedRows(prev => [...prev, row._rowNum]);
-                              else setSelectedRows(prev => prev.filter(r => r !== row._rowNum));
-                            }}
-                          />
-                        </td>
-                        <td style={{ padding:"10px 12px", color:"#94A3B8" }}>{row._rowNum}</td>
-                        <td style={{ padding:"10px 12px", fontWeight:600, color: hasError ? "#DC2626" : "#0F172A", maxWidth:140, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                          {row.name || <span style={{ color:"#EF4444", fontStyle:"italic" }}>missing</span>}
-                          {row._duplicate && <span style={{ marginLeft:6, fontSize:10, background:"#FEF3C7", color:"#92400E", padding:"1px 5px", borderRadius:4 }}>dup</span>}
-                        </td>
-                        <td style={{ padding:"10px 12px", color: parseFloat(row.price) > 0 ? "#059669" : "#EF4444", fontWeight:600 }}>
-                          {parseFloat(row.price) > 0 ? `₱${parseFloat(row.price).toLocaleString()}` : <span style={{ fontStyle:"italic" }}>invalid</span>}
-                        </td>
-                        <td style={{ padding:"10px 12px", color:"#334155" }}>{row.unit}</td>
-                        <td style={{ padding:"10px 12px", color:"#334155" }}>
-                          {CATEGORY_ICONS[row.category] || "📦"} {row.category}
-                        </td>
-                        <td style={{ padding:"10px 12px", color:"#94A3B8", maxWidth:140, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                          {row.description || "—"}
-                        </td>
-                        <td style={{ padding:"10px 12px" }}>
-                          {hasError
-                            ? <span style={{ fontSize:10, fontWeight:700, background:"#FEE2E2", color:"#991B1B", padding:"2px 8px", borderRadius:10 }}>⚠ Error</span>
-                            : row._duplicate
-                              ? <span style={{ fontSize:10, fontWeight:700, background:"#FEF3C7", color:"#92400E", padding:"2px 8px", borderRadius:10 }}>Duplicate</span>
-                              : <span style={{ fontSize:10, fontWeight:700, background:"#D1FAE5", color:"#065F46", padding:"2px 8px", borderRadius:10 }}>✓ Ready</span>
-                          }
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Modal footer */}
-            <div style={{ padding:"14px 26px 20px", borderTop:"1px solid #F1F5F9", display:"flex", gap:10, alignItems:"center" }}>
-              <div style={{ flex:1, fontSize:12.5, color:"#64748B" }}>
-                {selectedRows.length} of {csvRows.length} rows selected
-                {planMax !== Infinity && products.length + selectedRows.length > planMax && (
-                  <span style={{ color:"#EF4444", marginLeft:8 }}>⚠ Would exceed plan limit ({planMax})</span>
-                )}
-              </div>
-              <button onClick={() => setShowCSVModal(false)} disabled={csvImporting}
-                style={{ padding:"10px 20px", borderRadius:9, border:"1px solid #E2E8F0", background:"#F8FAFC", fontSize:13, fontWeight:500, color:"#64748B", cursor:"pointer" }}>
-                Cancel
-              </button>
-              <button onClick={handleCSVImport} disabled={csvImporting || selectedRows.length === 0}
-                style={{ padding:"10px 24px", borderRadius:9, border:"none", background: (csvImporting || selectedRows.length === 0) ? "#E2E8F0" : `linear-gradient(135deg,${planColor},${planColor}BB)`, color: (csvImporting || selectedRows.length === 0) ? "#94A3B8" : "#fff", fontSize:13, fontWeight:700, cursor: (csvImporting || selectedRows.length === 0) ? "not-allowed" : "pointer", boxShadow: selectedRows.length > 0 ? `0 4px 14px ${planColor}40` : "none" }}>
-                {csvImporting ? "Importing..." : `Import ${selectedRows.length} Product${selectedRows.length !== 1 ? "s" : ""} →`}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Toast */}
+      {/* ── Toast ── */}
       {toast && (
-        <div style={{ position:"fixed", bottom:24, right:24, display:"flex", alignItems:"center", gap:10, padding:"12px 18px", borderRadius:10, background: toast.type === "error" ? "#DC2626" : "#0F172A", color:"#fff", fontSize:12.5, fontWeight:500, boxShadow:"0 10px 30px rgba(0,0,0,0.25)", zIndex:700, maxWidth:320 }}>
-          {toast.type === "error" ? "❌" : "✓"} {toast.msg}
+        <div style={{
+          position:"fixed", bottom:24, right:24,
+          padding:"12px 18px", borderRadius:10,
+          background: toast.type === "error" ? T.red : T.ink,
+          color:"#fff", fontSize:12.5, fontWeight:500,
+          boxShadow:"0 10px 30px rgba(0,0,0,0.2)", zIndex:500,
+          fontFamily:T.fontBody, maxWidth:300,
+        }}>
+          {toast.msg}
         </div>
       )}
+
+      {/* Keyframes */}
+      <style>{`@keyframes pt-spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

@@ -28,7 +28,7 @@ export default function LoginForm() {
         setFirebaseError("Your application was not approved. Please contact support.");
         return;
       }
-      navigate("/dashboard");
+      navigate("/shop/dashboard");
     } catch (err) {
       const msg = {
         "auth/user-not-found":     "No account found with this email.",
