@@ -49,10 +49,10 @@ export async function getCategory(categoryId) {
  * Validates name before writing.
  * @returns {Promise<string>} New category document ID
  */
-export async function addCategory({ name, description, icon }) {
+export async function addCategory({ name, description, icon, projectId }) {
   if (!name || !name.trim()) throw new Error("Category name is required.");
   const uid = getUid();
-  return insertCategory(uid, { name, description, icon });
+  return insertCategory(uid, { name, description, icon, projectId });
 }
 
 // ── UPDATE ────────────────────────────────────────────────────
@@ -76,3 +76,4 @@ export async function removeCategory(categoryId) {
   const uid = getUid();
   return deleteCategory(uid, categoryId);
 }
+
