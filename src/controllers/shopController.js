@@ -46,13 +46,19 @@ export async function submitQuotation({ projectId, amount, note }) {
   const user = auth.currentUser;
   if (!user) throw new Error("Not authenticated");
 
-  const projectSnap = await getDoc(doc(db, "projects", projectId));
-  const projectTitle = projectSnap.data()?.title || "Project";
+  // ✅ was doc(db, "projects", projectId) — wrong collection
+  const projectSnap = await getDoc(doc(db, "projectPosts", projectId));
+  if (!projectSnap.exists()) throw new Error("Project not found");
+  const projectTitle = projectSnap.data()?.projectName || "Project";
+
+  // Get shop name to include in quotation
+  const shop = await fetchShopById(user.uid);
 
   await insertQuotation({
     projectId,
     projectTitle,
-    shopId: user.uid,
+    shopId:    user.uid,
+    shopName:  shop.shopName,              // ✅ added shopName
     amount,
     note,
   });

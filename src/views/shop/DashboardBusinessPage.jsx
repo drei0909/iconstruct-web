@@ -533,10 +533,14 @@ export default function ShopDashboardBusiness() {
     return Object.values(map).sort((a, b) => b.key.localeCompare(a.key)).slice(0, 6);
   })();
 
-  const filteredProjects = projects.filter(p =>
-    p.title?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-    p.city?.toLowerCase().includes(debouncedSearch.toLowerCase())
+  const filteredProjects = projects.filter(p => {
+  const q = debouncedSearch.toLowerCase();
+  return (
+    p.projectName?.toLowerCase().includes(q) ||
+    p.locationCity?.toLowerCase().includes(q) ||
+    p.materials?.join(" ").toLowerCase().includes(q)
   );
+});
 
   const Sidebar = () => (
     <aside style={{ width:240, minHeight:"100vh", flexShrink:0, background:"linear-gradient(175deg,#1E0B3A 0%,#2D1B69 60%,#1E0B3A 100%)", display:"flex", flexDirection:"column" }}>

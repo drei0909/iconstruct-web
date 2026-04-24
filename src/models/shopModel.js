@@ -4,12 +4,12 @@
 import { db } from "../services/firebase";
 import {
   doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc,
-  collection, query, where, orderBy, serverTimestamp,
+  collection, collectionGroup, query, where, orderBy,
+  serverTimestamp,
 } from "firebase/firestore";
 
 // ── Shop ──────────────────────────────────────────────────────────────────────
 
-// Get one shop document by UID
 export async function fetchShopById(uid) {
   const snap = await getDoc(doc(db, "shops", uid));
   if (!snap.exists()) throw new Error("Shop profile not found");
@@ -18,30 +18,35 @@ export async function fetchShopById(uid) {
 
 // ── Projects ──────────────────────────────────────────────────────────────────
 
-// Get all open projects — fallback if composite index missing
 export async function fetchOpenProjects() {
   try {
     const q = query(
-      collection(db, "projects"),
+      collection(db, "projectPosts"),
       where("status", "==", "open"),
-      orderBy("createdAt", "desc")
+      orderBy("postedAt", "desc")
     );
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    console.log("First project fields:", JSON.stringify(docs[0], null, 2)); // ← ADD THIS
+    return docs;
   } catch (err) {
     console.warn("Composite index missing, falling back:", err.message);
-    const q = query(collection(db, "projects"), where("status", "==", "open"));
+    const q = query(
+      collection(db, "projectPosts"),
+      where("status", "==", "open")
+    );
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+   /*  console.log("Fallback first project:", JSON.stringify(docs[0], null, 2)); */ // ← ADD THIS TOO
+    return docs;
   }
 }
 
 // ── Quotations ────────────────────────────────────────────────────────────────
 
-// Get all quotations for a specific shop
 export async function fetchQuotationsByShop(shopId) {
   const q = query(
-    collection(db, "quotations"),
+    collectionGroup(db, "quotations"),
     where("shopId", "==", shopId),
     orderBy("createdAt", "desc")
   );
@@ -49,22 +54,30 @@ export async function fetchQuotationsByShop(shopId) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-// Save a new quotation
-export async function insertQuotation({ projectId, projectTitle, shopId, amount, note }) {
-  await addDoc(collection(db, "quotations"), {
+export async function insertQuotation({ projectId, projectTitle, shopId, shopName, amount, note }) {
+  const quotationRef = collection(db, "projectPosts", projectId, "quotations");
+  await addDoc(quotationRef, {
     projectId,
     projectTitle,
     shopId,
+    shopName,
     amount: parseFloat(amount),
     note:   note || "",
     status: "pending",
     createdAt: serverTimestamp(),
   });
+
+  const postRef  = doc(db, "projectPosts", projectId);
+  const postSnap = await getDoc(postRef);
+  const currentCount = postSnap.data()?.quotationCount || 0;
+  await updateDoc(postRef, {
+    quotationCount: currentCount + 1,
+    updatedAt: serverTimestamp(),
+  });
 }
 
 // ── Payments ──────────────────────────────────────────────────────────────────
 
-// Get latest payment request for a shop
 export async function fetchLatestPaymentByShop(shopId) {
   const q = query(
     collection(db, "subscriptionPayments"),
@@ -76,7 +89,6 @@ export async function fetchLatestPaymentByShop(shopId) {
   return { id: snap.docs[0].id, ...snap.docs[0].data() };
 }
 
-// Check if shop already has a pending payment
 export async function fetchPendingPaymentByShop(shopId) {
   const q = query(
     collection(db, "subscriptionPayments"),
@@ -87,7 +99,6 @@ export async function fetchPendingPaymentByShop(shopId) {
   return !snap.empty;
 }
 
-// Save a new payment request
 export async function insertPaymentRequest(data) {
   await addDoc(collection(db, "subscriptionPayments"), {
     ...data,
@@ -96,11 +107,8 @@ export async function insertPaymentRequest(data) {
   });
 }
 
-// ── Products (NEW) ────────────────────────────────────────────────────────────
-// These write to the "products" collection which the mobile app also reads from.
-// Both web and app use the SAME Firebase project, so data is shared in real time.
+// ── Products ──────────────────────────────────────────────────────────────────
 
-// Get all products for a specific shop
 export async function fetchProductsByShop(shopId) {
   try {
     const q = query(
@@ -111,7 +119,6 @@ export async function fetchProductsByShop(shopId) {
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   } catch (err) {
-    // Fallback without orderBy if index doesn't exist yet
     console.warn("Products index missing, falling back:", err.message);
     const q = query(collection(db, "products"), where("shopId", "==", shopId));
     const snap = await getDocs(q);
@@ -119,7 +126,6 @@ export async function fetchProductsByShop(shopId) {
   }
 }
 
-// Get ALL available products (for the mobile app to fetch)
 export async function fetchAllAvailableProducts() {
   try {
     const q = query(
@@ -136,7 +142,6 @@ export async function fetchAllAvailableProducts() {
   }
 }
 
-// Add a new product to the "products" collection
 export async function insertProduct({
   shopId, shopName, name, description,
   price, unit, category, imageBase64,
@@ -144,20 +149,19 @@ export async function insertProduct({
   const ref = await addDoc(collection(db, "products"), {
     shopId,
     shopName,
-    name:         name        || "",
-    description:  description || "",
-    price:        parseFloat(price) || 0,
-    unit:         unit        || "piece",
-    category:     category    || "general",
-    imageBase64:  imageBase64 || "",  // base64 image string or empty
-    available:    true,
-    createdAt:    serverTimestamp(),
-    updatedAt:    serverTimestamp(),
+    name:        name        || "",
+    description: description || "",
+    price:       parseFloat(price) || 0,
+    unit:        unit        || "piece",
+    category:    category    || "general",
+    imageBase64: imageBase64 || "",
+    available:   true,
+    createdAt:   serverTimestamp(),
+    updatedAt:   serverTimestamp(),
   });
   return ref.id;
 }
 
-// Update product availability (toggle on/off)
 export async function updateProductAvailability(productId, available) {
   await updateDoc(doc(db, "products", productId), {
     available,
@@ -165,7 +169,6 @@ export async function updateProductAvailability(productId, available) {
   });
 }
 
-// Update product details
 export async function updateProduct(productId, data) {
   await updateDoc(doc(db, "products", productId), {
     ...data,
@@ -173,7 +176,6 @@ export async function updateProduct(productId, data) {
   });
 }
 
-// Delete a product permanently
 export async function removeProduct(productId) {
   await deleteDoc(doc(db, "products", productId));
 }

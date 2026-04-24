@@ -1,50 +1,50 @@
-import { useRef } from "react";
-import { Swiper, SwiperSlide } from "swiper/react";
-import { Autoplay, Navigation, Pagination } from "swiper/modules";
-import "swiper/css";
-import "swiper/css/navigation";
-import "swiper/css/pagination";
+
 
 const features = [
   {
     tag: "Visibility",
-    title: "Get More Customers",
+    title: "Get Found by Nearby Builders",
     description:
-      "Contractors and builders can easily find your hardware shop when they need construction materials.",
+      "iConstruct surfaces your shop through proximity-based listings and supplier matching — connecting you directly with homeowners, contractors, and builders in Lipa City actively planning their projects.",
   },
   {
     tag: "Estimation",
-    title: "Smart Material Estimation",
+    title: "Integrated Material Estimation",
     description:
-      "Contractors calculate materials using iConstruct, and your shop becomes their trusted supplier.",
+      "Builders compute material requirements inside iConstruct using automated calculation based on project dimensions. Your shop appears as a recommended supplier — no extra effort needed.",
   },
   {
     tag: "Costing",
-    title: "Accurate Cost Calculation",
+    title: "Localized Cost Computation",
     description:
-      "Help customers estimate project costs using real hardware prices from registered shops.",
+      "Project cost estimates are generated using live unit prices from registered shops in Lipa City — giving builders accurate, locally grounded budget figures tied directly to your inventory.",
   },
   {
     tag: "Marketing",
-    title: "Promote Your Hardware Shop",
+    title: "Promotional Exposure & Featured Placement",
     description:
-      "Show your shop to contractors, builders, and homeowners looking for reliable suppliers.",
+      "Pro and Business subscribers gain priority listing in search results and featured placement on the platform — putting your shop in front of active buyers at the right moment.",
   },
   {
     tag: "Trust",
     title: "Verified Business Platform",
     description:
-      "Only approved hardware shops are listed, creating a trusted environment for construction partners.",
+      "Every shop undergoes admin verification of uploaded business permits (e.g., Mayor's Permit) before being listed — ensuring iConstruct remains a trusted network of legitimate, compliant hardware businesses.",
   },
   {
     tag: "Management",
-    title: "Easy Shop Management",
+    title: "Unified Shop Manager Dashboard",
     description:
-      "Manage your shop profile, update materials, and connect with customers through one platform.",
+      "Update product listings, manage pricing, review posted projects, submit quotations, and track bidding history — all from one centralized web dashboard built for hardware shop owners.",
   },
 ];
 
-// Subscription plan tiers
+const stats = [
+  { val: "3×",   label: "More Customer Reach" },
+  { val: "100%", label: "Verified Shops Only"  },
+  { val: "Free", label: "To Get Started"       },
+];
+
 const plans = [
   {
     name: "Basic",
@@ -106,103 +106,70 @@ const plans = [
 ];
 
 export default function Features() {
-  const swiperRef = useRef(null);
-
   return (
     <>
       {/* ── Features Section ── */}
       <section className="ft-section">
-        <div className="container">
 
-          {/* Header */}
-          <div className="ft-header">
+        <div className="ft-head">
+          <div className="ft-head-left">
             <div className="ft-eyebrow">
               <span className="ft-eyebrow-line" />
               Platform Features
               <span className="ft-eyebrow-line" />
             </div>
-            <h2 className="ft-title">
-              Why Register Your Shop<br />
-              with <span>iConstruct</span>?
+            <h2 className="ft-h2">
+              Why Your Shop Belongs<br />
+              on <em>iConstruct</em>
             </h2>
-            <p className="ft-subtitle">
-              Everything you need to grow your hardware business and become
-              the go-to supplier for builders and contractors.
-            </p>
           </div>
-
-          {/* Swiper */}
-          <div className="ft-swiper-wrap">
-            <Swiper
-              onSwiper={(swiper) => (swiperRef.current = swiper)}
-              modules={[Autoplay, Navigation, Pagination]}
-              spaceBetween={24}
-              slidesPerView={3}
-              navigation={{ prevEl: ".ft-nav-prev", nextEl: ".ft-nav-next" }}
-              pagination={{ clickable: true, el: ".ft-pagination" }}
-              autoplay={{
-                delay: 4000,
-                disableOnInteraction: false,
-                pauseOnMouseEnter: true,
-              }}
-              breakpoints={{
-                0:   { slidesPerView: 1 },
-                640: { slidesPerView: 2, spaceBetween: 16 },
-                992: { slidesPerView: 3, spaceBetween: 24 },
-              }}
-            >
-              {features.map((f, i) => (
-                <SwiperSlide key={i} style={{ height: "auto" }}>
-                  <div className="ft-card">
-                    <div className="ft-card-watermark">{String(i + 1).padStart(2, "0")}</div>
-                    <div className="ft-card-top">
-                      <span className="ft-number-badge">{String(i + 1).padStart(2, "0")}</span>
-                      <span className="ft-tag">{f.tag}</span>
-                    </div>
-                    <h4 className="ft-card-title">{f.title}</h4>
-                    <p className="ft-card-desc">{f.description}</p>
-                    <div className="ft-card-line" />
-                  </div>
-                </SwiperSlide>
-              ))}
-            </Swiper>
-
-            {/* Custom nav row */}
-            <div className="ft-nav-row">
-              <button className="ft-nav-btn ft-nav-prev" aria-label="Previous">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"
-                  strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
-                  <path d="M10 4L6 8l4 4" />
-                </svg>
-              </button>
-              <div className="ft-pagination" />
-              <button className="ft-nav-btn ft-nav-next" aria-label="Next">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"
-                  strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
-                  <path d="M6 4l4 4-4 4" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          {/* CTA strip */}
-          <div className="ft-cta">
-            <div className="ft-cta-inner">
-              <p className="ft-cta-text">Ready to grow your hardware business?</p>
-              <a href="/register" className="ft-cta-btn">
-                Register Your Shop →
-              </a>
-            </div>
-          </div>
-
+          <p className="ft-head-right">
+            Everything your hardware business needs to connect with the
+            builders, contractors, and homeowners looking for you.
+          </p>
         </div>
+
+        <div className="ft-grid">
+          {features.map((f, i) => (
+            <div
+              key={i}
+              className={`ft-cell${i === 0 ? " ft-cell--wide" : ""}`}
+            >
+              <div className="ft-cell-idx">{String(i + 1).padStart(2, "0")}</div>
+              <span className="ft-cell-tag">{f.tag}</span>
+              <h3 className="ft-cell-h3">{f.title}</h3>
+              <p className="ft-cell-p">{f.description}</p>
+              <div className="ft-cell-bar" />
+              <span className="ft-cell-glyph">{String(i + 1).padStart(2, "0")}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="ft-stats">
+          {stats.map((s, i) => (
+            <div className="ft-stat" key={i}>
+              <span className="ft-stat-val">{s.val}</span>
+              <span className="ft-stat-lbl">{s.label}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="ft-cta">
+          <p className="ft-cta-text">
+            Ready to grow your <span>hardware business?</span>
+          </p>
+          <div className="ft-cta-btns">
+            <a href="#" className="ft-btn-ghost">Learn More</a>
+            <a href="/register" className="ft-btn-fill">Register Your Shop →</a>
+          </div>
+        </div>
+
       </section>
 
       {/* ── Subscription Plans Section ── */}
       <section className="sp-section">
         <div className="container">
 
-          {/* Header */}
           <div className="sp-header">
             <div className="ft-eyebrow">
               <span className="ft-eyebrow-line" />
@@ -217,8 +184,6 @@ export default function Features() {
               Start free after your shop is approved. Upgrade any time to unlock
               more product listings, priority visibility, and powerful analytics.
             </p>
-
-            {/* Flow hint pill */}
             <div className="sp-flow-pill">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"
                 strokeLinecap="round" width="13" height="13">
@@ -229,33 +194,25 @@ export default function Features() {
             </div>
           </div>
 
-          {/* Plan cards */}
           <div className="sp-plans">
             {plans.map((plan, i) => (
               <div
                 key={i}
                 className={`sp-plan-card ${plan.badge === "Most Popular" ? "sp-plan-featured" : ""}`}
               >
-                {/* Badge */}
                 {plan.badge && (
                   <span className={`sp-plan-badge ${plan.badge === "Most Popular" ? "sp-badge-dark" : "sp-badge-blue"}`}>
                     {plan.badge}
                   </span>
                 )}
-
                 <div className="sp-plan-top">
                   <div className="sp-plan-dot" style={{ background: plan.color }} />
                   <span className="sp-plan-name">{plan.name}</span>
                 </div>
-
                 <div className="sp-plan-price">
                   <span className="sp-plan-amount">{plan.price}</span>
-                  {plan.period && (
-                    <span className="sp-plan-period">{plan.period}</span>
-                  )}
+                  {plan.period && <span className="sp-plan-period">{plan.period}</span>}
                 </div>
-
-                {/* Product limit indicator */}
                 <div className="sp-limit-box">
                   <div className="sp-limit-header">
                     <span className="sp-limit-label">Product listings</span>
@@ -268,34 +225,26 @@ export default function Features() {
                     />
                   </div>
                 </div>
-
                 <ul className="sp-plan-features">
                   {plan.features.map((feat, j) => (
                     <li key={j} className="sp-plan-feature-item">
                       <svg viewBox="0 0 14 14" fill="none" stroke="#22c55e" strokeWidth="2"
-                        strokeLinecap="round" strokeLinejoin="round" width="13" height="13" style={{ flexShrink: 0 }}>
+                        strokeLinecap="round" strokeLinejoin="round" width="13" height="13"
+                        style={{ flexShrink: 0 }}>
                         <path d="M2.5 7.5l3 3 6-6" />
                       </svg>
-                      {/* Bold the first feature (product limit) */}
-                      {j === 0
-                        ? <strong style={{ fontWeight: 600 }}>{feat}</strong>
-                        : feat
-                      }
+                      {j === 0 ? <strong style={{ fontWeight: 600 }}>{feat}</strong> : feat}
                     </li>
                   ))}
                 </ul>
-
                 <a
                   href="/register"
                   className={`sp-plan-cta ${plan.ctaStyle === "filled" ? "sp-cta-filled" : "sp-cta-outline"}`}
                 >
                   {plan.cta}
                 </a>
-
                 {plan.name === "Basic" && (
-                  <p className="sp-plan-note">
-                    Automatically granted after admin approval.
-                  </p>
+                  <p className="sp-plan-note">Automatically granted after admin approval.</p>
                 )}
                 {plan.name === "Business" && (
                   <p className="sp-plan-note">
@@ -306,12 +255,11 @@ export default function Features() {
             ))}
           </div>
 
-          {/* Payment method row */}
           <div className="sp-payments">
             <span className="sp-payments-label">Accepted payments</span>
             <div className="sp-payment-chips">
-              {["GCash", "Maya", "BDO", "BPI", "Visa / Mastercard", "UnionBank"].map((method) => (
-                <span key={method} className="sp-payment-chip">{method}</span>
+              {["GCash", "Maya", "BDO", "BPI", "Visa / Mastercard", "UnionBank"].map((m) => (
+                <span key={m} className="sp-payment-chip">{m}</span>
               ))}
             </div>
           </div>

@@ -167,11 +167,11 @@ function Projects({ filteredProjects, projects, projectSearch, setProjectSearch,
           {filteredProjects.map(p => (
             <div key={p.id} className="db-project-row">
               <div style={{ flex:1 }}>
-                <div className="db-project-title">{p.title || "Construction Project"}</div>
-                <div className="db-project-meta">{p.materials?.slice(0,3).join(", ") || "Materials TBD"} · {p.city || "—"}</div>
+                <div className="db-project-title">{p.projectName || "Construction Project"}</div>
+                <div className="db-project-meta">{p.projectType || "Construction"} · {p.materials?.slice(0,3).join(", ") || "Materials TBD"}</div>
               </div>
               <div style={{ fontSize:14, fontWeight:700, color:"var(--db-ink)", fontFamily:"var(--db-font-display)" }}>
-                ₱{p.estimatedBudget?.toLocaleString() || "—"}
+                Budget: {p.budget || "—"}
               </div>
               <button
                 disabled={quotaUsed >= QUOTA_LIMIT}
@@ -489,14 +489,14 @@ export default function ShopDashboardBasic() {
     }
   };
 
-  const filteredProjects = projects.filter(p => {
-    const q = debouncedSearch.toLowerCase();
-    return (
-      p.title?.toLowerCase().includes(q) ||
-      p.city?.toLowerCase().includes(q) ||
-      p.materials?.join(" ").toLowerCase().includes(q)
-    );
-  });
+ const filteredProjects = projects.filter(p => {
+  const q = debouncedSearch.toLowerCase();
+  return (
+    p.projectName?.toLowerCase().includes(q) ||
+    p.locationCity?.toLowerCase().includes(q) ||
+    p.materials?.join(" ").toLowerCase().includes(q)
+  );
+});
 
   const handlePaymentSuccess = () => {
     getMyPaymentRequest().then(r => setExistingPayment(r)).catch(() => {});
@@ -570,7 +570,7 @@ export default function ShopDashboardBasic() {
           <div className="db-modal">
             <div className="db-modal-title">Submit Quotation</div>
             <div className="db-modal-sub">
-              For: <strong style={{ color:"var(--db-ink)" }}>{quoteModal.title || "Project"}</strong><br />
+              For: <strong style={{ color:"var(--db-ink)" }}>{quoteModal.projectName || "Project"}</strong><br />
               Remaining quota: <strong style={{ color: quotaUsed >= QUOTA_LIMIT ? "var(--db-red)" : "var(--db-green)" }}>
                 {QUOTA_LIMIT - quotaUsed} of {QUOTA_LIMIT}
               </strong>

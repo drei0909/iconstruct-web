@@ -3,6 +3,7 @@ import { useState }          from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { loginShop }         from "../../controllers/authController";
 import ForgotPassword        from "./ForgotPassword";
+import { requestNotificationPermission } from "../../services/fcmService"; // ← ADDED
 
 export default function LoginForm() {
   const navigate = useNavigate();
@@ -19,7 +20,10 @@ export default function LoginForm() {
     e.preventDefault();
     setLoading(true); setFirebaseError("");
     try {
-      const { status } = await loginShop(form.email, form.password);
+      // loginShop already returns { user, status }
+      // destructure user here — no extra auth calls needed
+      const { user, status } = await loginShop(form.email, form.password); // ← added `user`
+
       if (status === "pending") {
         setFirebaseError("Your shop application is still under review.");
         return;
@@ -28,6 +32,11 @@ export default function LoginForm() {
         setFirebaseError("Your application was not approved. Please contact support.");
         return;
       }
+
+      // ── FCM: request permission + save token using uid from loginShop ──
+      await requestNotificationPermission(user.uid); // ← ADDED
+      // ──────────────────────────────────────────────────────────────────
+
       navigate("/shop/dashboard");
     } catch (err) {
       const msg = {
@@ -44,13 +53,9 @@ export default function LoginForm() {
 
   return (
     <>
-      {/* Modal renders on top of the login page — no layout interference */}
       {showForgot && <ForgotPassword onClose={() => setShowForgot(false)} />}
-
       <div className="login-page">
         <div className="login-wrap">
-
-          {/* Left branding panel — unchanged */}
           <div className="login-left">
             <div className="login-left-top">
               <div className="login-left-eyebrow">
@@ -85,21 +90,18 @@ export default function LoginForm() {
             </div>
           </div>
 
-          {/* Right form panel */}
           <div className="login-right">
             <p className="login-form-eyebrow">Shop Owner Access</p>
             <h3 className="login-form-title">Sign In to Your Shop</h3>
             <p className="login-form-sub">
               Enter the credentials you used when registering your hardware shop.
             </p>
-
             <form onSubmit={handleSubmit}>
               <div className="login-field">
                 <label className="login-label">Email Address</label>
                 <input className="login-input" type="email" name="email"
                   placeholder="yourshop@email.com" value={form.email} onChange={handleChange} required />
               </div>
-
               <div className="login-field">
                 <label className="login-label">Password</label>
                 <div className="login-input-wrap">
@@ -125,16 +127,13 @@ export default function LoginForm() {
                   </button>
                 </div>
               </div>
-
               <button type="button" className="login-forgot"
                 onClick={() => { setFirebaseError(""); setShowForgot(true); }}>
                 Forgot password?
               </button>
-
               {firebaseError && (
                 <div className="login-error">{firebaseError}</div>
               )}
-
               <button className="login-submit" type="submit" disabled={loading}>
                 {loading ? (
                   <><span className="login-spinner" /> Signing In...</>
@@ -149,13 +148,11 @@ export default function LoginForm() {
                 )}
               </button>
             </form>
-
             <div className="login-divider">
               <span className="login-divider-line" />
               <span className="login-divider-text">Don't have a shop account yet?</span>
               <span className="login-divider-line" />
             </div>
-
             <p className="login-signup-row">
               <Link to="/register" className="login-signup-link">
                 Register your hardware shop →

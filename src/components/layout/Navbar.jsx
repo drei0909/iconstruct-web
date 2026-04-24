@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, NavLink } from "react-router-dom";
-import logo from "../../assets/logo/logo.png";
+import logo from "../../assets/logo/logo2.png";
 
 function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -47,9 +47,13 @@ function Navbar() {
         {/* ── Main navbar ── */}
         <nav className={`nb-nav ${scrolled ? "scrolled" : ""}`}>
 
-          {/* <Link className="nb-logo" to="/">
-            <img src={logo} alt="iConstruct" />
-          </Link> */}
+         <Link className="nb-logo" to="/">
+          <img
+            src={logo}
+            alt="iConstruct"
+            style={{ mixBlendMode: "lighten" }}
+          />
+        </Link>
 
           {/* Desktop links */}
           <ul className="nb-links">

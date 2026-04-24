@@ -45,7 +45,7 @@ export default function SearchBar({
           paddingTop: 8,
           paddingBottom: 8,
           fontSize: 13,
-          fontFamily: "'DM Sans', 'Inter', sans-serif",
+          fontFamily: "''Inter'', 'Inter', sans-serif",
           color: "#0F172A",
           background: "#fff",
           border: "1.5px solid #E2E8F0",

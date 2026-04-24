@@ -18,13 +18,13 @@ import StripePaymentForm from "../../components/forms/StripePaymentForm";
 import React from "react";
 
 const NAV = [
-  { key: "overview",   label: "Overview",     icon: "⊞" },
-  { key: "projects",   label: "All Projects", icon: "📋" },
-  { key: "quotations", label: "Quotations",   icon: "📄" },
-  { key: "analytics",  label: "Analytics",    icon: "📊" },
-  { key: "profile",    label: "Shop Profile", icon: "🏪" },
-  { key: "products",   label: "My Products",  icon: "📦" },
-  { key: "billing",    label: "Billing",      icon: "💳" },
+  { key: "overview",   label: "Overview" },
+  { key: "projects",   label: "All Projects" },
+  { key: "quotations", label: "Quotations" },
+  { key: "analytics",  label: "Analytics" },
+  { key: "profile",    label: "Shop Profile" },
+  { key: "products",   label: "My Products" },
+  { key: "billing",    label: "Billing" },
 ];
 
 function PlanBadge() {
@@ -100,7 +100,7 @@ function Overview({ quotations, projects, accepted, pending, rejected, winRate, 
               ? <div style={{ fontSize:11, color:"#94A3B8" }}>No open projects yet.</div>
               : projects.slice(0, 3).map(p => (
                   <div key={p.id} style={{ fontSize:12, color:"#334155", marginBottom:6, display:"flex", justifyContent:"space-between" }}>
-                    <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:120 }}>{p.title || "Project"}</span>
+                   <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:120 }}>{p.projectName || "Project"}</span>
                     <button onClick={() => setQuoteModal(p)} style={{ fontSize:10, fontWeight:600, color:"#3B82F6", background:"none", border:"none", cursor:"pointer" }}>Quote</button>
                   </div>
                 ))
@@ -147,9 +147,9 @@ function AllProjects({ filteredProjects, searchQuery, setSearchQuery, setQuoteMo
             <div key={project.id} style={{ background:"#fff", borderRadius:12, border:"1px solid #E2E8F0", padding:"16px 20px", display:"flex", alignItems:"center", gap:16 }}>
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:13.5, fontWeight:700, color:"#0F172A", marginBottom:3 }}>{project.title || "Construction Project"}</div>
-                <div style={{ fontSize:11.5, color:"#64748B" }}>{project.materials?.slice(0,3).join(", ") || "Materials TBD"} · {project.city || "—"}</div>
+                <div style={{ fontSize:11.5, color:"#64748B" }}>{project.projectType || "Construction"} · {project.materials?.slice(0,3).join(", ") || "Materials TBD"}</div>
               </div>
-              <div style={{ fontSize:13, fontWeight:700, color:"#0F172A" }}>₱{project.estimatedBudget?.toLocaleString() || "—"}</div>
+              <div style={{ fontSize:13, fontWeight:700, color:"#0F172A" }}>Budget: {project.budget || "—"}</div>
               <button onClick={() => setQuoteModal(project)} style={{ padding:"8px 18px", borderRadius:8, border:"none", background:"#1D4ED8", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer" }}>Submit Quote</button>
             </div>
           ))}
@@ -501,10 +501,10 @@ export default function ShopDashboardPro() {
     return Object.values(map).sort((a, b) => b.key.localeCompare(a.key)).slice(0, 6);
   })();
 
-  const filteredProjects = projects.filter(p =>
-    p.title?.toLowerCase().includes(debouncedSearch.trim().toLowerCase()) ||
-    p.city?.toLowerCase().includes(debouncedSearch.trim().toLowerCase())
-  );
+ const filteredProjects = projects.filter(p =>
+  p.projectName?.toLowerCase().includes(debouncedSearch.trim().toLowerCase()) ||
+  p.locationCity?.toLowerCase().includes(debouncedSearch.trim().toLowerCase())
+);
 
   // Sidebar and Topbar are safe inside — they don't contain search inputs
   const Sidebar = () => (
@@ -522,7 +522,7 @@ export default function ShopDashboardPro() {
         {NAV.map(item => {
           const isActive = activeTab === item.key;
           return (
-            <button key={item.key} onClick={() => setActiveTab(item.key)} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 20px", border:"none", cursor:"pointer", fontFamily:"'DM Sans', sans-serif", fontSize:13, fontWeight:isActive?600:400, background:isActive?"rgba(59,130,246,0.15)":"transparent", color:isActive?"#93C5FD":"rgba(148,163,184,0.65)", borderLeft:isActive?"2px solid #3B82F6":"2px solid transparent", textAlign:"left", transition:"all 0.15s" }}>
+            <button key={item.key} onClick={() => setActiveTab(item.key)} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 20px", border:"none", cursor:"pointer", fontFamily:"''Inter'', sans-serif", fontSize:13, fontWeight:isActive?600:400, background:isActive?"rgba(59,130,246,0.15)":"transparent", color:isActive?"#93C5FD":"rgba(148,163,184,0.65)", borderLeft:isActive?"2px solid #3B82F6":"2px solid transparent", textAlign:"left", transition:"all 0.15s" }}>
               <span style={{ fontSize:14 }}>{item.icon}</span>
               <span>{item.label}</span>
             </button>
@@ -536,7 +536,7 @@ export default function ShopDashboardPro() {
             <div style={{ fontSize:10, color:"rgba(148,163,184,0.5)" }}>{shop.ownerName}</div>
           </div>
         )}
-        <button onClick={async () => { await logoutShop(); navigate("/login"); }} style={{ width:"100%", padding:"8px", borderRadius:8, border:"1px solid rgba(239,68,68,0.3)", background:"rgba(239,68,68,0.1)", color:"#F87171", fontSize:11.5, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans', sans-serif" }}>Sign Out</button>
+        <button onClick={async () => { await logoutShop(); navigate("/login"); }} style={{ width:"100%", padding:"8px", borderRadius:8, border:"1px solid rgba(239,68,68,0.3)", background:"rgba(239,68,68,0.1)", color:"#F87171", fontSize:11.5, fontWeight:600, cursor:"pointer", fontFamily:"''Inter'', sans-serif" }}>Sign Out</button>
       </div>
     </aside>
   );
@@ -568,7 +568,7 @@ export default function ShopDashboardPro() {
 
   return (
     <>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Playfair+Display:wght@700;900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}body{font-family:'DM Sans',sans-serif;}`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Playfair+Display:wght@700;900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}body{font-family:''Inter'',sans-serif;}`}</style>
       <div style={{ display:"flex", minHeight:"100vh", background:"#F8FAFC" }}>
         <Sidebar />
         <div style={{ flex:1, display:"flex", flexDirection:"column" }}>
@@ -585,14 +585,14 @@ export default function ShopDashboardPro() {
           onClick={e => { if(e.target===e.currentTarget) setQuoteModal(null); }}>
           <div style={{ background:"#fff", borderRadius:18, width:"100%", maxWidth:440, padding:"28px", boxShadow:"0 40px 100px rgba(0,0,0,0.25)" }}>
             <h4 style={{ fontFamily:"'Playfair Display', serif", fontSize:17, fontWeight:700, color:"#0F172A", marginBottom:4 }}>Submit Quotation</h4>
-            <p style={{ fontSize:12, color:"#64748B", marginBottom:20 }}>For: <strong style={{ color:"#0F172A" }}>{quoteModal.title || "Construction Project"}</strong></p>
+            <p style={{ fontSize:12, color:"#64748B", marginBottom:20 }}>For: <strong style={{ color:"#0F172A" }}>{quoteModal.projectName || "Construction Project"}</strong></p>
             <div style={{ marginBottom:14 }}>
               <label style={{ fontSize:11.5, fontWeight:600, color:"#334155", display:"block", marginBottom:5 }}>Quote Amount (₱)</label>
-              <input type="number" placeholder="e.g. 15000" value={quoteForm.amount} onChange={e => setQuoteForm(f=>({...f,amount:e.target.value}))} style={{ width:"100%", padding:"10px 14px", border:"1.5px solid #E2E8F0", borderRadius:8, fontSize:13, fontFamily:"'DM Sans', sans-serif", outline:"none", color:"#0F172A" }} />
+              <input type="number" placeholder="e.g. 15000" value={quoteForm.amount} onChange={e => setQuoteForm(f=>({...f,amount:e.target.value}))} style={{ width:"100%", padding:"10px 14px", border:"1.5px solid #E2E8F0", borderRadius:8, fontSize:13, fontFamily:"''Inter'', sans-serif", outline:"none", color:"#0F172A" }} />
             </div>
             <div style={{ marginBottom:20 }}>
               <label style={{ fontSize:11.5, fontWeight:600, color:"#334155", display:"block", marginBottom:5 }}>Notes (optional)</label>
-              <textarea rows={3} value={quoteForm.note} onChange={e => setQuoteForm(f=>({...f,note:e.target.value}))} style={{ width:"100%", padding:"10px 14px", border:"1.5px solid #E2E8F0", borderRadius:8, fontSize:13, fontFamily:"'DM Sans', sans-serif", resize:"none", outline:"none", color:"#0F172A" }} />
+              <textarea rows={3} value={quoteForm.note} onChange={e => setQuoteForm(f=>({...f,note:e.target.value}))} style={{ width:"100%", padding:"10px 14px", border:"1.5px solid #E2E8F0", borderRadius:8, fontSize:13, fontFamily:"''Inter'', sans-serif", resize:"none", outline:"none", color:"#0F172A" }} />
             </div>
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={() => setQuoteModal(null)} style={{ padding:"11px 20px", borderRadius:8, border:"1px solid #E2E8F0", background:"#F8FAFC", fontSize:12.5, fontWeight:500, color:"#64748B", cursor:"pointer" }}>Cancel</button>
