@@ -1005,7 +1005,7 @@
             
             /* about us */
             
-            @import url('https://fonts.googleapis.com/css2?family='Lora':ital,opsz,wght@0,9..144,300;0,9..144,600;0,9..144,700;1,9..144,400&family=DM+Sans:wght@300;400;500&display=swap');
+            /* @import url('https://fonts.googleapis.com/css2?family='Lora':ital,opsz,wght@0,9..144,300;0,9..144,600;0,9..144,700;1,9..144,400&family=DM+Sans:wght@300;400;500&display=swap'); */
 
 
 
@@ -1794,6 +1794,381 @@
 
 
 
+        
+
+          /* Contact Us */
+            .ct-page {
+              font-family: 'Inter', sans-serif;
+              background: var(--ic-cream);
+              padding-top: 140px;
+              padding-bottom: 96px;
+            }
+            
+            /* ── Header ── */
+            .ct-header {
+              text-align: center;
+              margin-bottom: 64px;
+            }
+            
+            .ct-eyebrow {
+              display: inline-flex;
+              align-items: center;
+              gap: 8px;
+              font-size: 11px;
+              font-weight: 600;
+              letter-spacing: 0.18em;
+              text-transform: uppercase;
+              color: var(--ic-steel);
+              margin-bottom: 16px;
+            }
+            
+            .ct-eyebrow-line {
+              display: inline-block;
+              width: 28px;
+              height: 1.5px;
+              background: var(--ic-gold);
+              border-radius: 2px;
+            }
+            
+            .ct-title {
+              font-family: 'Lora', Georgia, serif;
+              font-size: clamp(32px, 4vw, 52px);
+              font-weight: 900;
+              color: var(--ic-navy);
+              line-height: 1.1;
+              margin-bottom: 16px;
+              letter-spacing: -0.01em;
+            }
+            
+            .ct-title span {
+              background: linear-gradient(135deg, #154665 0%, #2D6A8F 100%);
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+              background-clip: text;
+            }
+            
+            .ct-subtitle {
+              font-size: 16px;
+              font-weight: 300;
+              color: var(--ic-text-mid);
+              max-width: 440px;
+              margin: 0 auto;
+              line-height: 1.7;
+            }
+            
+            /* ── Two-column layout ── */
+            .ct-grid {
+              display: grid;
+              grid-template-columns: 1fr 1.4fr;
+              gap: 40px;
+              align-items: start;
+              max-width: 960px;
+              margin: 0 auto;
+            }
+            
+            @media (max-width: 767px) {
+              .ct-grid { grid-template-columns: 1fr; }
+            }
+            
+            /* ── Left — info cards ── */
+            .ct-info-stack {
+              display: flex;
+              flex-direction: column;
+              gap: 16px;
+            }
+            
+            .ct-info-card {
+              background: var(--ic-white);
+              border-radius: 14px;
+              padding: 22px 24px;
+              border: 1px solid rgba(21, 70, 101, 0.07);
+              display: flex;
+              align-items: center;
+              gap: 16px;
+              text-decoration: none;
+              transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+                          box-shadow 0.25s,
+                          border-color 0.25s;
+              position: relative;
+              overflow: hidden;
+            }
+            
+            .ct-info-card::before {
+              content: '';
+              position: absolute;
+              top: 0; left: 0; right: 0;
+              height: 2px;
+              background: linear-gradient(90deg, var(--ic-navy), var(--ic-gold));
+              opacity: 0;
+              transition: opacity 0.25s;
+              border-radius: 14px 14px 0 0;
+            }
+            
+            .ct-info-card:hover {
+              transform: translateY(-4px);
+              box-shadow: 0 12px 32px rgba(21, 70, 101, 0.1);
+              border-color: rgba(207, 177, 132, 0.25);
+              text-decoration: none;
+            }
+            
+            .ct-info-card:hover::before { opacity: 1; }
+            
+            .ct-info-num {
+              font-family: 'Lora', Georgia, serif;
+              font-size: 11px;
+              font-weight: 700;
+              color: var(--ic-gold-light);
+              background: var(--ic-grad-vert);
+              width: 34px;
+              height: 34px;
+              border-radius: 8px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              flex-shrink: 0;
+              letter-spacing: 0.04em;
+            }
+            
+            .ct-info-body { flex: 1; }
+            
+            .ct-info-label {
+              font-size: 10px;
+              font-weight: 600;
+              letter-spacing: 0.14em;
+              text-transform: uppercase;
+              color: var(--ic-steel);
+              margin-bottom: 3px;
+            }
+            
+            .ct-info-value {
+              font-size: 14px;
+              font-weight: 600;
+              color: var(--ic-navy);
+              margin-bottom: 2px;
+            }
+            
+            .ct-info-sub {
+              font-size: 12px;
+              font-weight: 300;
+              color: var(--ic-text-muted);
+            }
+            
+            /* ── Note card (dark) ── */
+            .ct-note-card {
+              background: var(--ic-grad-vert);
+              border-radius: 14px;
+              padding: 28px 24px;
+              margin-top: 4px;
+              position: relative;
+              overflow: hidden;
+            }
+            
+            .ct-note-card::after {
+              content: '';
+              position: absolute;
+              bottom: -20px; right: -20px;
+              width: 100px; height: 100px;
+              border-radius: 50%;
+              background: rgba(207, 177, 132, 0.07);
+              pointer-events: none;
+            }
+            
+            .ct-note-title {
+              font-family: 'Lora', Georgia, serif;
+              font-size: 16px;
+              font-weight: 700;
+              color: var(--ic-gold-light);
+              margin-bottom: 8px;
+            }
+            
+            .ct-note-text {
+              font-size: 13px;
+              font-weight: 300;
+              color: rgba(207, 177, 132, 0.6);
+              line-height: 1.7;
+              margin: 0;
+            }
+            
+            /* ── Right — form card ── */
+            .ct-form-card {
+              background: var(--ic-white);
+              border-radius: 16px;
+              padding: 40px 36px;
+              border: 1px solid rgba(21, 70, 101, 0.07);
+              position: relative;
+              overflow: hidden;
+            }
+            
+            .ct-form-card::before {
+              content: '';
+              position: absolute;
+              top: 0; left: 0; right: 0;
+              height: 3px;
+              background: linear-gradient(90deg, var(--ic-navy), var(--ic-gold));
+              border-radius: 16px 16px 0 0;
+            }
+            
+            .ct-form-title {
+              font-family: 'Lora', Georgia, serif;
+              font-size: 22px;
+              font-weight: 700;
+              color: var(--ic-navy);
+              margin-bottom: 6px;
+            }
+            
+            .ct-form-sub {
+              font-size: 13px;
+              font-weight: 300;
+              color: var(--ic-text-muted);
+              margin-bottom: 32px;
+              line-height: 1.6;
+            }
+            
+            /* ── Form fields ── */
+            .ct-row {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 16px;
+            }
+            
+            @media (max-width: 500px) {
+              .ct-row { grid-template-columns: 1fr; }
+            }
+            
+            .ct-field { margin-bottom: 20px; }
+            
+            .ct-label {
+              display: block;
+              font-size: 11.5px;
+              font-weight: 600;
+              letter-spacing: 0.1em;
+              text-transform: uppercase;
+              color: var(--ic-text-muted);
+              margin-bottom: 8px;
+            }
+            
+            .ct-input,
+            .ct-textarea {
+              width: 100%;
+              font-family: 'Inter', sans-serif;
+              font-size: 14px;
+              font-weight: 400;
+              color: var(--ic-navy);
+              background: var(--ic-cream);
+              border: 1.5px solid rgba(21, 70, 101, 0.1);
+              border-radius: 8px;
+              padding: 12px 16px;
+              outline: none;
+              transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+              resize: none;
+            }
+            
+            .ct-input::placeholder,
+            .ct-textarea::placeholder { color: var(--ic-text-muted); }
+            
+            .ct-input:focus,
+            .ct-textarea:focus {
+              border-color: var(--ic-steel);
+              background: var(--ic-white);
+              box-shadow: 0 0 0 3px rgba(45, 106, 143, 0.1);
+            }
+            
+            .ct-textarea { min-height: 130px; }
+            
+            /* ── Submit button ── */
+            .ct-submit {
+              width: 100%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              gap: 10px;
+              background: var(--ic-grad-vert);
+              color: var(--ic-gold-light);
+              font-family: 'Inter', sans-serif;
+              font-size: 14px;
+              font-weight: 600;
+              letter-spacing: 0.06em;
+              padding: 14px 28px;
+              border-radius: 8px;
+              border: none;
+              cursor: pointer;
+              transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+              box-shadow: 0 6px 20px rgba(21, 70, 101, 0.3);
+              margin-top: 4px;
+            }
+            
+            .ct-submit:hover:not(:disabled) {
+              transform: translateY(-2px);
+              box-shadow: 0 10px 28px rgba(21, 70, 101, 0.45);
+            }
+            
+            .ct-submit:disabled { opacity: 0.7; cursor: not-allowed; }
+            
+            /* ── Spinner ── */
+            .ct-spinner {
+              width: 16px; height: 16px;
+              border: 2px solid rgba(207, 177, 132, 0.3);
+              border-top-color: rgba(207, 177, 132, 0.9);
+              border-radius: 50%;
+              animation: ctspin 0.7s linear infinite;
+            }
+            
+            @keyframes ctspin { to { transform: rotate(360deg); } }
+            
+            /* ── Success state ── */
+            .ct-success {
+              text-align: center;
+              padding: 40px 0 20px;
+            }
+            
+            .ct-success-icon {
+              width: 60px; height: 60px;
+              border-radius: 50%;
+              background: var(--ic-grad-vert);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              margin: 0 auto 20px;
+            }
+            
+            .ct-success-title {
+              font-family: 'Lora', Georgia, serif;
+              font-size: 22px;
+              font-weight: 700;
+              color: var(--ic-navy);
+              margin-bottom: 10px;
+            }
+            
+            .ct-success-text {
+              font-size: 14px;
+              font-weight: 300;
+              color: var(--ic-text-mid);
+              line-height: 1.7;
+              margin-bottom: 28px;
+            }
+            
+            .ct-success-btn {
+              display: inline-flex;
+              align-items: center;
+              gap: 8px;
+              background: var(--ic-grad-vert);
+              color: var(--ic-gold-light);
+              font-family: 'Inter', sans-serif;
+              font-size: 13px;
+              font-weight: 600;
+              padding: 11px 24px;
+              border-radius: 8px;
+              border: none;
+              cursor: pointer;
+              transition: transform 0.2s;
+            }
+            
+            .ct-success-btn:hover { transform: translateY(-2px); }
+
+
+
+
+
 
 
         /* register */
@@ -2302,6 +2677,12 @@
             color: #fff; text-decoration: none;
           }
       
+
+
+
+
+
+
 
 
           

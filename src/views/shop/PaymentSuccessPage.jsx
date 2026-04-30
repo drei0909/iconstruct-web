@@ -11,7 +11,7 @@ import { onAuthStateChanged } from "firebase/auth";
 export default function PaymentSuccessPage() {
   const [searchParams]  = useSearchParams();
   const navigate        = useNavigate();
-  const [status, setStatus]   = useState("loading"); // loading | success | failed
+  const [status, setStatus]   = useState("loading"); 
   const [planId, setPlanId]   = useState("");
 
   useEffect(() => {

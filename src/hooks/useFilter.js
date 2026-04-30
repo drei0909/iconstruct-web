@@ -1,27 +1,4 @@
-// src/hooks/useFilter.js
-// ─────────────────────────────────────────────────────────────────────────────
-// Active-filter hook. Manages which status/category chip is selected.
-//
-// Returns THREE values:
-//   activeFilter  — current selection (e.g. "all", "pending", "Cement")
-//   setFilter     — select a filter value
-//   clearFilter   — reset back to the initialFilter (convenience shortcut)
-//
-// Usage:
-//   const [filter, setFilter, clearFilter] = useFilter("all");
-//
-//   // In your filter logic:
-//   const visible = shops.filter(s =>
-//     filter === "all" || s.status === filter
-//   );
-//
-//   // In your chip row:
-//   <FilterChips
-//     options={["all", "pending", "approved", "rejected"]}
-//     active={filter}
-//     onSelect={setFilter}
-//   />
-// ─────────────────────────────────────────────────────────────────────────────
+
 
 import { useState, useCallback } from "react";
 

@@ -65,6 +65,7 @@ export async function insertQuotation({ projectId, projectTitle, shopId, shopNam
     note:   note || "",
     status: "pending",
     createdAt: serverTimestamp(),
+     updatedAt: serverTimestamp(), 
   });
 
   const postRef  = doc(db, "projectPosts", projectId);
@@ -104,6 +105,8 @@ export async function insertPaymentRequest(data) {
     ...data,
     status: "pending",
     submittedAt: serverTimestamp(),
+     updatedAt: serverTimestamp(), 
+     createdAt:   serverTimestamp(),
   });
 }
 

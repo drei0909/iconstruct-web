@@ -29,6 +29,7 @@ export async function updateShopApproval(uid, status, rejectionReason = "") {
     status,
     rejectionReason,
     reviewedAt: serverTimestamp(),
+     updatedAt:  serverTimestamp(),
   });
 }
 
@@ -38,6 +39,7 @@ export async function updatePaymentStatus(paymentId, status, extra = {}) {
     status,
     ...extra,
     reviewedAt: serverTimestamp(),
+     updatedAt:  serverTimestamp(),
   });
 }
 
@@ -48,5 +50,6 @@ export async function updateShopSubscription(uid, plan, expiry) {
     subscriptionStatus: "active",
     subscriptionExpiry: expiry,
     subscriptionUpdatedAt: serverTimestamp(),
+     updatedAt:  serverTimestamp(),
   });
 }

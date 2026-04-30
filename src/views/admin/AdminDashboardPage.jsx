@@ -11,6 +11,11 @@ import {
   getAllPayments, getPaymentStats, confirmPayment, rejectPayment,
 } from "../../controllers/adminController";
 
+
+
+import SystemSettingsTab from "./SystemSettingsTab";
+import { auth } from "../../services/firebase";
+
 const STATUS_COLOR = {
   pending:   { bg: "#FEF3C7", border: "#FCD34D", text: "#92400E", dot: "#F59E0B" },
   approved:  { bg: "#D1FAE5", border: "#6EE7B7", text: "#065F46", dot: "#10B981" },
@@ -30,11 +35,11 @@ const DOCUMENT_TYPES = [
 ];
 
 const TABS = [
-  { key:"dashboard",     label:"Dashboard",        icon:"⊞" },
-  { key:"applications",  label:"Shop Applications", icon:"📋" },
-  { key:"shops",         label:"Manage Shops",      icon:"🏪" },
-  { key:"subscriptions", label:"Subscriptions",     icon:"💳" },
-  { key:"settings",      label:"System Settings",   icon:"⚙️" },
+  { key:"dashboard",     label:"Dashboard" },
+  { key:"applications",  label:"Shop Applications" },
+  { key:"shops",         label:"Manage Shops" },
+  { key:"subscriptions", label:"Subscriptions" },
+  { key:"settings",      label:"System Settings" },
 ];
 
 function StatusBadge({ status }) {
@@ -497,7 +502,7 @@ export default function AdminDashboard() {
       case "applications":  return <ApplicationsTabFull filtered={filtered} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} setSelected={setSelected} setActiveTab={setActiveTab} />;
       case "shops":         return <ShopsTab approvedShops={approvedShops} setSelected={setSelected} />;
       case "subscriptions": return <SubscriptionsTabFull filteredPayments={filteredPayments} payFilter={payFilter} setPayFilter={setPayFilter} paySearch={paySearch} setPaySearch={setPaySearch} payStats={payStats} setSelectedPayment={setSelectedPayment} />;
-      default:              return <div style={{ textAlign:"center", padding:80, color:"#94A3B8" }}>Coming soon</div>;
+      case "settings": return <SystemSettingsTab currentUser={auth.currentUser} />;
     }
   };
 
@@ -520,7 +525,8 @@ export default function AdminDashboard() {
           const isActive = activeTab === tab.key;
           const badge = tab.key === "applications" ? stats.pending : tab.key === "subscriptions" ? payStats.pending : 0;
           return (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:sidebarCollapsed?"10px 0":"10px 20px", justifyContent:sidebarCollapsed?"center":"flex-start", background:isActive?"linear-gradient(90deg,rgba(59,130,246,0.15),rgba(59,130,246,0.05))":"transparent", borderLeft:isActive?"2px solid #3B82F6":"2px solid transparent", border:"none", borderRight:"none", cursor:"pointer", color:isActive?"#93C5FD":"rgba(148,163,184,0.65)", fontFamily:"'Inter',sans-serif", fontSize:13, fontWeight:isActive?600:400 }}>
+            <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{ width:"100%", 
+            display:"flex", alignItems:"center", gap:10, padding:sidebarCollapsed?"10px 0":"10px 20px", justifyContent:sidebarCollapsed?"center":"flex-start", background:isActive?"linear-gradient(90deg,rgba(59,130,246,0.15),rgba(59,130,246,0.05))":"transparent", borderLeft:isActive?"2px solid #3B82F6":"2px solid transparent", border:"none", borderRight:"none", cursor:"pointer", color:isActive?"#93C5FD":"rgba(148,163,184,0.65)", fontFamily:"'Inter',sans-serif", fontSize:13, fontWeight:isActive?600:400 }}>
               <span style={{ flexShrink:0 }}>{tab.icon}</span>
               {!sidebarCollapsed && <span>{tab.label}</span>}
               {!sidebarCollapsed && badge > 0 && (
