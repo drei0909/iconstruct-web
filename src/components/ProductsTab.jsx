@@ -1,4 +1,6 @@
 // src/components/ProductsTab.jsx
+// Fetches live plan limits from Firestore via getLivePlanConfig()
+// so any admin edit in SystemSettingsTab takes effect immediately.
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { auth, db, storage } from "../services/firebase";
@@ -7,17 +9,21 @@ import {
   doc, query, where, serverTimestamp,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { getPlanConfig, formatProductLimit, isAtProductLimit } from "../config/planConfig";
+import {
+  getLivePlanConfig,
+  formatProductLimit,
+  isAtProductLimit,
+} from "../config/planConfig";
 import { getMyCategories, addCategory, editCategory, removeCategory } from "../controllers/shopCategoryController";
 
 const FIXED_PROJECTS = [
-  { id: "kitchen_renovation",     label: "Kitchen Renovation",     icon: "🍳" },
-  { id: "bathroom_renovation",    label: "Bathroom Renovation",    icon: "🚿" },
-  { id: "floor_renovation",       label: "Floor Renovation",       icon: "🪵" },
-  { id: "interior_painting",      label: "Interior Painting",      icon: "🎨" },
-  { id: "roof_repair",            label: "Roof Repair",            icon: "🏠" },
-  { id: "electrical_installation",label: "Electrical Installation",icon: "⚡" },
-  { id: "plumbing_installation",  label: "Plumbing Installation",  icon: "🔧" },
+  { id: "kitchen_renovation",      label: "Kitchen Renovation",      icon: "🍳" },
+  { id: "bathroom_renovation",     label: "Bathroom Renovation",     icon: "🚿" },
+  { id: "floor_renovation",        label: "Floor Renovation",        icon: "🪵" },
+  { id: "interior_painting",       label: "Interior Painting",       icon: "🎨" },
+  { id: "roof_repair",             label: "Roof Repair",             icon: "🏠" },
+  { id: "electrical_installation", label: "Electrical Installation", icon: "⚡" },
+  { id: "plumbing_installation",   label: "Plumbing Installation",   icon: "🔧" },
 ];
 
 const T = {
@@ -107,32 +113,70 @@ function Modal({ title, subtitle, accentColor, onClose, children }) {
   );
 }
 
+// ── Loading skeleton for the quota bar ────────────────────────
+function QuotaSkeleton() {
+  return (
+    <div style={{
+      background: T.surface, borderRadius: T.radius,
+      border: `1px solid ${T.border}`, padding: "14px 20px",
+      marginBottom: 20, boxShadow: T.shadowSm,
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+        <div style={{ width: 140, height: 14, background: T.borderLight, borderRadius: 6 }} />
+        <div style={{ width: 80,  height: 14, background: T.borderLight, borderRadius: 6 }} />
+      </div>
+      <div style={{ height: 6, background: T.borderLight, borderRadius: 99 }} />
+      <div style={{ width: 180, height: 11, background: T.borderLight, borderRadius: 6, marginTop: 8 }} />
+      <style>{`@keyframes pt-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
+    </div>
+  );
+}
+
 export default function ProductsTab({ plan = "basic" }) {
-  const cfg         = getPlanConfig(plan);
-  const limit       = cfg.productLimit;
+  // ── Live plan config from Firestore ───────────────────────────
+  const [cfg, setCfg]           = useState(null);   // null = loading
+  const [cfgReady, setCfgReady] = useState(false);
+
+  const uid = auth.currentUser?.uid;
+
+  useEffect(() => {
+    let cancelled = false;
+    getLivePlanConfig(plan).then(liveCfg => {
+      if (!cancelled) {
+        setCfg(liveCfg);
+        setCfgReady(true);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [plan]);
+
+  // Derived limits — only valid after cfgReady
+  const limit       = cfg?.productLimit ?? Infinity;
   const isUnlimited = limit === Infinity;
-  const uid         = auth.currentUser?.uid;
 
   // view: "projects" | "categories" | "products"
-  const [view, setView] = useState("projects");
-
+  const [view,            setView]            = useState("projects");
   const [selectedProject, setSelectedProject] = useState(null);
-  const [categories,  setCategories]  = useState([]);
-  const [products,    setProducts]    = useState([]);
-  const [allProducts, setAllProducts] = useState([]);
-  const [loadingCats,  setLoadingCats]  = useState(false);
-  const [loadingProds, setLoadingProds] = useState(false);
-  const [selectedCat,  setSelectedCat]  = useState(null);
+  const [categories,      setCategories]      = useState([]);
+  const [products,        setProducts]        = useState([]);
+  const [allProducts,     setAllProducts]     = useState([]);
+  const [loadingCats,     setLoadingCats]     = useState(false);
+  const [loadingProds,    setLoadingProds]    = useState(false);
+  const [selectedCat,     setSelectedCat]     = useState(null);
 
   const [showCatModal,  setShowCatModal]  = useState(false);
   const [editCatData,   setEditCatData]   = useState(null);
   const [showProdModal, setShowProdModal] = useState(false);
 
   const [catForm,  setCatForm]  = useState({ name: "", description: "", icon: "📦" });
-  const [prodForm, setProdForm] = useState({
-    name: "", unit: "", price: "", description: "",
-    inStock: true, imageFile: null, imagePreview: null,
-  });
+const [prodForm, setProdForm] = useState({
+  name: "", unit: "", price: "", description: "",
+  inStock: true, imageFile: null, imagePreview: null,
+  sizes: [],
+  types: [],
+});
+const [sizeInput, setSizeInput] = useState("");
+const [typeInput, setTypeInput] = useState("");
 
   const [saving,    setSaving]    = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -140,7 +184,7 @@ export default function ProductsTab({ plan = "basic" }) {
   const [toast,     setToast]     = useState(null);
   const fileRef = useRef(null);
 
-  const atLimit = isAtProductLimit(allProducts.length, limit);
+  const atLimit = cfgReady ? isAtProductLimit(allProducts.length, limit) : false;
 
   const filteredProducts = products.filter(p => {
     const q = searchQ.toLowerCase();
@@ -182,7 +226,7 @@ export default function ProductsTab({ plan = "basic" }) {
         .map(d => ({ id: d.id, ...d.data() }))
         .sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0));
       setCategories(cats);
-    } catch (err) {
+    } catch {
       showToast("Could not load categories.", "error");
     } finally {
       setLoadingCats(false);
@@ -295,10 +339,16 @@ export default function ProductsTab({ plan = "basic" }) {
   };
 
   // ── Product CRUD ──────────────────────────────────────────────
-  const resetProdForm = () => setProdForm({
+const resetProdForm = () => {
+  setProdForm({
     name: "", unit: "", price: "", description: "",
     inStock: true, imageFile: null, imagePreview: null,
+    sizes: [],
+    types: [],
   });
+  setSizeInput("");
+  setTypeInput("");
+};
 
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
@@ -310,8 +360,9 @@ export default function ProductsTab({ plan = "basic" }) {
     if (!prodForm.name || !prodForm.price) {
       showToast("Name and price are required.", "error"); return;
     }
-    if (isAtProductLimit(allProducts.length, limit)) {
-      showToast(`${cfg.label} plan limit reached.`, "error"); return;
+    if (cfgReady && isAtProductLimit(allProducts.length, limit)) {
+      showToast(`${cfg.label} plan limit reached (${isUnlimited ? "Unlimited" : limit} products).`, "error");
+      return;
     }
     setUploading(true);
     try {
@@ -322,19 +373,22 @@ export default function ProductsTab({ plan = "basic" }) {
         imageUrl = await getDownloadURL(imgRef);
       }
       await addDoc(collection(db, "products"), {
-        shopId     : uid,
-        categoryId : selectedCat.id,
-        category   : selectedCat.name,
-        projectId  : selectedProject.id,       // ← links to fixed project
-        projectName: selectedProject.label,    // ← for easy reading in app
-        name       : prodForm.name.trim(),
-        unit       : prodForm.unit.trim(),
-        price      : Number(prodForm.price),
-        description: prodForm.description.trim(),
-        inStock    : prodForm.inStock,
-        imageUrl,
-        createdAt  : serverTimestamp(),
-      });
+          shopId     : uid,
+          categoryId : selectedCat.id,
+          category   : selectedCat.name,
+          projectId  : selectedProject.id,
+          projectName: selectedProject.label,
+          name       : prodForm.name.trim(),
+          unit       : prodForm.unit.trim(),
+          price      : Number(prodForm.price),
+          description: prodForm.description.trim(),
+          inStock    : prodForm.inStock,
+          sizes      : prodForm.sizes,
+          types      : prodForm.types,
+          imageUrl,
+
+          createdAt  : serverTimestamp(),
+        });
       showToast("Product added!");
       setShowProdModal(false);
       resetProdForm();
@@ -359,22 +413,30 @@ export default function ProductsTab({ plan = "basic" }) {
     }
   };
 
-  const countForCat    = (catId)     => allProducts.filter(p => p.categoryId === catId).length;
+  const countForCat     = (catId)     => allProducts.filter(p => p.categoryId === catId).length;
   const countForProject = (projectId) => allProducts.filter(p => p.projectId  === projectId).length;
 
   const totalCount = allProducts.length;
-  const pct        = isUnlimited ? 100 : Math.min((totalCount / limit) * 100, 100);
-  const barColor   = isUnlimited ? T.green : pct >= 100 ? T.red : pct >= 75 ? T.amber : T.green;
-  const limitLabel = isUnlimited ? `${totalCount} listed · no cap` : `${totalCount} / ${limit} used`;
+  const pct        = !cfgReady ? 0 : isUnlimited ? 100 : Math.min((totalCount / limit) * 100, 100);
+  const barColor   = !cfgReady ? T.green : isUnlimited ? T.green : pct >= 100 ? T.red : pct >= 75 ? T.amber : T.green;
+  const limitLabel = !cfgReady
+    ? "Loading..."
+    : isUnlimited
+    ? `${totalCount} listed · no cap`
+    : `${totalCount} / ${limit} used`;
 
   const ICONS = ["📦","🧱","🪨","🔩","🪟","🚪","💡","🎨","🔧","🪚","🛠️","🪣","🧰","🛁","🚿","🏗️","🪜","📐","📏","🔌"];
 
-  // ── Breadcrumb label ──────────────────────────────────────────
   const breadcrumb = () => {
-    if (view === "projects") return "My Products";
+    if (view === "projects")   return "My Products";
     if (view === "categories") return `My Products › ${selectedProject?.icon} ${selectedProject?.label}`;
     return `My Products › ${selectedProject?.label} › ${selectedCat?.icon} ${selectedCat?.name}`;
   };
+
+  // Still loading plan from Firestore — show skeleton for quota bar
+  const planLabel = cfgReady
+    ? (cfg.label + ": " + (isUnlimited ? "unlimited products." : `up to ${formatProductLimit(limit)} products total.`))
+    : "Loading plan limits...";
 
   return (
     <div style={{ fontFamily: T.fontBody }}>
@@ -390,8 +452,9 @@ export default function ProductsTab({ plan = "basic" }) {
             {view === "projects"   && "Select a project type to manage its categories and products."}
             {view === "categories" && `Categories under ${selectedProject?.label}. Click a category to add products.`}
             {view === "products"   && `Products in "${selectedCat?.name}". Visible to builders in the app instantly.`}
-            {" "}<strong style={{ color:cfg.color }}>
-              {cfg.label}: {isUnlimited ? "unlimited products." : `up to ${formatProductLimit(limit)} products total.`}
+            {" "}
+            <strong style={{ color: cfgReady ? cfg.color : T.ink3 }}>
+              {planLabel}
             </strong>
           </p>
         </div>
@@ -415,45 +478,50 @@ export default function ProductsTab({ plan = "basic" }) {
               style={{
                 padding:"10px 20px", borderRadius:T.radiusSm,
                 border:"none", cursor:"pointer",
-                background:cfg.accentGradient, color:"#fff",
+                background: cfgReady ? cfg.accentGradient : T.border,
+                color:"#fff",
                 fontSize:13, fontWeight:600, fontFamily:T.fontBody,
-                boxShadow:`0 2px 8px ${cfg.color}40`,
+                boxShadow: cfgReady ? `0 2px 8px ${cfg.color}40` : "none",
               }}
             >+ Add Category</button>
           )}
           {view === "products" && (
             <button
-              onClick={() => atLimit ? showToast("Limit reached — upgrade.", "error") : setShowProdModal(true)}
+              onClick={() => atLimit ? showToast("Limit reached — upgrade your plan.", "error") : setShowProdModal(true)}
+              disabled={!cfgReady}
               style={{
                 padding:"10px 20px", borderRadius:T.radiusSm,
-                border:"none", cursor: atLimit ? "not-allowed" : "pointer",
-                background: atLimit ? T.border : cfg.accentGradient,
-                color: atLimit ? T.ink3 : "#fff",
+                border:"none", cursor: (!cfgReady || atLimit) ? "not-allowed" : "pointer",
+                background: !cfgReady ? T.border : atLimit ? T.border : cfg.accentGradient,
+                color: (!cfgReady || atLimit) ? T.ink3 : "#fff",
                 fontSize:13, fontWeight:600, fontFamily:T.fontBody,
-                opacity: atLimit ? 0.7 : 1,
+                opacity: (!cfgReady || atLimit) ? 0.7 : 1,
               }}
-            >{atLimit ? "Limit Reached" : "+ Add Product"}</button>
+            >{!cfgReady ? "Loading..." : atLimit ? "Limit Reached" : "+ Add Product"}</button>
           )}
         </div>
       </div>
 
       {/* ── QUOTA BAR ─────────────────────────────────────────── */}
-      <div style={{
-        background:T.surface, borderRadius:T.radius,
-        border:`1px solid ${T.border}`, padding:"14px 20px",
-        marginBottom:20, boxShadow:T.shadowSm,
-      }}>
-        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
-          <span style={{ fontSize:12, fontWeight:600, color:T.ink2 }}>Total Product Listings</span>
-          <span style={{ fontSize:12, fontWeight:700, color:barColor }}>{limitLabel}</span>
+      {!cfgReady ? <QuotaSkeleton /> : (
+        <div style={{
+          background:T.surface, borderRadius:T.radius,
+          border:`1px solid ${T.border}`, padding:"14px 20px",
+          marginBottom:20, boxShadow:T.shadowSm,
+        }}>
+          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+            <span style={{ fontSize:12, fontWeight:600, color:T.ink2 }}>Total Product Listings</span>
+            <span style={{ fontSize:12, fontWeight:700, color:barColor }}>{limitLabel}</span>
+          </div>
+          <div style={{ height:6, background:T.borderLight, borderRadius:99, overflow:"hidden" }}>
+            <div style={{ height:"100%", width:`${pct}%`, background:barColor, borderRadius:99, transition:"width 0.6s ease" }} />
+          </div>
+          <div style={{ fontSize:11, color:T.ink4, marginTop:6 }}>
+            {totalCount} total products across all projects
+            {!isUnlimited && ` · limit: ${limit}`}
+          </div>
         </div>
-        <div style={{ height:6, background:T.borderLight, borderRadius:99, overflow:"hidden" }}>
-          <div style={{ height:"100%", width:`${pct}%`, background:barColor, borderRadius:99, transition:"width 0.6s ease" }} />
-        </div>
-        <div style={{ fontSize:11, color:T.ink4, marginTop:6 }}>
-          {totalCount} total products across all projects
-        </div>
-      </div>
+      )}
 
       {/* ════════════════════════════════════════════════════════
           VIEW: PROJECTS
@@ -477,6 +545,7 @@ export default function ProductsTab({ plan = "basic" }) {
                   textAlign:"center",
                 }}
                 onMouseEnter={e => {
+                  if (!cfgReady) return;
                   e.currentTarget.style.borderColor = cfg.color;
                   e.currentTarget.style.boxShadow = `0 4px 20px ${cfg.color}20`;
                   e.currentTarget.style.transform = "translateY(-2px)";
@@ -493,11 +562,11 @@ export default function ProductsTab({ plan = "basic" }) {
                 </div>
                 <div style={{
                   display:"inline-flex", alignItems:"center", gap:4,
-                  background: count > 0 ? `${cfg.color}15` : T.surface2,
-                  border:`1px solid ${count > 0 ? cfg.color + "40" : T.border}`,
+                  background: count > 0 && cfgReady ? `${cfg.color}15` : T.surface2,
+                  border:`1px solid ${count > 0 && cfgReady ? cfg.color + "40" : T.border}`,
                   borderRadius:20, padding:"3px 10px",
                   fontSize:11, fontWeight:600,
-                  color: count > 0 ? cfg.color : T.ink4,
+                  color: count > 0 && cfgReady ? cfg.color : T.ink4,
                 }}>
                   {count} {count === 1 ? "product" : "products"}
                 </div>
@@ -508,13 +577,13 @@ export default function ProductsTab({ plan = "basic" }) {
       )}
 
       {/* ════════════════════════════════════════════════════════
-          VIEW: CATEGORIES (inside a project)
+          VIEW: CATEGORIES
       ════════════════════════════════════════════════════════ */}
       {view === "categories" && (
         <div>
           {loadingCats ? (
             <div style={{ textAlign:"center", padding:"64px 24px", color:T.ink4 }}>
-              <div style={{ width:28, height:28, border:`3px solid ${T.border}`, borderTopColor:cfg.color, borderRadius:"50%", animation:"pt-spin 0.8s linear infinite", margin:"0 auto 12px" }} />
+              <div style={{ width:28, height:28, border:`3px solid ${T.border}`, borderTopColor: cfgReady ? cfg.color : T.ink3, borderRadius:"50%", animation:"pt-spin 0.8s linear infinite", margin:"0 auto 12px" }} />
               <div style={{ fontSize:13 }}>Loading categories...</div>
             </div>
           ) : categories.length === 0 ? (
@@ -528,7 +597,7 @@ export default function ProductsTab({ plan = "basic" }) {
               </div>
               <button
                 onClick={openAddCat}
-                style={{ padding:"10px 24px", borderRadius:T.radiusSm, border:"none", cursor:"pointer", background:cfg.accentGradient, color:"#fff", fontSize:13, fontWeight:600, fontFamily:T.fontBody }}
+                style={{ padding:"10px 24px", borderRadius:T.radiusSm, border:"none", cursor:"pointer", background: cfgReady ? cfg.accentGradient : T.border, color:"#fff", fontSize:13, fontWeight:600, fontFamily:T.fontBody }}
               >+ Create First Category</button>
             </div>
           ) : (
@@ -540,13 +609,22 @@ export default function ProductsTab({ plan = "basic" }) {
                     key={cat.id}
                     onClick={() => openCategory(cat)}
                     style={{ background:T.surface, borderRadius:T.radius, border:`1.5px solid ${T.border}`, padding:"20px", cursor:"pointer", transition:"all 0.2s", position:"relative" }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor=cfg.color; e.currentTarget.style.boxShadow=`0 4px 20px ${cfg.color}20`; e.currentTarget.style.transform="translateY(-2px)"; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor=T.border; e.currentTarget.style.boxShadow="none"; e.currentTarget.style.transform="none"; }}
+                    onMouseEnter={e => {
+                      if (!cfgReady) return;
+                      e.currentTarget.style.borderColor=cfg.color;
+                      e.currentTarget.style.boxShadow=`0 4px 20px ${cfg.color}20`;
+                      e.currentTarget.style.transform="translateY(-2px)";
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.borderColor=T.border;
+                      e.currentTarget.style.boxShadow="none";
+                      e.currentTarget.style.transform="none";
+                    }}
                   >
                     <div style={{ fontSize:32, marginBottom:10 }}>{cat.icon || "📦"}</div>
                     <div style={{ fontFamily:T.fontDisplay, fontSize:15, fontWeight:700, color:T.ink, marginBottom:4 }}>{cat.name}</div>
                     {cat.description && <div style={{ fontSize:12, color:T.ink3, lineHeight:1.5, marginBottom:8 }}>{cat.description}</div>}
-                    <div style={{ display:"inline-flex", alignItems:"center", gap:4, background:count>0?`${cfg.color}15`:T.surface2, border:`1px solid ${count>0?cfg.color+"40":T.border}`, borderRadius:20, padding:"3px 10px", fontSize:11, fontWeight:600, color:count>0?cfg.color:T.ink4 }}>
+                    <div style={{ display:"inline-flex", alignItems:"center", gap:4, background:count>0&&cfgReady?`${cfg.color}15`:T.surface2, border:`1px solid ${count>0&&cfgReady?cfg.color+"40":T.border}`, borderRadius:20, padding:"3px 10px", fontSize:11, fontWeight:600, color:count>0&&cfgReady?cfg.color:T.ink4 }}>
                       {count} {count === 1 ? "product" : "products"}
                     </div>
                     <div style={{ position:"absolute", top:12, right:12, display:"flex", gap:4 }}>
@@ -563,7 +641,7 @@ export default function ProductsTab({ plan = "basic" }) {
       )}
 
       {/* ════════════════════════════════════════════════════════
-          VIEW: PRODUCTS (inside a category)
+          VIEW: PRODUCTS
       ════════════════════════════════════════════════════════ */}
       {view === "products" && (
         <div style={{ background:T.surface, borderRadius:T.radius, border:`1px solid ${T.border}`, boxShadow:T.shadowSm, overflow:"hidden" }}>
@@ -580,7 +658,7 @@ export default function ProductsTab({ plan = "basic" }) {
 
           {loadingProds ? (
             <div style={{ textAlign:"center", padding:"64px 24px", color:T.ink4 }}>
-              <div style={{ width:28, height:28, border:`3px solid ${T.border}`, borderTopColor:cfg.color, borderRadius:"50%", animation:"pt-spin 0.8s linear infinite", margin:"0 auto 12px" }} />
+              <div style={{ width:28, height:28, border:`3px solid ${T.border}`, borderTopColor: cfgReady ? cfg.color : T.ink3, borderRadius:"50%", animation:"pt-spin 0.8s linear infinite", margin:"0 auto 12px" }} />
               <div style={{ fontSize:13 }}>Loading products...</div>
             </div>
           ) : filteredProducts.length === 0 ? (
@@ -590,7 +668,7 @@ export default function ProductsTab({ plan = "basic" }) {
                 {searchQ ? "No products match your search" : "No products yet"}
               </div>
               {!searchQ && (
-                <button onClick={() => setShowProdModal(true)} style={{ marginTop:8, padding:"10px 24px", borderRadius:T.radiusSm, border:"none", cursor:"pointer", background:cfg.accentGradient, color:"#fff", fontSize:13, fontWeight:600, fontFamily:T.fontBody }}>
+                <button onClick={() => setShowProdModal(true)} style={{ marginTop:8, padding:"10px 24px", borderRadius:T.radiusSm, border:"none", cursor:"pointer", background: cfgReady ? cfg.accentGradient : T.border, color:"#fff", fontSize:13, fontWeight:600, fontFamily:T.fontBody }}>
                   + Add First Product
                 </button>
               )}
@@ -599,7 +677,11 @@ export default function ProductsTab({ plan = "basic" }) {
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(200px, 1fr))", gap:16, padding:20 }}>
               {filteredProducts.map(p => (
                 <div key={p.id} style={{ background:T.surface, borderRadius:T.radiusSm, border:`1px solid ${T.border}`, overflow:"hidden", display:"flex", flexDirection:"column", transition:"box-shadow 0.2s, transform 0.2s" }}
-                  onMouseEnter={e => { e.currentTarget.style.boxShadow=`0 8px 24px ${cfg.color}20`; e.currentTarget.style.transform="translateY(-2px)"; }}
+                  onMouseEnter={e => {
+                    if (!cfgReady) return;
+                    e.currentTarget.style.boxShadow=`0 8px 24px ${cfg.color}20`;
+                    e.currentTarget.style.transform="translateY(-2px)";
+                  }}
                   onMouseLeave={e => { e.currentTarget.style.boxShadow="none"; e.currentTarget.style.transform="none"; }}>
                   {p.imageUrl ? (
                     <img src={p.imageUrl} alt={p.name} style={{ width:"100%", aspectRatio:"4/3", objectFit:"cover", display:"block" }} loading="lazy" />
@@ -612,6 +694,30 @@ export default function ProductsTab({ plan = "basic" }) {
                     <div style={{ fontFamily:T.fontDisplay, fontSize:13.5, fontWeight:700, color:T.ink }}>{p.name}</div>
                     {p.unit && <div style={{ fontSize:11, color:T.ink3 }}>{p.unit}</div>}
                     {p.description && <div style={{ fontSize:11.5, color:T.ink3, lineHeight:1.5, flex:1 }}>{p.description}</div>}
+                    {p.types && p.types.length > 0 && (
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:4 }}>
+                        {p.types.map(t => (
+                          <span key={t} style={{
+                            fontSize:10, fontWeight:600, padding:"2px 7px",
+                            borderRadius:20,
+                            background:"#EFF6FF",
+                            border:"1px solid #BFDBFE",
+                            color:"#1D4ED8",
+                          }}>{t}</span>
+                        ))}
+                      </div>
+                    )}
+                    {p.sizes && p.sizes.length > 0 && (
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:4 }}>
+                      {p.sizes.map(s => (
+                        <span key={s} style={{
+                          fontSize:10, fontWeight:600, padding:"2px 7px",
+                          borderRadius:20, background:T.surface2,
+                          border:`1px solid ${T.border}`, color:T.ink3,
+                        }}>{s}</span>
+                      ))}
+                    </div>
+)}
                     <div style={{ fontFamily:T.fontDisplay, fontSize:16, fontWeight:700, color:T.ink, marginTop:4 }}>{peso(p.price)}</div>
                   </div>
                   <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px", borderTop:`1px solid ${T.borderLight}` }}>
@@ -630,7 +736,7 @@ export default function ProductsTab({ plan = "basic" }) {
       )}
 
       {/* ── MODAL: ADD/EDIT CATEGORY ──────────────────────────── */}
-      {showCatModal && (
+      {showCatModal && cfgReady && (
         <Modal
           title={editCatData ? "Edit Category" : "Add Category"}
           subtitle={`For project: ${selectedProject?.icon} ${selectedProject?.label}`}
@@ -660,7 +766,7 @@ export default function ProductsTab({ plan = "basic" }) {
       )}
 
       {/* ── MODAL: ADD PRODUCT ────────────────────────────────── */}
-      {showProdModal && selectedCat && (
+      {showProdModal && selectedCat && cfgReady && (
         <Modal
           title="Add Product"
           subtitle={`${selectedProject?.label} › ${selectedCat?.icon} ${selectedCat?.name}`}
@@ -691,6 +797,146 @@ export default function ProductsTab({ plan = "basic" }) {
           <Field label="Description (optional)">
             <textarea rows={2} style={{ ...inputStyle(), resize:"none" }} placeholder="Brief description" value={prodForm.description} onChange={e => setProdForm(f => ({ ...f, description: e.target.value }))} />
           </Field>
+          <Field label="Type / Application (optional)">
+  <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:8 }}>
+    {["For Floor","For Wall","For Ceiling","Indoor","Outdoor","Waterproof","Heavy Duty","Decorative"].map(preset => (
+      <button
+        key={preset}
+        type="button"
+        onClick={() => {
+          if (!prodForm.types.includes(preset)) {
+            setProdForm(f => ({ ...f, types: [...f.types, preset] }));
+          }
+        }}
+        style={{
+          padding:"4px 10px", borderRadius:20, fontSize:11, fontWeight:600,
+          cursor:"pointer", fontFamily:T.fontBody,
+          border:`1px solid ${prodForm.types.includes(preset) ? (cfgReady ? cfg.color : T.ink2) : T.border}`,
+          background: prodForm.types.includes(preset) ? (cfgReady ? `${cfg.color}15` : T.surface2) : T.surface2,
+          color: prodForm.types.includes(preset) ? (cfgReady ? cfg.color : T.ink) : T.ink3,
+        }}
+      >{preset}</button>
+    ))}
+  </div>
+  <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+    <input
+      style={{ ...inputStyle(), flex:1 }}
+      placeholder="Or type a custom type..."
+      value={typeInput}
+      onChange={e => setTypeInput(e.target.value)}
+      onKeyDown={e => {
+        if ((e.key === "Enter" || e.key === ",") && typeInput.trim()) {
+          e.preventDefault();
+          const val = typeInput.trim().replace(/,$/, "");
+          if (val && !prodForm.types.includes(val)) {
+            setProdForm(f => ({ ...f, types: [...f.types, val] }));
+          }
+          setTypeInput("");
+        }
+      }}
+    />
+    <button
+      type="button"
+      onClick={() => {
+        const val = typeInput.trim().replace(/,$/, "");
+        if (val && !prodForm.types.includes(val)) {
+          setProdForm(f => ({ ...f, types: [...f.types, val] }));
+        }
+        setTypeInput("");
+      }}
+      style={{
+        padding:"10px 14px", borderRadius:T.radiusSm, border:"none",
+        background: cfgReady ? cfg.accentGradient : T.border,
+        color:"#fff", fontSize:12, fontWeight:600,
+        cursor:"pointer", fontFamily:T.fontBody, whiteSpace:"nowrap",
+      }}
+    >+ Add</button>
+  </div>
+  {prodForm.types.length > 0 && (
+    <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+      {prodForm.types.map(t => (
+        <div key={t} style={{
+          display:"inline-flex", alignItems:"center", gap:6,
+          background: cfgReady ? `${cfg.color}15` : T.surface2,
+          border:`1px solid ${cfgReady ? cfg.color + "40" : T.border}`,
+          borderRadius:20, padding:"4px 10px",
+          fontSize:12, fontWeight:600,
+          color: cfgReady ? cfg.color : T.ink2,
+        }}>
+          {t}
+          <button
+            type="button"
+            onClick={() => setProdForm(f => ({ ...f, types: f.types.filter(x => x !== t) }))}
+            style={{ background:"none", border:"none", cursor:"pointer", color:"inherit", fontSize:13, lineHeight:1, padding:0 }}
+          >×</button>
+        </div>
+      ))}
+    </div>
+  )}
+  <div style={{ fontSize:11, color:T.ink4, marginTop:4 }}>
+    Click a preset or type a custom one. Press Enter or comma to add.
+  </div>
+</Field>
+          <Field label="Sizes (optional)">
+  <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+    <input
+      style={{ ...inputStyle(), flex:1 }}
+      placeholder='e.g. Small, Medium, Large or 10mm, 12mm'
+      value={sizeInput}
+      onChange={e => setSizeInput(e.target.value)}
+      onKeyDown={e => {
+        if ((e.key === "Enter" || e.key === ",") && sizeInput.trim()) {
+          e.preventDefault();
+          const val = sizeInput.trim().replace(/,$/, "");
+          if (val && !prodForm.sizes.includes(val)) {
+            setProdForm(f => ({ ...f, sizes: [...f.sizes, val] }));
+          }
+          setSizeInput("");
+        }
+      }}
+    />
+    <button
+      type="button"
+      onClick={() => {
+        const val = sizeInput.trim().replace(/,$/, "");
+        if (val && !prodForm.sizes.includes(val)) {
+          setProdForm(f => ({ ...f, sizes: [...f.sizes, val] }));
+        }
+        setSizeInput("");
+      }}
+      style={{
+        padding:"10px 14px", borderRadius:T.radiusSm, border:"none",
+        background: cfgReady ? cfg.accentGradient : T.border,
+        color:"#fff", fontSize:12, fontWeight:600,
+        cursor:"pointer", fontFamily:T.fontBody, whiteSpace:"nowrap",
+      }}
+    >+ Add</button>
+  </div>
+  {prodForm.sizes.length > 0 && (
+    <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+      {prodForm.sizes.map(s => (
+        <div key={s} style={{
+          display:"inline-flex", alignItems:"center", gap:6,
+          background: cfgReady ? `${cfg.color}15` : T.surface2,
+          border:`1px solid ${cfgReady ? cfg.color + "40" : T.border}`,
+          borderRadius:20, padding:"4px 10px",
+          fontSize:12, fontWeight:600,
+          color: cfgReady ? cfg.color : T.ink2,
+        }}>
+          {s}
+          <button
+            type="button"
+            onClick={() => setProdForm(f => ({ ...f, sizes: f.sizes.filter(x => x !== s) }))}
+            style={{ background:"none", border:"none", cursor:"pointer", color:"inherit", fontSize:13, lineHeight:1, padding:0 }}
+          >×</button>
+        </div>
+      ))}
+    </div>
+  )}
+  <div style={{ fontSize:11, color:T.ink4, marginTop:4 }}>
+    Press Enter or comma to add a size. Click × to remove.
+  </div>
+</Field>
           <Field label="Stock Status">
             <div style={{ display:"flex", gap:8 }}>
               {[true, false].map(val => (

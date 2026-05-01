@@ -424,7 +424,7 @@ export default function PaymentForm({ onSuccess, existingRequest }) {
             border: "2px solid #6EE7B7",
             display: "flex", alignItems: "center", justifyContent: "center",
             margin: "0 auto 16px", fontSize: 28,
-          }}>✅</div>
+          }}></div>
           <div style={{ fontFamily: "'Lora', Georgia, serif", fontSize: 20, fontWeight: 900, color: "#0F172A", marginBottom: 8 }}>
             Payment Submitted!
           </div>

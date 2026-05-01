@@ -105,7 +105,7 @@ export default function StripePaymentForm({ defaultPlan = null, onCancel }) {
                   <span key={f} style={{
                     fontSize: 10.5, color: "#64748B",
                     background: "#F1F5F9", borderRadius: 6, padding: "2px 8px",
-                  }}>✓ {f}</span>
+                  }}> {f}</span>
                 ))}
               </div>
             </div>

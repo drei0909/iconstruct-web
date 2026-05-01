@@ -1,17 +1,20 @@
 // src/config/planConfig.js
 // ─────────────────────────────────────────────────────────────
 // SINGLE SOURCE OF TRUTH for all plan limits, labels, and theme
-// colours. Import this wherever you need plan-aware behaviour.
-// Never hardcode limits or colours in individual components.
+// colours. Static PLAN_CONFIG holds UI/theme values only.
+// Runtime limits (productLimit, quotaLimit, projectLimit) are
+// fetched live from Firestore so admin edits take effect
+// immediately across all dashboards and the homepage.
 // ─────────────────────────────────────────────────────────────
 
+// ── Static theme/UI config (never changes at runtime) ─────────
 export const PLAN_CONFIG = {
   basic: {
     key: "basic",
     label: "Free · Basic",
-    productLimit: 20,       // max products a Basic shop can list
-    quotaLimit: 3,          // max quotations per month
-    projectLimit: 5,        // max visible projects
+    productLimit: 20,
+    quotaLimit: 3,
+    projectLimit: 5,
     color: "#648DB6",
     badgeBg: "#F1F5F9",
     badgeColor: "#475569",
@@ -26,7 +29,7 @@ export const PLAN_CONFIG = {
     key: "pro",
     label: "Pro · Active",
     productLimit: 150,
-    quotaLimit: Infinity,   // unlimited
+    quotaLimit: Infinity,
     projectLimit: Infinity,
     color: "#3B82F6",
     badgeBg: "#EFF6FF",
@@ -41,7 +44,7 @@ export const PLAN_CONFIG = {
   business: {
     key: "business",
     label: "Business",
-    productLimit: Infinity, // unlimited — no cap
+    productLimit: Infinity,
     quotaLimit: Infinity,
     projectLimit: Infinity,
     color: "#7C3AED",
@@ -57,11 +60,8 @@ export const PLAN_CONFIG = {
 };
 
 /**
- * Returns the plan config object for a given plan key.
- * Falls back to "basic" if the key is unrecognised.
- *
- * @param {string} planKey - "basic" | "pro" | "business"
- * @returns {object} Plan config
+ * Returns the static plan config (theme/UI only).
+ * For runtime limits, use getLivePlanConfig() instead.
  */
 export function getPlanConfig(planKey) {
   const key = (planKey || "basic").toLowerCase();
@@ -69,23 +69,65 @@ export function getPlanConfig(planKey) {
 }
 
 /**
- * Returns a human-readable product limit string.
- * Infinity → "Unlimited"
+ * Fetches live plan limits from Firestore and merges them
+ * with the static theme config. Falls back to static values
+ * if Firestore is unavailable.
  *
- * @param {number} limit
- * @returns {string}
+ * @param {string} planKey - "basic" | "pro" | "business"
+ * @returns {Promise<object>} Merged plan config with live limits
  */
+export async function getLivePlanConfig(planKey) {
+  const key = (planKey || "basic").toLowerCase();
+  const base = { ...(PLAN_CONFIG[key] ?? PLAN_CONFIG.basic) };
+
+  try {
+    // Lazy-import firebase to avoid circular deps
+    const { db } = await import("../services/firebase");
+    const { doc, getDoc } = await import("firebase/firestore");
+
+    const snap = await getDoc(doc(db, "systemConfig", "subscriptionPlans"));
+    if (snap.exists()) {
+      const firestorePlan = snap.data()?.plans?.[key];
+      if (firestorePlan) {
+        // productLimit: -1 in Firestore means Infinity
+        if (firestorePlan.productLimit !== undefined) {
+          base.productLimit = firestorePlan.productLimit === -1
+            ? Infinity
+            : firestorePlan.productLimit;
+        }
+        // quotaLimit: -1 means Infinity
+        if (firestorePlan.quotaLimit !== undefined) {
+          base.quotaLimit = firestorePlan.quotaLimit === -1
+            ? Infinity
+            : firestorePlan.quotaLimit;
+        }
+        // projectLimit: -1 means Infinity
+        if (firestorePlan.projectLimit !== undefined) {
+          base.projectLimit = firestorePlan.projectLimit === -1
+            ? Infinity
+            : firestorePlan.projectLimit;
+        }
+        // Label from Firestore if set
+        if (firestorePlan.label) {
+          base.label = firestorePlan.label;
+        }
+        // Price
+        if (firestorePlan.price !== undefined) {
+          base.price = firestorePlan.price;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("getLivePlanConfig: Firestore fetch failed, using static defaults.", err);
+  }
+
+  return base;
+}
+
 export function formatProductLimit(limit) {
   return limit === Infinity ? "Unlimited" : String(limit);
 }
 
-/**
- * Returns whether a shop has reached its product listing limit.
- *
- * @param {number} currentCount - How many products the shop has listed
- * @param {number} limit        - Plan's productLimit (use Infinity for unlimited)
- * @returns {boolean}
- */
 export function isAtProductLimit(currentCount, limit) {
   return limit !== Infinity && currentCount >= limit;
 }

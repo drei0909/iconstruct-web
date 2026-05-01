@@ -1,6 +1,10 @@
 // src/views/shop/DashboardBusinessPage.jsx
-// FIX: All tab components moved OUTSIDE ShopDashboardBusiness to prevent
-// remount-on-every-keystroke. Each gets only the props it needs.
+// FIXES APPLIED:
+// 1. Billing tab now correctly uses BillingBusiness (purple/business theme),
+//    not the Pro (blue) Billing component.
+// 2. Dead code removed: duplicate Billing function removed from this file.
+// 3. NAV icons were missing — added back.
+// 4. renderContent "billing" case now calls <BillingBusiness shop={shop} />
 
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -13,7 +17,6 @@ import SearchBar   from "../../components/ui/SearchBar";
 import { useSearch } from "../../hooks/useSearch";
 import { auth, db } from "../../services/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
-
 import StripePaymentForm from "../../components/forms/StripePaymentForm";
 import React from "react";
 
@@ -49,7 +52,7 @@ function StatCard({ label, value, color, sub, featured }) {
   );
 }
 
-// ─── TAB COMPONENTS (defined OUTSIDE parent — stable identity, no remount) ────
+// ─── TAB COMPONENTS (defined OUTSIDE parent — stable identity, no remount) ─
 
 function Overview({ quotations, projects, accepted, pending, rejected, winRate, monthQuotes, setQuoteModal, setActiveTab }) {
   return (
@@ -104,7 +107,7 @@ function Overview({ quotations, projects, accepted, pending, rejected, winRate, 
               ? <div style={{ fontSize:11, color:"#94A3B8" }}>No open projects yet.</div>
               : projects.slice(0, 3).map(p => (
                   <div key={p.id} style={{ fontSize:12, color:"#334155", marginBottom:6, display:"flex", justifyContent:"space-between" }}>
-                    <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:130 }}>{p.title || "Project"}</span>
+                    <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:130 }}>{p.projectName || p.title || "Project"}</span>
                     <button onClick={() => setQuoteModal(p)} style={{ fontSize:10, fontWeight:600, color:"#7C3AED", background:"none", border:"none", cursor:"pointer" }}>Quote</button>
                   </div>
                 ))
@@ -148,10 +151,10 @@ function AllProjects({ filteredProjects, searchQuery, setSearchQuery, setQuoteMo
               onMouseEnter={e => e.currentTarget.style.boxShadow="0 4px 16px rgba(124,58,237,0.08)"}
               onMouseLeave={e => e.currentTarget.style.boxShadow=""}>
               <div style={{ flex:1 }}>
-                <div style={{ fontSize:13.5, fontWeight:700, color:"#0F172A", marginBottom:3 }}>{project.title || "Construction Project"}</div>
-                <div style={{ fontSize:11.5, color:"#64748B" }}>{project.materials?.slice(0,3).join(", ") || "Materials TBD"} · {project.city || "—"}</div>
+                <div style={{ fontSize:13.5, fontWeight:700, color:"#0F172A", marginBottom:3 }}>{project.projectName || project.title || "Construction Project"}</div>
+                <div style={{ fontSize:11.5, color:"#64748B" }}>{project.materials?.slice(0,3).join(", ") || "Materials TBD"} · {project.locationCity || project.city || "—"}</div>
               </div>
-              <div style={{ fontSize:13, fontWeight:700, color:"#0F172A" }}>₱{project.estimatedBudget?.toLocaleString() || "—"}</div>
+              <div style={{ fontSize:13, fontWeight:700, color:"#0F172A" }}>₱{project.estimatedBudget?.toLocaleString() || project.budget || "—"}</div>
               <button onClick={() => setQuoteModal(project)} style={{ padding:"8px 18px", borderRadius:8, border:"none", background:"linear-gradient(135deg,#7C3AED,#6D28D9)", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer" }}>Submit Quote</button>
             </div>
           ))}
@@ -299,78 +302,9 @@ function Profile({ shop }) {
   );
 }
 
-// REPLACE the Billing function in BOTH DashboardProPage.jsx AND DashboardBusinessPage.jsx
-// Also add this import at the TOP of both files:
-// import StripePaymentForm from "../../components/forms/StripePaymentForm";
-
-// ─── FOR DashboardProPage.jsx ────────────────────────────────────────────────
-function Billing({ shop, setActiveTab }) {
-  const [showRenew, setShowRenew] = React.useState(false);
-
-  return (
-    <div>
-      <h2 style={{ fontFamily:"'Playfair Display', serif", fontSize:19, fontWeight:900, color:"#0F172A", marginBottom:20 }}>Billing & Subscription</h2>
-
-      {/* Current Plan Info */}
-      <div style={{ background:"#fff", borderRadius:14, border:"1px solid #E2E8F0", padding:"24px", marginBottom: 20 }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20, paddingBottom:20, borderBottom:"1px solid #F1F5F9" }}>
-          <div>
-            <div style={{ fontFamily:"'Playfair Display', serif", fontSize:18, fontWeight:900, color:"#0F172A", marginBottom:4 }}>Pro Plan</div>
-            <div style={{ fontSize:22, fontWeight:900, color:"#3B82F6", fontFamily:"'Playfair Display', serif" }}>
-              ₱499<span style={{ fontSize:13, fontWeight:400, color:"#94A3B8" }}>/month</span>
-            </div>
-          </div>
-          <span style={{ display:"inline-flex", alignItems:"center", background:"#EFF6FF", color:"#1D4ED8", border:"1px solid #BFDBFE", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:700 }}>
-            PRO · Active
-          </span>
-        </div>
-        {shop && [
-          ["Shop",                shop.shopName],
-          ["Subscription Plan",   shop.subscriptionPlan?.toUpperCase() || "PRO"],
-          ["Subscription Status", shop.subscriptionStatus || "active"],
-          ["Expires",             shop.subscriptionExpiry?.toDate ? shop.subscriptionExpiry.toDate().toLocaleDateString("en-PH",{month:"long",day:"numeric",year:"numeric"}) : "—"],
-        ].map(([k,v]) => (
-          <div key={k} style={{ display:"flex", gap:12, marginBottom:12, fontSize:13 }}>
-            <span style={{ color:"#94A3B8", minWidth:160, flexShrink:0 }}>{k}</span>
-            <span style={{ color:"#0F172A", fontWeight:500 }}>{v}</span>
-          </div>
-        ))}
-
-        {/* Renew Button */}
-        {!showRenew && (
-          <button
-            onClick={() => setShowRenew(true)}
-            style={{
-              marginTop: 16, padding: "11px 24px", borderRadius: 10, border: "none",
-              background: "linear-gradient(135deg,#1D4ED8,#3B82F6)",
-              color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer",
-            }}
-          >
-            Renew / Pay with Stripe →
-          </button>
-        )}
-      </div>
-
-      {/* Stripe Renewal Form */}
-      {showRenew && (
-        <div style={{ background:"#fff", borderRadius:14, border:"1px solid #BFDBFE", padding:"24px" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
-            <button
-              onClick={() => setShowRenew(false)}
-              style={{ fontSize:12, color:"#64748B", background:"none", border:"none", cursor:"pointer", padding:0 }}
-            >← Back</button>
-            <div style={{ fontWeight:700, fontSize:15, color:"#0F172A" }}>Renew Your Plan</div>
-          </div>
-          <StripePaymentForm defaultPlan="pro" onCancel={() => setShowRenew(false)} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-// ─── FOR DashboardBusinessPage.jsx ───────────────────────────────────────────
-// Use this version instead — same logic, just different colors and plan
+// ── FIX: BillingBusiness is the ONLY billing component here ───────────────
+// This uses the correct purple/business branding.
+// The blue "Billing" (Pro) component belongs ONLY in DashboardProPage.jsx.
 function BillingBusiness({ shop }) {
   const [showRenew, setShowRenew] = React.useState(false);
 
@@ -378,8 +312,7 @@ function BillingBusiness({ shop }) {
     <div>
       <h2 style={{ fontFamily:"'Lora', Georgia, serif", fontSize:19, fontWeight:900, color:"#0F172A", marginBottom:20 }}>Billing & Subscription</h2>
 
-      {/* Current Plan Info */}
-      <div style={{ background:"#fff", borderRadius:14, border:"1px solid #E2E8F0", padding:"24px", marginBottom: 20 }}>
+      <div style={{ background:"#fff", borderRadius:14, border:"1px solid #E2E8F0", padding:"24px", marginBottom:20 }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20, paddingBottom:20, borderBottom:"1px solid #F1F5F9" }}>
           <div>
             <div style={{ fontFamily:"'Lora', Georgia, serif", fontSize:18, fontWeight:900, color:"#0F172A", marginBottom:4 }}>Business Plan</div>
@@ -391,11 +324,14 @@ function BillingBusiness({ shop }) {
             BUSINESS
           </span>
         </div>
+
         {shop && [
           ["Shop",                shop.shopName],
           ["Subscription Plan",   shop.subscriptionPlan?.toUpperCase() || "BUSINESS"],
           ["Subscription Status", shop.subscriptionStatus || "active"],
-          ["Expires",             shop.subscriptionExpiry?.toDate ? shop.subscriptionExpiry.toDate().toLocaleDateString("en-PH",{month:"long",day:"numeric",year:"numeric"}) : "—"],
+          ["Expires",             shop.subscriptionExpiry?.toDate
+            ? shop.subscriptionExpiry.toDate().toLocaleDateString("en-PH", { month:"long", day:"numeric", year:"numeric" })
+            : "—"],
         ].map(([k,v]) => (
           <div key={k} style={{ display:"flex", gap:12, marginBottom:12, fontSize:13 }}>
             <span style={{ color:"#94A3B8", minWidth:160, flexShrink:0 }}>{k}</span>
@@ -403,29 +339,17 @@ function BillingBusiness({ shop }) {
           </div>
         ))}
 
-        {/* Renew Button */}
         {!showRenew && (
-          <button
-            onClick={() => setShowRenew(true)}
-            style={{
-              marginTop: 16, padding: "11px 24px", borderRadius: 10, border: "none",
-              background: "linear-gradient(135deg,#7C3AED,#6D28D9)",
-              color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer",
-            }}
-          >
+          <button onClick={() => setShowRenew(true)} style={{ marginTop:16, padding:"11px 24px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#7C3AED,#6D28D9)", color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer" }}>
             Renew / Pay with Stripe →
           </button>
         )}
       </div>
 
-      {/* Stripe Renewal Form */}
       {showRenew && (
         <div style={{ background:"#fff", borderRadius:14, border:"1px solid #DDD6FE", padding:"24px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
-            <button
-              onClick={() => setShowRenew(false)}
-              style={{ fontSize:12, color:"#64748B", background:"none", border:"none", cursor:"pointer", padding:0 }}
-            >← Back</button>
+            <button onClick={() => setShowRenew(false)} style={{ fontSize:12, color:"#64748B", background:"none", border:"none", cursor:"pointer", padding:0 }}>← Back</button>
             <div style={{ fontWeight:700, fontSize:15, color:"#0F172A" }}>Renew Your Plan</div>
           </div>
           <StripePaymentForm defaultPlan="business" onCancel={() => setShowRenew(false)} />
@@ -452,7 +376,6 @@ export default function ShopDashboardBusiness() {
   const [showPlanActivatedModal, setShowPlanActivatedModal] = useState(false);
   const prevStatusRef = useRef(null);
 
-  // Search state lives in parent — passed as props, NOT causing tab remount
   const [searchQuery, setSearchQuery, debouncedSearch] = useSearch("");
 
   useEffect(() => {
@@ -507,7 +430,6 @@ export default function ShopDashboardBusiness() {
     finally  { setSubmitting(false); }
   };
 
-  // Derived stats
   const accepted    = quotations.filter(q => q.status === "accepted").length;
   const pending     = quotations.filter(q => q.status === "pending").length;
   const rejected    = quotations.filter(q => q.status === "rejected").length;
@@ -534,13 +456,13 @@ export default function ShopDashboardBusiness() {
   })();
 
   const filteredProjects = projects.filter(p => {
-  const q = debouncedSearch.toLowerCase();
-  return (
-    p.projectName?.toLowerCase().includes(q) ||
-    p.locationCity?.toLowerCase().includes(q) ||
-    p.materials?.join(" ").toLowerCase().includes(q)
-  );
-});
+    const q = debouncedSearch.toLowerCase();
+    return (
+      p.projectName?.toLowerCase().includes(q) ||
+      p.locationCity?.toLowerCase().includes(q) ||
+      p.materials?.join(" ").toLowerCase().includes(q)
+    );
+  });
 
   const Sidebar = () => (
     <aside style={{ width:240, minHeight:"100vh", flexShrink:0, background:"linear-gradient(175deg,#1E0B3A 0%,#2D1B69 60%,#1E0B3A 100%)", display:"flex", flexDirection:"column" }}>
@@ -591,6 +513,7 @@ export default function ShopDashboardBusiness() {
     </header>
   );
 
+  // ── FIX: billing case now correctly calls BillingBusiness ────────────────
   const renderContent = () => {
     switch (activeTab) {
       case "overview":   return <Overview quotations={quotations} projects={projects} accepted={accepted} pending={pending} rejected={rejected} winRate={winRate} monthQuotes={monthQuotes} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} />;
@@ -600,7 +523,7 @@ export default function ShopDashboardBusiness() {
       case "featured":   return <FeaturedPlacement />;
       case "profile":    return <Profile shop={shop} />;
       case "products":   return <ProductsTab plan="business" />;
-      case "billing":    return <Billing shop={shop} />;
+      case "billing":    return <BillingBusiness shop={shop} />;   // ← FIXED: was calling wrong Billing
       default:           return <Overview quotations={quotations} projects={projects} accepted={accepted} pending={pending} rejected={rejected} winRate={winRate} monthQuotes={monthQuotes} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} />;
     }
   };
@@ -624,7 +547,7 @@ export default function ShopDashboardBusiness() {
           onClick={e => { if(e.target===e.currentTarget) setQuoteModal(null); }}>
           <div style={{ background:"#fff", borderRadius:18, width:"100%", maxWidth:440, padding:"28px", boxShadow:"0 40px 100px rgba(0,0,0,0.25)" }}>
             <h4 style={{ fontFamily:"'Lora', Georgia, serif", fontSize:17, fontWeight:700, color:"#0F172A", marginBottom:4 }}>Submit Quotation</h4>
-            <p style={{ fontSize:12, color:"#64748B", marginBottom:20 }}>For: <strong style={{ color:"#0F172A" }}>{quoteModal.title||"Construction Project"}</strong></p>
+            <p style={{ fontSize:12, color:"#64748B", marginBottom:20 }}>For: <strong style={{ color:"#0F172A" }}>{quoteModal.projectName || quoteModal.title || "Construction Project"}</strong></p>
             <div style={{ marginBottom:14 }}>
               <label style={{ fontSize:11.5, fontWeight:600, color:"#334155", display:"block", marginBottom:5 }}>Quote Amount (₱)</label>
               <input type="number" placeholder="e.g. 15000" value={quoteForm.amount} onChange={e => setQuoteForm(f=>({...f, amount:e.target.value}))} style={{ width:"100%", padding:"10px 14px", border:"1.5px solid #E2E8F0", borderRadius:8, fontSize:13, fontFamily:"'Inter', sans-serif", outline:"none", color:"#0F172A" }} />
@@ -656,7 +579,7 @@ export default function ShopDashboardBusiness() {
             <p style={{ fontSize:14, color:"#64748B", lineHeight:1.7, marginBottom:8 }}>Your plan has been confirmed by the admin and is now <strong style={{ color:"#059669" }}>active</strong>.</p>
             <p style={{ fontSize:13, color:"#94A3B8", lineHeight:1.6, marginBottom:28 }}>Please <strong style={{ color:"#0F172A" }}>sign out and log back in</strong> to apply your new features.</p>
             <div style={{ background:"#FFF7ED", border:"1px solid #FED7AA", borderRadius:10, padding:"12px 16px", marginBottom:24, fontSize:12.5, color:"#92400E", lineHeight:1.6 }}>
-               You must sign out and sign back in for your upgraded plan to take effect.
+              ⚠️ You must sign out and sign back in for your upgraded plan to take effect.
             </div>
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={() => setShowPlanActivatedModal(false)} style={{ flex:1, padding:"12px", borderRadius:10, border:"1.5px solid rgba(44,62,80,0.15)", background:"transparent", color:"rgba(44,62,80,0.6)", fontSize:13, fontWeight:500, cursor:"pointer" }}>Remind Me Later</button>

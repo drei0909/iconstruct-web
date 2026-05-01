@@ -147,7 +147,7 @@ export async function fetchAllAvailableProducts() {
 
 export async function insertProduct({
   shopId, shopName, name, description,
-  price, unit, category, imageBase64,
+  price, unit, category, imageBase64, sizes,
 }) {
   const ref = await addDoc(collection(db, "products"), {
     shopId,
@@ -158,6 +158,7 @@ export async function insertProduct({
     unit:        unit        || "piece",
     category:    category    || "general",
     imageBase64: imageBase64 || "",
+    sizes:       sizes       || [],
     available:   true,
     createdAt:   serverTimestamp(),
     updatedAt:   serverTimestamp(),

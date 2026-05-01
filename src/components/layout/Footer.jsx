@@ -22,10 +22,10 @@ export default function Footer() {
                   with trusted hardware suppliers.
                 </p>
                 {/* <div className="fo-socials">
-                  <a href="#" className="fo-social-btn" aria-label="Facebook">📘</a>
-                  <a href="#" className="fo-social-btn" aria-label="Instagram">📸</a>
-                  <a href="#" className="fo-social-btn" aria-label="Twitter">🐦</a>
-                  <a href="#" className="fo-social-btn" aria-label="LinkedIn">💼</a>
+                  <a href="#" className="fo-social-btn" aria-label="Facebook"></a>
+                  <a href="#" className="fo-social-btn" aria-label="Instagram"></a>
+                  <a href="#" className="fo-social-btn" aria-label="Twitter"></a>
+                  <a href="#" className="fo-social-btn" aria-label="LinkedIn"></a>
                 </div> */}
               </div>
 
@@ -52,7 +52,7 @@ export default function Footer() {
               </div>
 
               {/* Download */}
-              <div>
+            {/*   <div>
                 <h6 className="fo-col-title">Get the App</h6>
                 <a href="#" className="fo-download-badge">
                   <span className="fo-badge-icon">▶</span>
@@ -67,7 +67,7 @@ export default function Footer() {
                    
                   </span>
                 </a>
-              </div>
+              </div> */}
 
             </div>
 

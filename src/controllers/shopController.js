@@ -128,8 +128,9 @@ export async function getMyProducts() {
 }
 
 // Add a new product (shows up in app immediately via Firestore real-time)
+// AFTER — add sizes param and pass it through
 export async function addProduct({
-  name, description, price, unit, category, imageBase64,
+  name, description, price, unit, category, imageBase64, sizes,
 }) {
   const user = auth.currentUser;
   if (!user) throw new Error("Not authenticated");
@@ -148,6 +149,7 @@ export async function addProduct({
     unit:        unit     || "piece",
     category:    category || "general",
     imageBase64: imageBase64 || "",
+    sizes:       sizes || [],        // ← NEW: array of strings e.g. ["S","M","L"]
   });
 
   return productId;

@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from "react";
 import { Link, NavLink } from "react-router-dom";
 import logo from "../../assets/logo/logo2.png";
 
-function Navbar() {
+function Navbar({ forceScrolled = false, hideBar = false }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const modalRef = useRef(null);
+
+  const isScrolled = scrolled || forceScrolled;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 30);
@@ -14,7 +16,6 @@ function Navbar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Close menu on outside click
   useEffect(() => {
     if (!menuOpen) return;
     const close = (e) => {
@@ -25,7 +26,6 @@ function Navbar() {
     return () => document.removeEventListener("mousedown", close);
   }, [menuOpen]);
 
-  // Trap focus / close modal on ESC
   useEffect(() => {
     if (!modalOpen) return;
     const onKey = (e) => { if (e.key === "Escape") setModalOpen(false); };
@@ -39,30 +39,25 @@ function Navbar() {
 
   return (
     <>
-      
-
-      {/* ── Sticky wrapper ── */}
       <div className="nb-root">
 
-        {/* ── Main navbar ── */}
-        <nav className={`nb-nav ${scrolled ? "scrolled" : ""}`}>
+        <nav className={`nb-nav ${isScrolled ? "scrolled" : ""}`}>
 
-         <Link className="nb-logo" to="/">
-          <img
-            src={logo}
-            alt="iConstruct"
-            style={{ mixBlendMode: "lighten" }}
-          />
-        </Link>
+          <Link className="nb-logo" to="/">
+            <img
+              src={logo}
+              alt="iConstruct"
+              style={{ mixBlendMode: "lighten" }}
+            />
+          </Link>
 
-          {/* Desktop links */}
           <ul className="nb-links">
             <li>
               <button
                 className="nb-link"
                 onClick={() => setModalOpen(true)}
               >
-                Download
+                {/* Download */}
               </button>
             </li>
 
@@ -83,7 +78,6 @@ function Navbar() {
             </li>
           </ul>
 
-          {/* Mobile toggler */}
           <button
             className={`nb-toggler ${menuOpen ? "open" : ""}`}
             onClick={() => setMenuOpen((o) => !o)}
@@ -93,49 +87,54 @@ function Navbar() {
           </button>
         </nav>
 
-        {/* ── Bottom bar (desktop) ── */}
-        <div className={`nb-bar ${scrolled ? "scrolled" : ""}`}>
-          <nav className="nb-bar-links">
-            <NavLink
-              to="/"
-              end
-              className={({ isActive }) => `nb-bar-link${isActive ? " active" : ""}`}
-            >
-              Home
-            </NavLink>
-            <NavLink
-              to="/faqs"
-              className={({ isActive }) => `nb-bar-link${isActive ? " active" : ""}`}
-            >
-              FAQs
-            </NavLink>
-            <NavLink
-              to="/about"
-              className={({ isActive }) => `nb-bar-link${isActive ? " active" : ""}`}
-            >
-              About Us
-            </NavLink>
-            <NavLink
-              to="/contact-us"
-              className={({ isActive }) => `nb-bar-link${isActive ? " active" : ""}`}
-            >
-              Contact Us
-            </NavLink>
-          </nav>
-        </div>
+        {/* ── Bottom bar — hidden on auth pages ── */}
+        {!hideBar && (
+          <div className={`nb-bar ${isScrolled ? "scrolled" : ""}`}>
+            <nav className="nb-bar-links">
+              <NavLink
+                to="/"
+                end
+                className={({ isActive }) => `nb-bar-link${isActive ? " active" : ""}`}
+              >
+                Home
+              </NavLink>
+              <NavLink
+                to="/faqs"
+                className={({ isActive }) => `nb-bar-link${isActive ? " active" : ""}`}
+              >
+                FAQs
+              </NavLink>
+              <NavLink
+                to="/about"
+                className={({ isActive }) => `nb-bar-link${isActive ? " active" : ""}`}
+              >
+                About Us
+              </NavLink>
+              <NavLink
+                to="/contact-us"
+                className={({ isActive }) => `nb-bar-link${isActive ? " active" : ""}`}
+              >
+                Contact Us
+              </NavLink>
+            </nav>
+          </div>
+        )}
 
         {/* ── Mobile menu ── */}
         <div className={`nb-collapse ${menuOpen ? "open" : ""}`}>
-          <button className="nb-collapse-link" onClick={() => { setModalOpen(true); setMenuOpen(false); }}>
+          <button
+            className="nb-collapse-link"
+            onClick={() => { setModalOpen(true); setMenuOpen(false); }}
+          >
             Download
           </button>
-          <NavLink to="/"         end className="nb-collapse-link" onClick={() => setMenuOpen(false)}>Home</NavLink>
-          <NavLink to="/faqs"         className="nb-collapse-link" onClick={() => setMenuOpen(false)}>FAQs</NavLink>
-          <NavLink to="/about"        className="nb-collapse-link" onClick={() => setMenuOpen(false)}>About Us</NavLink>
-          <NavLink to="/contact-us"   className="nb-collapse-link" onClick={() => setMenuOpen(false)}>Contact Us</NavLink>
+          <NavLink to="/" end className="nb-collapse-link" onClick={() => setMenuOpen(false)}>Home</NavLink>
+          <NavLink to="/faqs" className="nb-collapse-link" onClick={() => setMenuOpen(false)}>FAQs</NavLink>
+          <NavLink to="/about" className="nb-collapse-link" onClick={() => setMenuOpen(false)}>About Us</NavLink>
+          <NavLink to="/contact-us" className="nb-collapse-link" onClick={() => setMenuOpen(false)}>Contact Us</NavLink>
 
           <div className="nb-collapse-actions">
-            <Link className="nb-signin" to="/login"    onClick={() => setMenuOpen(false)}>Sign In</Link>
+            <Link className="nb-signin" to="/login" onClick={() => setMenuOpen(false)}>Sign In</Link>
             <Link className="nb-signup" to="/register" onClick={() => setMenuOpen(false)}>Sign Up →</Link>
           </div>
         </div>
@@ -143,7 +142,10 @@ function Navbar() {
 
       {/* ── Download Modal ── */}
       {modalOpen && (
-        <div className="nb-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}>
+        <div
+          className="nb-modal-overlay"
+          onClick={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}
+        >
           <div className="nb-modal" ref={modalRef}>
 
             <div className="nb-modal-head">
@@ -164,7 +166,6 @@ function Navbar() {
                   <span className="nb-modal-store-sub">Get it on</span>
                   <span className="nb-modal-store-name">▶ Google Play</span>
                 </a>
-               
               </div>
             </div>
 

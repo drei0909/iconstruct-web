@@ -2,6 +2,7 @@
 import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { sendOTP, verifyOTP, registerShop } from "../../controllers/authController";
+import TermsModal from "../forms/TermsModal";
 
 // ── Constants ──────────────────────────────────────────────
 const STEPS = [
@@ -75,7 +76,7 @@ const EyeBtn = ({ show, onToggle }) => (
 );
 
 const FieldError = ({ msg }) => msg
-  ? <p className="reg-error-msg">⚠ {msg}</p>
+  ? <p className="reg-error-msg"> {msg}</p>
   : null;
 
 // ── Main component ──────────────────────────────────────────
@@ -94,6 +95,10 @@ export default function RegisterForm() {
   const [otpError, setOtpError]   = useState("");
   const [resendTimer, setResendTimer] = useState(0);
   const otpRefs = useRef([]);
+
+  // Terms modal
+  const [termsOpen,    setTermsOpen]    = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   // Documents
   const [previewModal, setPreviewModal] = useState(null);
@@ -290,19 +295,23 @@ export default function RegisterForm() {
 
   // ── Submit ──
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true); setGlobalError("");
-    try {
-      await registerShop(form);
-      setSubmitted(true);
-    } catch (err) {
-      const msg = {
-        "auth/email-already-in-use": "This email is already registered.",
-        "auth/invalid-email":        "The email address is not valid.",
-        "auth/weak-password":        "Password is too weak.",
-      };
-      setGlobalError(msg[err.code] || "Something went wrong. Please try again.");
-    } finally { setLoading(false); }
+  e.preventDefault();
+  if (!termsAccepted) {
+    setGlobalError("You must accept the Terms and Conditions to proceed.");
+    return;
+  }
+  setLoading(true); setGlobalError("");
+  try {
+    await registerShop(form);
+    setSubmitted(true);
+  } catch (err) {
+    const msg = {
+      "auth/email-already-in-use": "This email is already registered.",
+      "auth/invalid-email":        "The email address is not valid.",
+      "auth/weak-password":        "Password is too weak.",
+    };
+    setGlobalError(msg[err.code] || "Something went wrong. Please try again.");
+  } finally { setLoading(false); }
   };
 
   // ── Password strength ──
@@ -331,28 +340,34 @@ export default function RegisterForm() {
     {
       ok: form.documents.some(d => ["dti","business","mayors","bir"].includes(d.docType)),
       label: "Business Doc",
-      icon: "📋",
+      
     },
     {
       ok: form.documents.some(d => d.docType === "shop"),
       label: "Shop Photo",
-      icon: "🏪",
+      
     },
     {
       ok: form.documents.some(d => d.docType === "validId"),
       label: "Valid ID",
-      icon: "🪪",
+      
     },
     {
       ok: form.documents.some(d => d.docType === "selfie"),
       label: "ID Selfie",
-      icon: "🤳",
+      
     },
   ];
 
   // ─────────────────────────────────────────────────────────
   return (
     <>
+
+     <TermsModal
+      open={termsOpen}
+      onAccept={() => { setTermsAccepted(true); setTermsOpen(false); }}
+      onDecline={() => setTermsOpen(false)}
+    />
       {/* Document preview modal */}
       {previewModal && (
         <div
@@ -376,7 +391,7 @@ export default function RegisterForm() {
                   display:"block", background:"#111" }} />
             ) : (
               <div style={{ background:"#fff", borderRadius:14, padding:40, textAlign:"center" }}>
-                <div style={{ fontSize:56, marginBottom:16 }}>📄</div>
+                <div style={{ fontSize:56, marginBottom:16 }}></div>
                 <div style={{ fontSize:15, fontWeight:600, color:"#0F172A" }}>{previewModal.name}</div>
                 <p style={{ fontSize:13, color:"#64748B", marginTop:8 }}>PDF preview not available. File is uploaded.</p>
               </div>
@@ -384,6 +399,7 @@ export default function RegisterForm() {
           </div>
         </div>
       )}
+
 
       <div className="reg-page">
         <div className="reg-wrap">
@@ -554,7 +570,7 @@ export default function RegisterForm() {
                 {step === 1 && (
                   <div>
                     <div className="otp-info-box">
-                      <p className="otp-info-email">📧 {form.email}</p>
+                      <p className="otp-info-email"> {form.email}</p>
                       <p className="otp-info-sub">
                         Check your inbox and spam folder. The code expires in 10 minutes.
                       </p>
@@ -720,20 +736,20 @@ export default function RegisterForm() {
                     <div style={{ background:"#F0F9FF", border:"1px solid #BAE6FD",
                       borderRadius:10, padding:"14px 16px", marginBottom:18, fontSize:12.5 }}>
                       <div style={{ fontWeight:700, color:"#0369A1", marginBottom:8, fontSize:13 }}>
-                        📋 4 Documents Required
+                         4 Documents Required
                       </div>
                       <div style={{ color:"#0C4A6E", lineHeight:2 }}>
                         <span style={{ display:"block" }}>
-                          📋 <strong>1 Business Document</strong> — DTI, Business Permit, Mayor's Permit, or BIR
+                           <strong>1 Business Document</strong> — DTI, Business Permit, Mayor's Permit, or BIR
                         </span>
                         <span style={{ display:"block" }}>
-                          🏪 <strong>1 Shop Exterior Photo</strong> — Clear photo of your shop front
+                           <strong>1 Shop Exterior Photo</strong> — Clear photo of your shop front
                         </span>
                         <span style={{ display:"block" }}>
-                          🪪 <strong>1 Valid Government ID</strong> — Any government-issued ID
+                           <strong>1 Valid Government ID</strong> — Any government-issued ID
                         </span>
                         <span style={{ display:"block" }}>
-                          🤳 <strong>1 Selfie with Valid ID</strong> — Photo of you holding your ID
+                           <strong>1 Selfie with Valid ID</strong> — Photo of you holding your ID
                         </span>
                       </div>
                       <div style={{ color:"#64748B", fontSize:11, marginTop:6 }}>
@@ -751,7 +767,7 @@ export default function RegisterForm() {
                       <input ref={fileRef} type="file" multiple
                         accept=".jpg,.jpeg,.png,.pdf"
                         onChange={handleFileAdd} style={{ display:"none" }} />
-                      <div style={{ fontSize:30, marginBottom:8 }}>📎</div>
+                      <div style={{ fontSize:30, marginBottom:8 }}></div>
                       <div style={{ fontSize:13, fontWeight:600, color:"#334155", marginBottom:4 }}>
                         Click to upload files
                       </div>
@@ -805,7 +821,7 @@ export default function RegisterForm() {
                                   </div>
                                 </>
                               ) : (
-                                <span style={{ fontSize:22 }}>📄</span>
+                                <span style={{ fontSize:22 }}></span>
                               )}
                             </div>
 
@@ -861,7 +877,7 @@ export default function RegisterForm() {
                   </div>
                 )}
 
-                {/* ══ STEP 4: Review ══ */}
+                              {/* ══ STEP 4: Review ══ */}
                 {step === 4 && (
                   <form onSubmit={handleSubmit}>
                     <div className="reg-review-section">
@@ -869,7 +885,7 @@ export default function RegisterForm() {
                       {[
                         ["Full Name",      form.ownerName],
                         ["Email Address",  form.email],
-                        ["Email Verified", "✓ Verified"],
+                        ["Email Verified", "Verified"],
                         ["Password",       "••••••••"],
                       ].map(([k, v]) => (
                         <div className="reg-review-row" key={k}>
@@ -911,11 +927,10 @@ export default function RegisterForm() {
                           </span>
                           <span className="reg-review-val"
                             style={{ color:"#3B82F6", textDecoration:"underline", fontSize:12 }}>
-                            {doc.name} 👁
+                            {doc.name} 
                           </span>
                         </div>
                       ))}
-                      {/* Show which docs are complete */}
                       <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:10 }}>
                         {docStatus.map(({ ok, label, icon }) => (
                           <span key={label} style={{
@@ -930,14 +945,60 @@ export default function RegisterForm() {
                       </div>
                     </div>
 
+                    {/* ── Terms & Conditions checkbox ── */}
+                    <div style={{
+                      background: "#F8FAFC",
+                      border: `1px solid ${termsAccepted ? "#6EE7B7" : "#E2E8F0"}`,
+                      borderRadius: 10,
+                      padding: "14px 16px",
+                      marginBottom: 16,
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 12,
+                    }}>
+                      <input
+                        type="checkbox"
+                        id="terms-check"
+                        checked={termsAccepted}
+                        onChange={() => {
+                          if (!termsAccepted) setTermsOpen(true);
+                          else setTermsAccepted(false);
+                        }}
+                        style={{ marginTop: 2, width: 16, height: 16, cursor: "pointer", accentColor: "#10B981" }}
+                      />
+                      <label htmlFor="terms-check" style={{ fontSize: 13, color: "#334155", cursor: "pointer", lineHeight: 1.5 }}>
+                        I have read and agree to the{" "}
+                        <button
+                          type="button"
+                          onClick={() => setTermsOpen(true)}
+                          style={{
+                            background: "none", border: "none", padding: 0,
+                            color: "#3B82F6", fontWeight: 600, fontSize: 13,
+                            cursor: "pointer", textDecoration: "underline",
+                          }}
+                        >
+                          Terms and Conditions
+                        </button>
+                        {" "}of iConstruct. I confirm that all information and documents submitted are accurate and authentic.
+                        {termsAccepted && (
+                          <span style={{ color: "#10B981", fontWeight: 700, marginLeft: 6 }}> Accepted</span>
+                        )}
+                      </label>
+                    </div>
+
                     {globalError && <div className="reg-global-error">{globalError}</div>}
 
                     <div className="reg-actions">
                       <button type="button" className="reg-btn-back" onClick={goBack}>← Back</button>
-                      <button className="reg-btn-submit" type="submit" disabled={loading}>
+                      <button
+                        className="reg-btn-submit"
+                        type="submit"
+                        disabled={loading || !termsAccepted}
+                        style={{ opacity: !termsAccepted ? 0.5 : 1, cursor: !termsAccepted ? "not-allowed" : "pointer" }}
+                      >
                         {loading
                           ? <><span className="reg-spinner" /> Submitting...</>
-                          : <>Submit Application ✓</>}
+                          : <>Submit Application </>}
                       </button>
                     </div>
                   </form>
@@ -945,7 +1006,7 @@ export default function RegisterForm() {
 
                 <p className="reg-signin-row">
                   Already have an account?{" "}
-                  <Link to="/login" className="reg-signin-link">Sign in →</Link>
+                  <Link to="/login" className="reg-signin-link">Sign in</Link>
                 </p>
               </>
             )}
