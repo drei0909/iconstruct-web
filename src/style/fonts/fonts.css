@@ -1,0 +1,29 @@
+/* src/styles/fonts/fonts.css
+   ─────────────────────────────────────────────────────────────────────────
+   Central font definition for iConstruct.
+   Import this ONCE in main.jsx — never add font declarations anywhere else.
+   ───────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --font-base: -apple-system, BlinkMacSystemFont, "Segoe UI",
+               Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue",
+               sans-serif;
+
+  /* Aliases — use these throughout the project */
+  --font-ui:      var(--font-base);
+  --font-display: var(--font-base);
+  --font-mono:    ui-monospace, "SF Mono", "Cascadia Code",
+                  "Roboto Mono", Menlo, Consolas, monospace;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-base);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

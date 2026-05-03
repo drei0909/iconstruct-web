@@ -54,7 +54,7 @@ export default function StripePaymentForm({ defaultPlan = null, onCancel }) {
   };
 
   return (
-    <div style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ fontFamily: "var(--font-base)" }}>
 
       {/* Plan Selector */}
       <div style={{ marginBottom: 20 }}>
@@ -148,7 +148,7 @@ export default function StripePaymentForm({ defaultPlan = null, onCancel }) {
               padding: "12px 20px", borderRadius: 10,
               border: "1px solid #E2E8F0", background: "#F8FAFC",
               color: "#64748B", fontWeight: 500, fontSize: 13,
-              cursor: "pointer", fontFamily: "'Inter', sans-serif",
+              cursor: "pointer", fontFamily: "var(--font-base)",
             }}
           >Cancel</button>
         )}
@@ -163,7 +163,7 @@ export default function StripePaymentForm({ defaultPlan = null, onCancel }) {
               : "#E2E8F0",
             color:  selectedPlan ? "#fff" : "#94A3B8",
             fontWeight: 700, fontSize: 13,
-            fontFamily: "'Inter', sans-serif",
+            fontFamily: "var(--font-base)",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             opacity: loading ? 0.75 : 1,
             transition: "all 0.2s",

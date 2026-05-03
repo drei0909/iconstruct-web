@@ -9,13 +9,31 @@ import {
   deleteUser,
   sendPasswordResetEmail,
 } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import {
+  doc, setDoc, serverTimestamp,
+  addDoc, collection,
+} from "firebase/firestore";
 import {
   fetchAllAdmins,
   fetchAdminById,
   updateAdminRecord,
   deleteAdminRecord,
 } from "../models/settingsModel";
+
+// ── System Log Writer (same pattern as adminController) ─────────────────────
+export async function writeLog(level, message) {
+  try {
+    const actor = auth.currentUser?.email || "system";
+    await addDoc(collection(db, "systemLogs"), {
+      level,
+      message,
+      actor,
+      createdAt: serverTimestamp(),
+    });
+  } catch (err) {
+    console.warn("[settingsController] Failed to write log:", err);
+  }
+}
 
 // ── Read ────────────────────────────────────────────────────────────────────
 
@@ -32,17 +50,12 @@ export async function getCurrentAdminProfile() {
 // ── Create Admin ────────────────────────────────────────────────────────────
 
 export async function createAdmin({ email, password, displayName, role = "admin" }) {
-  // Create the Firebase Auth user
   const cred = await createUserWithEmailAndPassword(auth, email, password);
-
-  // Write the admins/{uid} document so loginAdmin() authorizes them
   await setDoc(doc(db, "admins", cred.user.uid), {
-    email,
-    displayName,
-    role,
+    email, displayName, role,
     createdAt: serverTimestamp(),
   });
-
+  await writeLog("success", `New admin account created: ${email} (${role})`);
   return cred.user;
 }
 
@@ -50,6 +63,7 @@ export async function createAdmin({ email, password, displayName, role = "admin"
 
 export async function updateAdminProfile(uid, { displayName, role }) {
   await updateAdminRecord(uid, { displayName, role });
+  await writeLog("info", `Admin profile updated: ${displayName} — role set to ${role}`);
 }
 
 // ── Change Own Password ──────────────────────────────────────────────────────
@@ -57,24 +71,22 @@ export async function updateAdminProfile(uid, { displayName, role }) {
 export async function changeAdminPassword({ currentPassword, newPassword }) {
   const user = auth.currentUser;
   if (!user) throw new Error("Not authenticated.");
-
-  // Re-authenticate first (Firebase requires this for sensitive ops)
   const credential = EmailAuthProvider.credential(user.email, currentPassword);
   await reauthenticateWithCredential(user, credential);
-
-  // Now update the password
   await updatePassword(user, newPassword);
+  await writeLog("success", `Admin password changed: ${user.email}`);
 }
 
 // ── Send Password Reset ──────────────────────────────────────────────────────
 
 export async function sendAdminPasswordReset(email) {
   await sendPasswordResetEmail(auth, email);
+  await writeLog("info", `Password reset email sent to: ${email}`);
 }
 
 // ── Delete Admin ─────────────────────────────────────────────────────────────
 
 export async function removeAdmin(uid) {
-  // Remove Firestore record (auth user deletion requires admin SDK — skipped on client)
   await deleteAdminRecord(uid);
+  await writeLog("warn", `Admin account removed. UID: ${uid}`);
 }

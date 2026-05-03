@@ -5,6 +5,14 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
+  TbUser, TbLock, TbSettings, TbPackage, TbBell, TbTool,
+  TbKey, TbShield, TbFingerprint, TbDeviceDesktop,
+  TbRuler, TbCurrencyDollar, TbInfoCircle, TbAlertTriangle,
+  TbMail, TbBolt, TbClipboardList, TbChartBar,
+  TbCheck, TbX, TbEye, TbEyeOff, TbUserPlus, TbRefresh,
+} from "react-icons/tb";
+
+import {
   getAllAdmins,
   getCurrentAdminProfile,
   createAdmin,
@@ -12,7 +20,10 @@ import {
   changeAdminPassword,
   sendAdminPasswordReset,
   removeAdmin,
+  writeLog,
 } from "../../controllers/settingsController";
+
+
 import { PLAN_CONFIG, formatProductLimit } from "../../config/planConfig";
 import { db } from "../../services/firebase";
 import {
@@ -126,11 +137,11 @@ function Select({ value, onChange, options, disabled }) {
 
 function Btn({ onClick, disabled, loading, children, variant = "primary", size = "md", style: extStyle = {} }) {
   const variants = {
-    primary:   { bg: T.accent, color: "#fff", border: "none" },
-    success:   { bg: T.success, color: "#fff", border: "none" },
-    danger:    { bg: T.danger, color: "#fff", border: "none" },
-    ghost:     { bg: "#F8FAFC", color: T.textMuted, border: `1px solid ${T.border}` },
-    ghostDanger: { bg: T.dangerLight, color: T.danger, border: `1px solid #FECACA` },
+    primary:     { bg: T.accent,       color: "#fff",       border: "none" },
+    success:     { bg: T.success,      color: "#fff",       border: "none" },
+    danger:      { bg: T.danger,       color: "#fff",       border: "none" },
+    ghost:       { bg: "#F8FAFC",      color: T.textMuted,  border: `1px solid ${T.border}` },
+    ghostDanger: { bg: T.dangerLight,  color: T.danger,     border: `1px solid #FECACA` },
   };
   const sizes = { sm: "6px 12px", md: "9px 18px", lg: "11px 24px" };
   const v = variants[variant] || variants.primary;
@@ -164,7 +175,11 @@ function SectionCard({ title, subtitle, icon, children, accent }) {
   return (
     <div style={{ background: T.surface, borderRadius: 14, border: `1px solid ${T.border}`, marginBottom: 20, overflow: "hidden" }}>
       <div style={{ padding: "16px 22px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 12, background: accent ? `linear-gradient(135deg, ${accent}08, ${accent}03)` : "#FAFBFC" }}>
-        {icon && <span style={{ fontSize: 18, flexShrink: 0 }}>{icon}</span>}
+        {icon && (
+          <span style={{ fontSize: 18, flexShrink: 0, display: "flex", alignItems: "center", color: accent || T.textMuted }}>
+            {icon}
+          </span>
+        )}
         <div>
           <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>{title}</div>
           {subtitle && <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 1 }}>{subtitle}</div>}
@@ -193,7 +208,8 @@ function Toast({ toast }) {
   const isError = toast.type === "error";
   return (
     <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 10, padding: "12px 20px", borderRadius: 10, background: isError ? T.danger : "#0F172A", color: "#fff", fontSize: 13, fontWeight: 500, boxShadow: "0 10px 30px rgba(0,0,0,0.2)", zIndex: 9999, whiteSpace: "nowrap", animation: "fadeUp 0.2s ease" }}>
-      <span>{isError ? "✕" : "✓"}</span> {toast.msg}
+      {isError ? <TbX size={15} /> : <TbCheck size={15} />}
+      {toast.msg}
     </div>
   );
 }
@@ -248,7 +264,9 @@ function AdminFormModal({ open, onClose, onSave, editTarget, loading }) {
             <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{isEdit ? "Edit Admin" : "Add New Admin"}</div>
             <div style={{ fontSize: 11.5, color: T.textLight, marginTop: 2 }}>{isEdit ? "Update account details." : "Create a new admin account."}</div>
           </div>
-          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: "50%", background: "#F1F5F9", border: "none", cursor: "pointer", fontSize: 16, color: T.textMuted }}>×</button>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: "50%", background: "#F1F5F9", border: "none", cursor: "pointer", color: T.textMuted, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <TbX size={16} />
+          </button>
         </div>
         <div style={{ padding: "20px 22px" }}>
           <Field label="Full Name" error={errors.displayName}><Input value={form.displayName} onChange={set("displayName")} placeholder="e.g. Juan dela Cruz" /></Field>
@@ -318,8 +336,8 @@ function PwField({ label, value, onChange, error, placeholder = "•••••
           style={{ ...inputStyle(focus), paddingRight: 40 }}
           onFocus={() => setFocus(true)} onBlur={() => setFocus(false)} />
         <button type="button" onClick={() => setShow(s => !s)}
-          style={{ position: "absolute", right: 11, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 13.5, color: T.textLight }}>
-          {show ? "🙈" : "👁"}
+          style={{ position: "absolute", right: 11, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: T.textLight, display: "flex", alignItems: "center" }}>
+          {show ? <TbEyeOff size={16} /> : <TbEye size={16} />}
         </button>
       </div>
     </Field>
@@ -329,12 +347,12 @@ function PwField({ label, value, onChange, error, placeholder = "•••••
 // ─── Sidebar Nav ──────────────────────────────────────────────────────────────
 
 const SETTING_SECTIONS = [
-  { key: "accounts",    icon: "👤", label: "Admin Accounts" },
-  { key: "security",    icon: "🔒", label: "Security" },
-  { key: "engine",      icon: "⚙️",  label: "Recommendation Engine" },
-  { key: "plans",       icon: "📦", label: "Subscription Plans" },
-  { key: "notifs",      icon: "🔔", label: "Notification Settings" },
-  { key: "maintenance", icon: "🛠️",  label: "System Maintenance" },
+  { key: "accounts",    icon: <TbUser size={15} />,          label: "Admin Accounts" },
+  { key: "security",    icon: <TbLock size={15} />,          label: "Security" },
+  { key: "engine",      icon: <TbSettings size={15} />,      label: "Recommendation Engine" },
+  { key: "plans",       icon: <TbPackage size={15} />,       label: "Subscription Plans" },
+  { key: "notifs",      icon: <TbBell size={15} />,          label: "Notification Settings" },
+  { key: "maintenance", icon: <TbTool size={15} />,          label: "System Maintenance" },
 ];
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -342,34 +360,58 @@ const SETTING_SECTIONS = [
 export default function SystemSettingsTab({ currentUser }) {
   const [activeSection, setActiveSection] = useState("accounts");
   const [toast, setToast] = useState(null);
-  const showToast = useCallback((msg, type = "success") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
-  }, []);
+  const loadLogs = useCallback(async () => {
+    setLogsLoading(true);
+    try {
+      const q = query(collection(db, "systemLogs"), orderBy("createdAt", "desc"), limit(50));
+      const snap = await getDocs(q);
+      const entries = snap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          level: data.level || "info",
+          message: data.message || "",
+          actor: data.actor || "system",
+          timestamp: data.createdAt?.toDate
+            ? data.createdAt.toDate().toLocaleString("en-PH")
+            : "—",
+        };
+      });
+          setLogs(entries);
+        } catch {
+          // keep existing logs on refresh failure
+        } finally {
+          setLogsLoading(false);
+        }
+      }, []);
+      const showToast = useCallback((msg, type = "success") => {
+        setToast({ msg, type });
+        setTimeout(() => setToast(null), 3500);
+      }, []);
 
   // ── Admin Accounts state ──
-  const [admins, setAdmins]           = useState([]);
+  const [admins, setAdmins]               = useState([]);
   const [loadingAdmins, setLoadingAdmins] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [adminModal, setAdminModal]   = useState(false);
-  const [editTarget, setEditTarget]   = useState(null);
-  const [confirmDlg, setConfirmDlg]   = useState({ open: false });
+  const [adminModal, setAdminModal]       = useState(false);
+  const [editTarget, setEditTarget]       = useState(null);
+  const [confirmDlg, setConfirmDlg]       = useState({ open: false });
 
   // ── Security state ──
-  const [pwForm, setPwForm]       = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
-  const [pwErrors, setPwErrors]   = useState({});
-  const [pwLoading, setPwLoading] = useState(false);
+  const [pwForm, setPwForm]           = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [pwErrors, setPwErrors]       = useState({});
+  const [pwLoading, setPwLoading]     = useState(false);
   const [securitySettings, setSecuritySettings] = useState({ requireStrongPassword: true, sessionTimeout: "8h", maxLoginAttempts: 5 });
   const [savingSecure, setSavingSecure] = useState(false);
 
   // ── Recommendation Engine state ──
-  const [formula, setFormula]     = useState(DEFAULT_FORMULA);
-  const [pricing, setPricing]     = useState(DEFAULT_PRICING);
-  const [engineLoading, setEngineLoading]   = useState(true);
-  const [savingEngine, setSavingEngine]     = useState(false);
+  const [formula, setFormula]         = useState(DEFAULT_FORMULA);
+  const [pricing, setPricing]         = useState(DEFAULT_PRICING);
+  const [engineLoading, setEngineLoading] = useState(true);
+  const [savingEngine, setSavingEngine]   = useState(false);
 
   // ── Subscription Plans state ──
-  const [plans, setPlans]         = useState({});
+  const [plans, setPlans]             = useState({});
   const [plansLoading, setPlansLoading]   = useState(true);
   const [savingPlans, setSavingPlans]     = useState(false);
   const [editingPlan, setEditingPlan]     = useState(null);
@@ -377,28 +419,20 @@ export default function SystemSettingsTab({ currentUser }) {
 
   // ── Notification Settings state ──
   const [notifSettings, setNotifSettings] = useState({
-    newApplication: true,
-    applicationApproved: true,
-    applicationRejected: true,
-    paymentReceived: true,
-    paymentConfirmed: true,
-    paymentRejected: true,
-    newBid: false,
-    projectPosted: false,
-    systemAlerts: true,
-    dailyDigest: false,
-    emailFrom: "no-reply@iconstruct.ph",
-    digestTime: "08:00",
+    newApplication: true, applicationApproved: true, applicationRejected: true,
+    paymentReceived: true, paymentConfirmed: true, paymentRejected: true,
+    newBid: false, projectPosted: false, systemAlerts: true, dailyDigest: false,
+    emailFrom: "no-reply@iconstruct.ph", digestTime: "08:00",
   });
   const [savingNotifs, setSavingNotifs] = useState(false);
   const [notifLoading, setNotifLoading] = useState(true);
 
   // ── System Maintenance state ──
-  const [logs, setLogs]           = useState([]);
+  const [logs, setLogs]               = useState([]);
   const [logsLoading, setLogsLoading] = useState(true);
   const [maintenance, setMaintenance] = useState({ maintenanceMode: false, backupSchedule: "daily", lastBackup: null, cacheEnabled: true });
   const [savingMaint, setSavingMaint] = useState(false);
-  const [logFilter, setLogFilter] = useState("all");
+  const [logFilter, setLogFilter]     = useState("all");
 
   // ── Load admin accounts ──
   const loadAdmins = useCallback(async () => {
@@ -440,12 +474,10 @@ export default function SystemSettingsTab({ currentUser }) {
         if (snap.exists()) {
           setPlans(snap.data().plans || {});
         } else {
-          // Default plans from PLAN_CONFIG
           const defaultPlans = {};
           Object.entries(PLAN_CONFIG).forEach(([key, cfg]) => {
             defaultPlans[key] = {
-              key,
-              label: cfg.label,
+              key, label: cfg.label,
               price: key === "basic" ? 0 : key === "pro" ? 499 : 999,
               billingCycle: "monthly",
               productLimit: cfg.productLimit === Infinity ? -1 : cfg.productLimit,
@@ -485,34 +517,7 @@ export default function SystemSettingsTab({ currentUser }) {
         if (snap.exists()) setMaintenance(s => ({ ...s, ...snap.data() }));
       } catch { /* use defaults */ }
 
-      setLogsLoading(true);
-      try {
-        const q = query(collection(db, "systemLogs"), orderBy("createdAt", "desc"), limit(50));
-        const snap = await getDocs(q);
-        const entries = snap.docs.map(d => {
-          const data = d.data();
-          return {
-            id: d.id,
-            level: data.level || "info",
-            message: data.message || "",
-            actor: data.actor || "system",
-            timestamp: data.createdAt?.toDate
-              ? data.createdAt.toDate().toLocaleString("en-PH")
-              : "—",
-          };
-        });
-        setLogs(entries);
-      } catch {
-        // Generate demo logs if none exist
-        setLogs([
-          { id: "1", level: "success", message: "Shop 'Builders Hub' approved by administrator.", actor: "admin@iconstruct.ph", timestamp: new Date().toLocaleString("en-PH") },
-          { id: "2", level: "info",    message: "Subscription payment confirmed for 'LM Hardware'. Plan: PRO.", actor: "admin@iconstruct.ph", timestamp: new Date(Date.now() - 3600000).toLocaleString("en-PH") },
-          { id: "3", level: "warn",    message: "Failed login attempt detected from unknown IP.", actor: "system", timestamp: new Date(Date.now() - 7200000).toLocaleString("en-PH") },
-          { id: "4", level: "info",    message: "Recommendation engine formulas updated.", actor: "admin@iconstruct.ph", timestamp: new Date(Date.now() - 86400000).toLocaleString("en-PH") },
-          { id: "5", level: "error",   message: "Email delivery failed for shop rejection notice.", actor: "system", timestamp: new Date(Date.now() - 172800000).toLocaleString("en-PH") },
-        ]);
-      }
-      setLogsLoading(false);
+    await loadLogs();
     })();
   }, []);
 
@@ -581,48 +586,67 @@ export default function SystemSettingsTab({ currentUser }) {
   };
 
   // ── Save recommendation engine ──
-  const handleSaveEngine = async () => {
-    setSavingEngine(true);
-    try {
-      await setDoc(doc(db, "systemConfig", "recommendationEngine"), {
-        formula, pricing, updatedAt: serverTimestamp(),
-      }, { merge: true });
-      showToast("Recommendation engine updated.");
-    } catch { showToast("Failed to save engine config.", "error"); }
-    finally { setSavingEngine(false); }
-  };
+ const handleSaveEngine = async () => {
+  setSavingEngine(true);
+  try {
+    await setDoc(doc(db, "systemConfig", "recommendationEngine"),
+      { formula, pricing, updatedAt: serverTimestamp() }, { merge: true });
+    await writeLog("info", "Recommendation engine formulas and pricing updated.");
+    showToast("Recommendation engine updated.");
+  } catch { showToast("Failed to save engine config.", "error"); }
+  finally { setSavingEngine(false); }
+};
 
   // ── Save subscription plans ──
-  const handleSavePlan = async () => {
-    setSavingPlans(true);
-    try {
-      const updated = { ...plans, [editingPlan]: { ...plans[editingPlan], ...planForm } };
-      await setDoc(doc(db, "systemConfig", "subscriptionPlans"), { plans: updated, updatedAt: serverTimestamp() }, { merge: true });
-      setPlans(updated); setEditingPlan(null);
-      showToast("Subscription plan updated.");
-    } catch { showToast("Failed to save plan.", "error"); }
-    finally { setSavingPlans(false); }
-  };
+const handleSavePlan = async () => {
+  setSavingPlans(true);
+  try {
+    const updated = { ...plans, [editingPlan]: { ...plans[editingPlan], ...planForm } };
+    await setDoc(doc(db, "systemConfig", "subscriptionPlans"),
+      { plans: updated, updatedAt: serverTimestamp() }, { merge: true });
+    setPlans(updated); setEditingPlan(null);
+    await writeLog("info", `Subscription plan updated: ${editingPlan.toUpperCase()} — price ₱${planForm.price}, limit: ${planForm.productLimit === -1 ? "unlimited" : planForm.productLimit} products`);
+    showToast("Subscription plan updated.");
+  } catch { showToast("Failed to save plan.", "error"); }
+  finally { setSavingPlans(false); }
+};
 
   // ── Save notification settings ──
-  const handleSaveNotifs = async () => {
-    setSavingNotifs(true);
-    try {
-      await setDoc(doc(db, "systemConfig", "notificationSettings"), { ...notifSettings, updatedAt: serverTimestamp() }, { merge: true });
-      showToast("Notification settings saved.");
-    } catch { showToast("Failed to save notification settings.", "error"); }
-    finally { setSavingNotifs(false); }
-  };
+ const handleSaveNotifs = async () => {
+  setSavingNotifs(true);
+  try {
+    await setDoc(doc(db, "systemConfig", "notificationSettings"),
+      { ...notifSettings, updatedAt: serverTimestamp() }, { merge: true });
+    await writeLog("info", "Notification settings updated.");
+    showToast("Notification settings saved.");
+  } catch { showToast("Failed to save notification settings.", "error"); }
+  finally { setSavingNotifs(false); }
+};
 
   // ── Save maintenance settings ──
-  const handleSaveMaintenance = async () => {
-    setSavingMaint(true);
-    try {
-      await setDoc(doc(db, "systemConfig", "maintenance"), { ...maintenance, updatedAt: serverTimestamp() }, { merge: true });
-      showToast("Maintenance settings saved.");
-    } catch { showToast("Failed to save maintenance settings.", "error"); }
-    finally { setSavingMaint(false); }
-  };
+ const handleSaveMaintenance = async () => {
+  setSavingMaint(true);
+  try {
+    await setDoc(doc(db, "systemConfig", "maintenance"),
+      { ...maintenance, updatedAt: serverTimestamp() }, { merge: true });
+
+    // Specific log messages depending on what changed
+    await writeLog(
+      maintenance.maintenanceMode ? "warn" : "success",
+      maintenance.maintenanceMode
+        ? "Maintenance mode ENABLED — non-admin users will see the maintenance page."
+        : "Maintenance mode DISABLED — platform restored to normal."
+    );
+    await writeLog("info", `Query caching ${maintenance.cacheEnabled ? "enabled" : "disabled"}.`);
+    await writeLog("info", `Backup schedule set to: ${maintenance.backupSchedule}.`);
+
+    // Refresh logs panel immediately so the new entries appear
+    await loadLogs();
+
+    showToast("Maintenance settings saved.");
+  } catch { showToast("Failed to save maintenance settings.", "error"); }
+  finally { setSavingMaint(false); }
+};
 
   const isCurrentUser = (id) => currentUser?.uid === id;
   const filteredLogs = logFilter === "all" ? logs : logs.filter(l => l.level === logFilter);
@@ -631,15 +655,17 @@ export default function SystemSettingsTab({ currentUser }) {
 
   const renderAccounts = () => (
     <>
-      <SectionCard title="Admin Accounts" subtitle="Manage who has access to the iConstruct admin panel." icon="👤" accent={T.accent}>
+      <SectionCard title="Admin Accounts" subtitle="Manage who has access to the iConstruct admin panel." icon={<TbUser size={18} />} accent={T.accent}>
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
-          <Btn variant="primary" onClick={() => { setEditTarget(null); setAdminModal(true); }}>+ Add Admin</Btn>
+          <Btn variant="primary" onClick={() => { setEditTarget(null); setAdminModal(true); }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}><TbUserPlus size={14} /> Add Admin</span>
+          </Btn>
         </div>
         {loadingAdmins ? (
           <div style={{ textAlign: "center", padding: 40, color: T.textLight, fontSize: 13 }}>Loading admins...</div>
         ) : admins.length === 0 ? (
           <div style={{ textAlign: "center", padding: 40 }}>
-            <div style={{ fontSize: 28, marginBottom: 8 }}>👤</div>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}><TbUser size={32} color={T.textLight} /></div>
             <div style={{ fontWeight: 600, color: T.text }}>No admin accounts found.</div>
           </div>
         ) : (
@@ -696,11 +722,11 @@ export default function SystemSettingsTab({ currentUser }) {
         )}
       </SectionCard>
 
-      <SectionCard title="Current Session" subtitle="Details about your active admin session." icon="🖥️">
+      <SectionCard title="Current Session" subtitle="Details about your active admin session." icon={<TbDeviceDesktop size={18} />}>
         <InfoGrid items={[
           { label: "Logged In As", value: currentUser?.email || "—" },
           { label: "UID", value: currentUser?.uid ? `${currentUser.uid.slice(0, 14)}…` : "—" },
-          { label: "Email Verified", value: currentUser?.emailVerified ? "✓ Verified" : "✗ Not verified", color: currentUser?.emailVerified ? T.success : T.danger },
+          { label: "Email Verified", value: currentUser?.emailVerified ? "Verified" : "Not verified", color: currentUser?.emailVerified ? T.success : T.danger },
           { label: "Last Sign-In", value: currentUser?.metadata?.lastSignInTime ? new Date(currentUser.metadata.lastSignInTime).toLocaleString("en-PH") : "—" },
         ]} />
       </SectionCard>
@@ -709,7 +735,7 @@ export default function SystemSettingsTab({ currentUser }) {
 
   const renderSecurity = () => (
     <>
-      <SectionCard title="Change Your Password" subtitle="Update the password for your admin account." icon="🔑" accent={T.accent}>
+      <SectionCard title="Change Your Password" subtitle="Update the password for your admin account." icon={<TbKey size={18} />} accent={T.accent}>
         <div style={{ maxWidth: 380 }}>
           <PwField label="Current Password" value={pwForm.currentPassword} onChange={setPw("currentPassword")} error={pwErrors.currentPassword} />
           <PwField label="New Password" value={pwForm.newPassword} onChange={setPw("newPassword")} error={pwErrors.newPassword} />
@@ -718,7 +744,7 @@ export default function SystemSettingsTab({ currentUser }) {
         </div>
       </SectionCard>
 
-      <SectionCard title="Security Policies" subtitle="Configure access rules and protection settings." icon="🛡️">
+      <SectionCard title="Security Policies" subtitle="Configure access rules and protection settings." icon={<TbShield size={18} />}>
         <div style={{ display: "flex", flexDirection: "column", gap: 18, maxWidth: 480 }}>
           <Toggle
             checked={securitySettings.requireStrongPassword}
@@ -738,17 +764,19 @@ export default function SystemSettingsTab({ currentUser }) {
               options={[{ value: "3", label: "3 Attempts" }, { value: "5", label: "5 Attempts" }, { value: "10", label: "10 Attempts" }]} />
           </Field>
           <Btn variant="primary" loading={savingSecure} onClick={async () => {
-            setSavingSecure(true);
-            try {
-              await setDoc(doc(db, "systemConfig", "security"), { ...securitySettings, updatedAt: serverTimestamp() }, { merge: true });
-              showToast("Security settings saved.");
-            } catch { showToast("Failed to save settings.", "error"); }
-            finally { setSavingSecure(false); }
-          }}>Save Security Settings</Btn>
+              setSavingSecure(true);
+              try {
+                await setDoc(doc(db, "systemConfig", "security"),
+                  { ...securitySettings, updatedAt: serverTimestamp() }, { merge: true });
+                await writeLog("info", `Security settings updated — session timeout: ${securitySettings.sessionTimeout}, max login attempts: ${securitySettings.maxLoginAttempts}, strong passwords: ${securitySettings.requireStrongPassword}`);
+                showToast("Security settings saved.");
+              } catch { showToast("Failed to save settings.", "error"); }
+              finally { setSavingSecure(false); }
+            }}>Save Security Settings</Btn>
         </div>
       </SectionCard>
 
-      <SectionCard title="Authentication Info" subtitle="Your current Firebase Auth session details." icon="🔐">
+      <SectionCard title="Authentication Info" subtitle="Your current Firebase Auth session details." icon={<TbFingerprint size={18} />}>
         <InfoGrid items={[
           { label: "Auth Provider", value: currentUser?.providerData?.[0]?.providerId || "password" },
           { label: "Account Created", value: currentUser?.metadata?.creationTime ? new Date(currentUser.metadata.creationTime).toLocaleDateString("en-PH") : "—" },
@@ -778,7 +806,7 @@ export default function SystemSettingsTab({ currentUser }) {
     ];
     return (
       <>
-        <SectionCard title="Material Computation Formulas" subtitle="Ratios used to compute material quantities from project area." icon="📐" accent={T.info}>
+        <SectionCard title="Material Computation Formulas" subtitle="Ratios used to compute material quantities from project area." icon={<TbRuler size={18} />} accent={T.info}>
           {engineLoading ? <div style={{ padding: 24, textAlign: "center", color: T.textLight }}>Loading...</div> : (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 14, marginBottom: 18 }}>
@@ -788,14 +816,15 @@ export default function SystemSettingsTab({ currentUser }) {
                   </Field>
                 ))}
               </div>
-              <div style={{ background: T.infoLight, border: `1px solid #BAE6FD`, borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#0369A1", marginBottom: 16 }}>
-                ℹ️ These values define how many units of each material are required per square meter of floor area. Waste factor is applied on top of the base computation.
+              <div style={{ background: T.infoLight, border: `1px solid #BAE6FD`, borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#0369A1", marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 8 }}>
+                <TbInfoCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                These values define how many units of each material are required per square meter of floor area. Waste factor is applied on top of the base computation.
               </div>
             </>
           )}
         </SectionCard>
 
-        <SectionCard title="Reference Pricing" subtitle="Base prices (₱) used in cost estimation suggestions." icon="💰">
+        <SectionCard title="Reference Pricing" subtitle="Base prices (₱) used in cost estimation suggestions." icon={<TbCurrencyDollar size={18} />}>
           {engineLoading ? <div style={{ padding: 24, textAlign: "center", color: T.textLight }}>Loading...</div> : (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 14, marginBottom: 18 }}>
@@ -805,8 +834,9 @@ export default function SystemSettingsTab({ currentUser }) {
                   </Field>
                 ))}
               </div>
-              <div style={{ background: T.warningLight, border: `1px solid #FCD34D`, borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#92400E", marginBottom: 16 }}>
-                ⚠️ Prices are reference values for estimation only. Final pricing is determined by individual shop listings.
+              <div style={{ background: T.warningLight, border: `1px solid #FCD34D`, borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#92400E", marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 8 }}>
+                <TbAlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                Prices are reference values for estimation only. Final pricing is determined by individual shop listings.
               </div>
             </>
           )}
@@ -853,7 +883,9 @@ export default function SystemSettingsTab({ currentUser }) {
                       </div>
                       <div style={{ marginBottom: 12 }}>
                         {(plan.features || []).map((f, i) => (
-                          <div key={i} style={{ fontSize: 11.5, color: T.textMuted, marginBottom: 3 }}>✓ {f}</div>
+                          <div key={i} style={{ fontSize: 11.5, color: T.textMuted, marginBottom: 3, display: "flex", alignItems: "center", gap: 5 }}>
+                            <TbCheck size={12} color={T.success} /> {f}
+                          </div>
                         ))}
                       </div>
                       <Btn variant="ghost" size="sm" style={{ width: "100%" }} onClick={() => { setEditingPlan(key); setPlanForm({ ...plan }); }}>
@@ -875,7 +907,9 @@ export default function SystemSettingsTab({ currentUser }) {
                       <div style={{ fontSize: 14, fontWeight: 700, color: T.text, textTransform: "capitalize" }}>Edit {editingPlan} Plan</div>
                       <div style={{ fontSize: 11.5, color: T.textLight, marginTop: 2 }}>Update plan details and feature access.</div>
                     </div>
-                    <button onClick={() => setEditingPlan(null)} style={{ width: 30, height: 30, borderRadius: "50%", background: "#F1F5F9", border: "none", cursor: "pointer", fontSize: 16, color: T.textMuted }}>×</button>
+                    <button onClick={() => setEditingPlan(null)} style={{ width: 30, height: 30, borderRadius: "50%", background: "#F1F5F9", border: "none", cursor: "pointer", color: T.textMuted, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <TbX size={16} />
+                    </button>
                   </div>
                   <div style={{ padding: "20px 22px" }}>
                     <Field label="Display Label"><Input value={planForm.label || ""} onChange={e => setPlanForm(f => ({ ...f, label: e.target.value }))} /></Field>
@@ -890,8 +924,7 @@ export default function SystemSettingsTab({ currentUser }) {
                       <Field label="Quota Limit (-1 = unlimited)"><Input type="number" value={planForm.quotaLimit ?? -1} onChange={e => setPlanForm(f => ({ ...f, quotaLimit: parseInt(e.target.value) }))} /></Field>
                     </div>
                     <Field label="Features (one per line)">
-                      <Textarea
-                        rows={5}
+                      <Textarea rows={5}
                         value={(planForm.features || []).join("\n")}
                         onChange={e => setPlanForm(f => ({ ...f, features: e.target.value.split("\n").filter(Boolean) }))}
                         placeholder={"Up to 150 products\nUnlimited quotations\nPriority listing"} />
@@ -917,9 +950,9 @@ export default function SystemSettingsTab({ currentUser }) {
       {
         label: "Shop Application Alerts",
         items: [
-          { key: "newApplication",       label: "New Application Submitted",   hint: "Notify admin when a new shop registers." },
-          { key: "applicationApproved",  label: "Application Approved",        hint: "Notify shop owner when approved." },
-          { key: "applicationRejected",  label: "Application Rejected",        hint: "Notify shop owner with rejection reason." },
+          { key: "newApplication",      label: "New Application Submitted",  hint: "Notify admin when a new shop registers." },
+          { key: "applicationApproved", label: "Application Approved",       hint: "Notify shop owner when approved." },
+          { key: "applicationRejected", label: "Application Rejected",       hint: "Notify shop owner with rejection reason." },
         ],
       },
       {
@@ -933,10 +966,10 @@ export default function SystemSettingsTab({ currentUser }) {
       {
         label: "Activity Alerts",
         items: [
-          { key: "newBid",       label: "New Bid Submitted",    hint: "Notify contractor when a new bid is placed on their project." },
+          { key: "newBid",        label: "New Bid Submitted",    hint: "Notify contractor when a new bid is placed on their project." },
           { key: "projectPosted", label: "New Project Posted",   hint: "Notify registered contractors when a project is posted." },
-          { key: "systemAlerts", label: "System Alerts",        hint: "Critical system notifications (errors, downtime)." },
-          { key: "dailyDigest",  label: "Daily Activity Digest", hint: "Send a daily summary email to all admins." },
+          { key: "systemAlerts",  label: "System Alerts",        hint: "Critical system notifications (errors, downtime)." },
+          { key: "dailyDigest",   label: "Daily Activity Digest", hint: "Send a daily summary email to all admins." },
         ],
       },
     ];
@@ -947,7 +980,7 @@ export default function SystemSettingsTab({ currentUser }) {
         ) : (
           <>
             {toggleGroups.map(group => (
-              <SectionCard key={group.label} title={group.label} icon="🔔">
+              <SectionCard key={group.label} title={group.label} icon={<TbBell size={18} />}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   {group.items.map(({ key, label, hint }) => (
                     <Toggle key={key} checked={notifSettings[key] !== false}
@@ -958,7 +991,7 @@ export default function SystemSettingsTab({ currentUser }) {
               </SectionCard>
             ))}
 
-            <SectionCard title="Email Configuration" subtitle="Settings for outgoing notification emails." icon="✉️">
+            <SectionCard title="Email Configuration" subtitle="Settings for outgoing notification emails." icon={<TbMail size={18} />}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, maxWidth: 480 }}>
                 <Field label="From Email Address" hint="Used as the sender for all notification emails.">
                   <Input value={notifSettings.emailFrom}
@@ -985,7 +1018,7 @@ export default function SystemSettingsTab({ currentUser }) {
     const logLevels = ["all", "info", "success", "warn", "error"];
     return (
       <>
-        <SectionCard title="System Control" subtitle="Platform-wide maintenance and performance settings." icon="⚡" accent={T.warning}>
+        <SectionCard title="System Control" subtitle="Platform-wide maintenance and performance settings." icon={<TbBolt size={18} />} accent={T.warning}>
           <div style={{ display: "flex", flexDirection: "column", gap: 18, maxWidth: 500 }}>
             <Toggle
               checked={maintenance.maintenanceMode}
@@ -1016,7 +1049,7 @@ export default function SystemSettingsTab({ currentUser }) {
           </div>
         </SectionCard>
 
-        <SectionCard title="System Logs" subtitle="Recent platform activity and error events." icon="📋">
+        <SectionCard title="System Logs" subtitle="Recent platform activity and error events." icon={<TbClipboardList size={18} />}>
           <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
             {logLevels.map(level => (
               <button key={level} onClick={() => setLogFilter(level)}
@@ -1036,16 +1069,16 @@ export default function SystemSettingsTab({ currentUser }) {
           )}
         </SectionCard>
 
-        <SectionCard title="Platform Stats" subtitle="Current resource and usage overview." icon="📊">
+        <SectionCard title="Platform Stats" subtitle="Current resource and usage overview." icon={<TbChartBar size={18} />}>
           <InfoGrid items={[
             { label: "Firebase Project", value: "iconstruct-web" },
-            { label: "Database", value: "Cloud Firestore" },
-            { label: "Auth Provider", value: "Firebase Auth" },
-            { label: "Storage", value: "Firebase Storage" },
-            { label: "Hosting", value: "Vite + XAMPP (dev)" },
-            { label: "Node Version", value: "v18+" },
-            { label: "Environment", value: import.meta.env.MODE || "development" },
-            { label: "App Version", value: "1.0.0" },
+            { label: "Database",         value: "Cloud Firestore" },
+            { label: "Auth Provider",    value: "Firebase Auth" },
+            { label: "Storage",          value: "Firebase Storage" },
+            { label: "Hosting",          value: "Vite + XAMPP (dev)" },
+            { label: "Node Version",     value: "v18+" },
+            { label: "Environment",      value: import.meta.env.MODE || "development" },
+            { label: "App Version",      value: "1.0.0" },
           ]} />
         </SectionCard>
       </>
@@ -1071,7 +1104,6 @@ export default function SystemSettingsTab({ currentUser }) {
       `}</style>
 
       <div style={{ fontFamily: "'DM Sans',sans-serif" }}>
-        {/* Page Header */}
         <div style={{ marginBottom: 22 }}>
           <h2 style={{ fontSize: 22, fontWeight: 700, color: T.text, marginBottom: 3 }}>System Settings</h2>
           <p style={{ fontSize: 13, color: T.textMuted }}>Configure and manage all platform-level settings from one place.</p>
@@ -1091,7 +1123,7 @@ export default function SystemSettingsTab({ currentUser }) {
                     style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "9px 16px", background: isActive ? T.accentLight : "transparent", borderLeft: `3px solid ${isActive ? T.accent : "transparent"}`, border: "none", borderRight: "none", cursor: "pointer", color: isActive ? T.accent : T.textMuted, fontFamily: "'DM Sans',sans-serif", fontSize: 12.5, fontWeight: isActive ? 600 : 400, textAlign: "left", transition: "all 0.15s" }}
                     onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "#F8FAFC"; }}
                     onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
-                    <span style={{ fontSize: 14, flexShrink: 0 }}>{sec.icon}</span>
+                    <span style={{ flexShrink: 0, display: "flex", alignItems: "center" }}>{sec.icon}</span>
                     <span>{sec.label}</span>
                   </button>
                 );
@@ -1106,7 +1138,6 @@ export default function SystemSettingsTab({ currentUser }) {
         </div>
       </div>
 
-      {/* Modals & Toast */}
       <AdminFormModal open={adminModal} onClose={() => { setAdminModal(false); setEditTarget(null); }}
         onSave={handleAdminSave} editTarget={editTarget} loading={actionLoading} />
       <ConfirmDialog open={confirmDlg.open} title={confirmDlg.title} message={confirmDlg.message}

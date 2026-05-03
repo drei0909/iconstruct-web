@@ -30,7 +30,7 @@ export default function AdminRoute({ children }) {
       <div style={{
         minHeight: "100vh", display: "flex", alignItems: "center",
         justifyContent: "center", background: "#f8f6f2",
-        fontFamily: "'Inter', sans-serif", color: "rgba(44,62,80,0.5)",
+        fontFamily: "var(--font-base)", color: "rgba(44,62,80,0.5)",
         fontSize: 14,
       }}>
         <div style={{ textAlign: "center" }}>

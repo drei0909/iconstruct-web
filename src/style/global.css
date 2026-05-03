@@ -1,5 +1,4 @@
 
-@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
 
 
 
@@ -14,10 +13,12 @@
      Steel:  #2D6A8F  (secondary blue, derived from logo)
    ============================================================ */
  
-@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;0,900;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
  
 /* ── Design Tokens ── */
 :root {
+   --font-base: -apple-system, BlinkMacSystemFont, "Segoe UI",
+               Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue",
+               sans-serif;
   /* Primary palette */
   --ic-navy:        #154665;
   --ic-navy-deep:   #0D2E43;
@@ -52,7 +53,7 @@
             position: fixed;
             top: 0; left: 0; right: 0;
             z-index: 1000;
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
           }
           
           .nb-nav {
@@ -322,7 +323,7 @@
           
           .nb-modal-body  { padding: 32px 28px 28px; text-align: center; }
           .nb-modal-icon  { width: 54px; height: 54px; background: var(--ic-grad-vert); border-radius: 14px; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; font-size: 24px; }
-          .nb-modal-title { font-family: 'Lora', Georgia, serif; font-size: 22px; font-weight: 700; color: var(--ic-navy); margin-bottom: 10px; }
+          .nb-modal-title { font-family: var(--font-base); font-size: 22px; font-weight: 700; color: var(--ic-navy); margin-bottom: 10px; }
           .nb-modal-text  { font-size: 14px; color: var(--ic-text-mid); line-height: 1.7; margin-bottom: 28px; }
           .nb-modal-btns  { display: flex; gap: 12px; }
           
@@ -358,7 +359,7 @@
             position: relative;
             height: 100vh; min-height: 720px;
             overflow: hidden;
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             background: #0D2030;
           }
           
@@ -424,7 +425,7 @@
           @keyframes pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.5; transform:scale(0.7); } }
           
           .hero-headline {
-            font-family: 'Lora', Georgia, serif;
+            font-family: var(--font-base);
             font-weight: 900;
             font-size: clamp(44px, 6vw, 78px);
             line-height: 1.08;
@@ -434,7 +435,7 @@
             letter-spacing: -0.01em;
           }
           .hero-headline-highlight {
-            font-family: 'Lora', Georgia, serif;
+            font-family: var(--font-base);
             font-weight: 900;
             font-size: clamp(44px, 6vw, 78px);
             line-height: 1.08;
@@ -456,7 +457,7 @@
             display: inline-flex; align-items: center; gap: 10px;
             background: var(--ic-grad-vert);
             color: var(--ic-gold-light);
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             font-size: 16px; font-weight: 500;
             padding: 15px 34px; border-radius: 6px;
             text-decoration: none; border: none; cursor: pointer;
@@ -472,7 +473,7 @@
             display: inline-flex; align-items: center; gap: 8px;
             background: transparent;
             color: rgba(231,213,188,0.8);
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             font-size: 15px; font-weight: 400;
             padding: 15px 20px; border-radius: 6px;
             text-decoration: none; border: 1px solid rgba(207,177,132,0.28);
@@ -485,7 +486,7 @@
           /* Stats bar */
           .hero-stats { position: absolute; bottom: 48px; left: 7vw; z-index: 10; display: flex; gap: 40px; align-items: flex-end; }
           .hero-stat-item  { display: flex; flex-direction: column; gap: 3px; }
-          .hero-stat-num   { font-family: 'Lora', Georgia, serif; font-size: 28px; font-weight: 700; color: rgba(231,213,188,0.95); line-height: 1; }
+          .hero-stat-num   { font-family: var(--font-base); font-size: 28px; font-weight: 700; color: rgba(231,213,188,0.95); line-height: 1; }
           .hero-stat-label { font-size: 11px; font-weight: 400; color: rgba(231,213,188,0.5); letter-spacing: 0.1em; text-transform: uppercase; }
           .hero-stat-divider { width: 1px; height: 36px; background: rgba(207,177,132,0.22); align-self: center; }
           
@@ -527,7 +528,7 @@
             padding: 88px 5vw 80px;
             position: relative;
             overflow: hidden;
-            font-family: ''Inter'', sans-serif;
+            font-family: var(--font-base);
           }
           .ft-section::before {
             content: '';
@@ -568,7 +569,7 @@
           }
           
           .ft-h2 {
-            font-family: ''Lora'', Georgia, serif;
+            font-family: ''Lora'', var(--font-base);
             font-size: clamp(26px, 3.5vw, 40px);
             font-weight: 600;
             color: var(--ic-text-dark);
@@ -621,7 +622,7 @@
           }
           
           .ft-cell-idx {
-            font-family: ''Lora'', Georgia, serif;
+            font-family: ''Lora'', var(--font-base);
             font-size: 10px;
             font-weight: 300;
             color: var(--ic-gold);
@@ -644,7 +645,7 @@
           }
           
           .ft-cell-h3 {
-            font-family: ''Lora'', Georgia, serif;
+            font-family: ''Lora'', var(--font-base);
             font-size: 17px;
             font-weight: 600;
             color: var(--ic-text-dark);
@@ -672,7 +673,7 @@
           .ft-cell-glyph {
             position: absolute;
             bottom: -8px; right: 16px;
-            font-family: ''Lora'', Georgia, serif;
+            font-family: ''Lora'', var(--font-base);
             font-size: 72px;
             font-weight: 700;
             color: rgba(21, 70, 101, 0.03);
@@ -703,7 +704,7 @@
           .ft-stat:nth-child(3) { background: var(--ic-steel); }
           
           .ft-stat-val {
-            font-family: ''Lora'', Georgia, serif;
+            font-family: ''Lora'', var(--font-base);
             font-size: 26px;
             font-weight: 600;
             color: var(--ic-gold-light);
@@ -732,7 +733,7 @@
           }
           
           .ft-cta-text {
-            font-family: ''Lora'', Georgia, serif;
+            font-family: ''Lora'', var(--font-base);
             font-size: 18px;
             font-weight: 600;
             color: var(--ic-text-dark);
@@ -754,7 +755,7 @@
             gap: 8px;
             background: var(--ic-grad-vert);
             color: var(--ic-gold-light);
-            font-family: ''Inter'', sans-serif;
+            font-family: var(--font-base);
             font-size: 11px;
             font-weight: 500;
             letter-spacing: 0.1em;
@@ -780,7 +781,7 @@
             gap: 8px;
             background: transparent;
             color: var(--ic-text-mid);
-            font-family: ''Inter'', sans-serif;
+            font-family: var(--font-base);
             font-size: 11px;
             font-weight: 500;
             letter-spacing: 0.1em;
@@ -825,7 +826,7 @@
           .sp-section {
             background: var(--ic-white);
             padding: 88px 0 80px;
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             position: relative;
             overflow: hidden;
           }
@@ -833,7 +834,7 @@
           .sp-section::after  { content: ''; position: absolute; bottom: -80px; right: -60px; width: 280px; height: 280px; border-radius: 50%; background: linear-gradient(180deg, rgba(21,70,101,0.04) 0%, rgba(45,106,143,0.06) 100%); pointer-events: none; }
           
           .sp-header   { text-align: center; margin-bottom: 52px; position: relative; z-index: 1; }
-          .sp-title    { font-family: 'Lora', Georgia, serif; font-size: clamp(26px, 3.2vw, 40px); font-weight: 900; color: var(--ic-navy); line-height: 1.15; margin-bottom: 14px; letter-spacing: -0.01em; }
+          .sp-title    { font-family: var(--font-base); font-size: clamp(26px, 3.2vw, 40px); font-weight: 900; color: var(--ic-navy); line-height: 1.15; margin-bottom: 14px; letter-spacing: -0.01em; }
           .sp-title span { background: linear-gradient(135deg, #154665 0%, #2D6A8F 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
           .sp-subtitle { font-size: 15.5px; font-weight: 300; color: var(--ic-text-mid); max-width: 460px; margin: 0 auto 20px; line-height: 1.7; }
           
@@ -863,13 +864,13 @@
           .sp-plan-name { font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(21,70,101,0.55); }
           
           .sp-plan-price  { display: flex; align-items: baseline; gap: 4px; margin-bottom: 24px; }
-          .sp-plan-amount { font-family: 'Lora', Georgia, serif; font-size: 38px; font-weight: 900; color: var(--ic-navy); line-height: 1; }
+          .sp-plan-amount { font-family: var(--font-base); font-size: 38px; font-weight: 900; color: var(--ic-navy); line-height: 1; }
           .sp-plan-period { font-size: 13px; color: var(--ic-text-muted); font-weight: 400; }
           
           .sp-plan-features { list-style: none; padding: 0; margin: 0 0 28px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
           .sp-plan-feature-item { display: flex; align-items: flex-start; gap: 8px; font-size: 13.5px; color: var(--ic-text-mid); line-height: 1.5; }
           
-          .sp-plan-cta { display: block; text-align: center; font-family: 'Inter', sans-serif; font-size: 12.5px; font-weight: 700; letter-spacing: 0.07em; padding: 12px 20px; border-radius: 9px; text-decoration: none; transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s; }
+          .sp-plan-cta { display: block; text-align: center; font-family: var(--font-base); font-size: 12.5px; font-weight: 700; letter-spacing: 0.07em; padding: 12px 20px; border-radius: 9px; text-decoration: none; transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s; }
           .sp-plan-cta:hover { transform: translateY(-2px); text-decoration: none; }
           
           .sp-cta-filled  { background: var(--ic-gold); color: var(--ic-navy-deep); box-shadow: 0 4px 16px rgba(207,177,132,0.35); }
@@ -908,7 +909,7 @@
           /* Footer */
             
             .fo-root {
-              font-family: 'Inter', sans-serif;
+              font-family: var(--font-base);
               background: linear-gradient(180deg, var(--ic-navy) 0%, var(--ic-navy-deep) 100%);
               position: relative;
               overflow: hidden;
@@ -931,7 +932,7 @@
             .fo-social-btn { width: 36px; height: 36px; border-radius: 8px; background: rgba(207,177,132,0.08); border: 1px solid rgba(207,177,132,0.12); display: flex; align-items: center; justify-content: center; font-size: 15px; text-decoration: none; transition: background 0.2s, border-color 0.2s, transform 0.2s; cursor: pointer; }
             .fo-social-btn:hover { background: rgba(207,177,132,0.15); border-color: rgba(207,177,132,0.3); transform: translateY(-2px); text-decoration: none; }
             
-            .fo-col-title { font-family: 'Lora', Georgia, serif; font-size: 13px; font-weight: 700; color: rgba(231,213,188,0.95); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 20px; position: relative; padding-bottom: 12px; }
+            .fo-col-title { font-family: var(--font-base); font-size: 13px; font-weight: 700; color: rgba(231,213,188,0.95); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 20px; position: relative; padding-bottom: 12px; }
             .fo-col-title::after { content: ''; position: absolute; bottom: 0; left: 0; width: 24px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, var(--ic-gold), transparent); }
             
             .fo-links { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -964,17 +965,17 @@
 
             /* Faqs */
             
-            .faq-page { font-family: 'Inter', sans-serif; background: var(--ic-cream); min-height: 100vh; padding-top: 140px; padding-bottom: 96px; }
+            .faq-page { font-family: var(--font-base); background: var(--ic-cream); min-height: 100vh; padding-top: 140px; padding-bottom: 96px; }
             
             .faq-hero { text-align: center; margin-bottom: 56px; }
             .faq-eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ic-steel); margin-bottom: 16px; }
             .faq-eyebrow-line { display: inline-block; width: 28px; height: 1.5px; background: var(--ic-gold); border-radius: 2px; }
-            .faq-title { font-family: 'Lora', Georgia, serif; font-size: clamp(32px, 4vw, 52px); font-weight: 900; color: var(--ic-navy); line-height: 1.1; margin-bottom: 16px; letter-spacing: -0.01em; }
+            .faq-title { font-family: var(--font-base); font-size: clamp(32px, 4vw, 52px); font-weight: 900; color: var(--ic-navy); line-height: 1.1; margin-bottom: 16px; letter-spacing: -0.01em; }
             .faq-title span { background: linear-gradient(135deg, #154665 0%, #2D6A8F 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
             .faq-subtitle { font-size: 16px; font-weight: 300; color: var(--ic-text-mid); max-width: 480px; margin: 0 auto; line-height: 1.7; }
             
             .faq-filters { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-bottom: 48px; }
-            .faq-filter-btn { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 8px 20px; border-radius: 40px; border: 1px solid rgba(21,70,101,0.15); background: transparent; color: rgba(21,70,101,0.5); cursor: pointer; transition: all 0.2s; }
+            .faq-filter-btn { font-family: var(--font-base); font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 8px 20px; border-radius: 40px; border: 1px solid rgba(21,70,101,0.15); background: transparent; color: rgba(21,70,101,0.5); cursor: pointer; transition: all 0.2s; }
             .faq-filter-btn:hover  { border-color: var(--ic-gold); color: var(--ic-navy); }
             .faq-filter-btn.active { background: var(--ic-grad-vert); border-color: transparent; color: var(--ic-gold-light); }
             
@@ -985,7 +986,7 @@
             
             .faq-question { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 24px; background: transparent; border: none; cursor: pointer; text-align: left; }
             .faq-q-left   { display: flex; align-items: center; gap: 14px; }
-            .faq-q-num    { font-family: 'Lora', Georgia, serif; font-size: 11px; font-weight: 700; color: var(--ic-gold-light); background: var(--ic-grad-vert); width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; letter-spacing: 0.04em; }
+            .faq-q-num    { font-family: var(--font-base); font-size: 11px; font-weight: 700; color: var(--ic-gold-light); background: var(--ic-grad-vert); width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; letter-spacing: 0.04em; }
             .faq-q-text   { font-size: 15px; font-weight: 600; color: var(--ic-navy); line-height: 1.4; }
             .faq-q-icon   { width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid rgba(21,70,101,0.15); display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.2s, border-color 0.2s, transform 0.3s; color: var(--ic-text-mid); }
             .faq-item.open .faq-q-icon { background: var(--ic-grad-vert); border-color: transparent; color: var(--ic-gold-light); transform: rotate(45deg); }
@@ -997,9 +998,9 @@
             .faq-cat-pill { display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ic-steel); background: rgba(45,106,143,0.1); border-radius: 20px; padding: 3px 10px; margin-bottom: 10px; }
             
             .faq-cta { max-width: 760px; margin: 48px auto 0; background: var(--ic-grad-vert); border-radius: 14px; padding: 32px 40px; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; box-shadow: 0 12px 40px rgba(21,70,101,0.25); }
-            .faq-cta-left h4 { font-family: 'Lora', Georgia, serif; font-size: 20px; font-weight: 700; color: var(--ic-gold-light); margin-bottom: 4px; }
+            .faq-cta-left h4 { font-family: var(--font-base); font-size: 20px; font-weight: 700; color: var(--ic-gold-light); margin-bottom: 4px; }
             .faq-cta-left p  { font-size: 13px; color: rgba(207,177,132,0.6); margin: 0; }
-            .faq-cta-btn { display: inline-flex; align-items: center; gap: 8px; background: var(--ic-gold); color: var(--ic-navy-deep); font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 12px 26px; border-radius: 8px; text-decoration: none; transition: transform 0.2s, box-shadow 0.2s; white-space: nowrap; }
+            .faq-cta-btn { display: inline-flex; align-items: center; gap: 8px; background: var(--ic-gold); color: var(--ic-navy-deep); font-family: var(--font-base); font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 12px 26px; border-radius: 8px; text-decoration: none; transition: transform 0.2s, box-shadow 0.2s; white-space: nowrap; }
             .faq-cta-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(207,177,132,0.3); text-decoration: none; color: var(--ic-navy-deep); }
             
             
@@ -1010,7 +1011,7 @@
 
 
           .about-page {
-            font-family: ''Inter'', sans-serif;
+            font-family: var(--font-base);
             background: var(--ic-cream);
             padding-top: 140px;
             padding-bottom: 96px;
@@ -1060,7 +1061,7 @@
             content: 'iConstruct';
             position: absolute;
             right: -16px; bottom: -24px;
-            font-family: ''Lora'', Georgia, serif;
+            font-family: ''Lora'', var(--font-base);
             font-size: 110px;
             font-weight: 700;
             color: rgba(207, 177, 132, 0.04);
@@ -1077,7 +1078,7 @@
           }
 
           .about-hero-title {
-            font-family: ''Lora'', Georgia, serif;
+            font-family: ''Lora'', var(--font-base);
             font-size: clamp(32px, 4.5vw, 52px);
             font-weight: 600;
             color: #F2EDE6;
@@ -1107,7 +1108,7 @@
           }
           .about-stat { text-align: right; }
           .about-stat-num {
-            font-family: ''Lora'', Georgia, serif;
+            font-family: ''Lora'', var(--font-base);
             font-size: 30px;
             font-weight: 600;
             color: var(--ic-gold-light);
@@ -1171,7 +1172,7 @@
           }
 
           .about-card-num {
-            font-family: ''Lora'', Georgia, serif;
+            font-family: ''Lora'', var(--font-base);
             font-size: 10px;
             font-weight: 600;
             color: var(--ic-gold-light);
@@ -1188,7 +1189,7 @@
           }
 
           .about-card-title {
-            font-family: ''Lora'', Georgia, serif;
+            font-family: ''Lora'', var(--font-base);
             font-size: 20px;
             font-weight: 600;
             color: var(--ic-text-dark);
@@ -1264,7 +1265,7 @@
             margin-bottom: 8px;
           }
           .about-capstone-title {
-            font-family: ''Lora'', Georgia, serif;
+            font-family: ''Lora'', var(--font-base);
             font-size: 18px;
             font-weight: 600;
             color: var(--ic-text-dark);
@@ -1298,7 +1299,7 @@
           }
 
           .about-team-title {
-            font-family: ''Lora'', Georgia, serif;
+            font-family: ''Lora'', var(--font-base);
             font-size: clamp(24px, 3vw, 36px);
             font-weight: 600;
             color: var(--ic-text-dark);
@@ -1398,7 +1399,7 @@
             justify-content: flex-end;
           }
           .about-photo-num {
-            font-family: ''Lora'', Georgia, serif;
+            font-family: ''Lora'', var(--font-base);
             font-size: 11px;
             font-weight: 300;
             color: rgba(207, 177, 132, 0.75);
@@ -1410,7 +1411,7 @@
             padding: 18px 20px 20px;
           }
           .about-member-name {
-            font-family: ''Lora'', Georgia, serif;
+            font-family: ''Lora'', var(--font-base);
             font-size: 14.5px;
             font-weight: 600;
             color: var(--ic-text-dark);
@@ -1438,7 +1439,7 @@
         /* Login Page */
 
         .login-page {
-          font-family: 'Inter', sans-serif;
+          font-family: var(--font-base);
           min-height: 100vh;
           display: flex;
           align-items: center;
@@ -1502,7 +1503,7 @@
           content: 'iConstruct';
           position: absolute;
           bottom: -24px; left: -10px;
-          font-family: 'Lora', Georgia, serif;
+          font-family: var(--font-base);
           font-size: 72px;
           font-weight: 900;
           color: rgba(237,228,212,0.06);
@@ -1542,7 +1543,7 @@
         }
 
         .login-left-title {
-          font-family: 'Lora', Georgia, serif;
+          font-family: var(--font-base);
           font-size: clamp(26px, 3vw, 34px);
           font-weight: 900;
           color: #fff;
@@ -1597,7 +1598,7 @@
           z-index: 1;
         }
         .login-left-stat-num {
-          font-family: 'Lora', Georgia, serif;
+          font-family: var(--font-base);
           font-size: 22px;
           font-weight: 700;
           color: rgba(237,228,212,0.9);
@@ -1631,7 +1632,7 @@
         }
 
         .login-form-title {
-          font-family: 'Lora', Georgia, serif;
+          font-family: var(--font-base);
           font-size: 26px;
           font-weight: 900;
           color: #2C3E50;
@@ -1666,7 +1667,7 @@
 
         .login-input {
           width: 100%;
-          font-family: 'Inter', sans-serif;
+          font-family: var(--font-base);
           font-size: 14px;
           color: #2C3E50;
           background: #f8f6f2;
@@ -1724,7 +1725,7 @@
           gap: 10px;
           background: linear-gradient(180deg, #2C3E50 30.29%, #648DB6 87.5%);
           color: rgba(237,228,212,1);
-          font-family: 'Inter', sans-serif;
+          font-family: var(--font-base);
           font-size: 14px;
           font-weight: 600;
           letter-spacing: 0.06em;
@@ -1798,7 +1799,7 @@
 
           /* Contact Us */
             .ct-page {
-              font-family: 'Inter', sans-serif;
+              font-family: var(--font-base);
               background: var(--ic-cream);
               padding-top: 140px;
               padding-bottom: 96px;
@@ -1831,7 +1832,7 @@
             }
             
             .ct-title {
-              font-family: 'Lora', Georgia, serif;
+              font-family: var(--font-base);
               font-size: clamp(32px, 4vw, 52px);
               font-weight: 900;
               color: var(--ic-navy);
@@ -1914,7 +1915,7 @@
             .ct-info-card:hover::before { opacity: 1; }
             
             .ct-info-num {
-              font-family: 'Lora', Georgia, serif;
+              font-family: var(--font-base);
               font-size: 11px;
               font-weight: 700;
               color: var(--ic-gold-light);
@@ -1974,7 +1975,7 @@
             }
             
             .ct-note-title {
-              font-family: 'Lora', Georgia, serif;
+              font-family: var(--font-base);
               font-size: 16px;
               font-weight: 700;
               color: var(--ic-gold-light);
@@ -2009,7 +2010,7 @@
             }
             
             .ct-form-title {
-              font-family: 'Lora', Georgia, serif;
+              font-family: var(--font-base);
               font-size: 22px;
               font-weight: 700;
               color: var(--ic-navy);
@@ -2050,7 +2051,7 @@
             .ct-input,
             .ct-textarea {
               width: 100%;
-              font-family: 'Inter', sans-serif;
+              font-family: var(--font-base);
               font-size: 14px;
               font-weight: 400;
               color: var(--ic-navy);
@@ -2084,7 +2085,7 @@
               gap: 10px;
               background: var(--ic-grad-vert);
               color: var(--ic-gold-light);
-              font-family: 'Inter', sans-serif;
+              font-family: var(--font-base);
               font-size: 14px;
               font-weight: 600;
               letter-spacing: 0.06em;
@@ -2132,7 +2133,7 @@
             }
             
             .ct-success-title {
-              font-family: 'Lora', Georgia, serif;
+              font-family: var(--font-base);
               font-size: 22px;
               font-weight: 700;
               color: var(--ic-navy);
@@ -2153,7 +2154,7 @@
               gap: 8px;
               background: var(--ic-grad-vert);
               color: var(--ic-gold-light);
-              font-family: 'Inter', sans-serif;
+              font-family: var(--font-base);
               font-size: 13px;
               font-weight: 600;
               padding: 11px 24px;
@@ -2186,7 +2187,7 @@
 
           /* ── Register page ── */
           .reg-page {
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -2253,7 +2254,7 @@
             content: 'iConstruct';
             position: absolute;
             bottom: -24px; left: -10px;
-            font-family: 'Lora', Georgia, serif;
+            font-family: var(--font-base);
             font-size: 72px;
             font-weight: 900;
             color: rgba(237,228,212,0.06);
@@ -2282,7 +2283,7 @@
           }
 
           .reg-left-title {
-            font-family: 'Lora', Georgia, serif;
+            font-family: var(--font-base);
             font-size: clamp(24px, 2.8vw, 32px);
             font-weight: 900;
             color: #fff;
@@ -2337,7 +2338,7 @@
             border: 1.5px solid rgba(237,228,212,0.2);
             display: flex; align-items: center; justify-content: center;
             flex-shrink: 0;
-            font-family: 'Lora', Georgia, serif;
+            font-family: var(--font-base);
             font-size: 11px;
             font-weight: 700;
             color: rgba(237,228,212,0.5);
@@ -2406,7 +2407,7 @@
             margin-bottom: 8px;
           }
           .reg-form-title {
-            font-family: 'Lora', Georgia, serif;
+            font-family: var(--font-base);
             font-size: 24px;
             font-weight: 900;
             color: #2C3E50;
@@ -2460,7 +2461,7 @@
           .reg-input,
           .reg-textarea {
             width: 100%;
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             font-size: 14px;
             color: #2C3E50;
             background: #f8f6f2;
@@ -2511,7 +2512,7 @@
             display: flex; align-items: center; justify-content: center; gap: 8px;
             background: transparent;
             color: rgba(44,62,80,0.6);
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             font-size: 14px;
             font-weight: 500;
             padding: 13px 20px;
@@ -2528,7 +2529,7 @@
             display: flex; align-items: center; justify-content: center; gap: 10px;
             background: linear-gradient(180deg, #2C3E50 30.29%, #648DB6 87.5%);
             color: rgba(237,228,212,1);
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             font-size: 14px;
             font-weight: 600;
             letter-spacing: 0.04em;
@@ -2619,7 +2620,7 @@
             margin: 0 auto 20px;
           }
           .reg-success-title {
-            font-family: 'Lora', Georgia, serif;
+            font-family: var(--font-base);
             font-size: 24px;
             font-weight: 900;
             color: #2C3E50;
@@ -2662,7 +2663,7 @@
             gap: 8px;
             background: linear-gradient(180deg, #2C3E50 30.29%, #648DB6 87.5%);
             color: rgba(237,228,212,1);
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             font-size: 13px;
             font-weight: 600;
             padding: 12px 28px;
@@ -2698,7 +2699,7 @@
             border-radius: 10px;
             border: 1.5px solid rgba(44,62,80,0.15);
             background: #f8f6f2;
-            font-family: 'Lora', Georgia, serif;
+            font-family: var(--font-base);
             font-size: 22px;
             font-weight: 700;
             color: #2C3E50;
@@ -2859,7 +2860,7 @@
             display: flex; align-items: center; justify-content: center; gap: 10px;
             background: linear-gradient(180deg, #2C3E50 30.29%, #648DB6 87.5%);
             color: rgba(237,228,212,1);
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             font-size: 14px; font-weight: 600;
             padding: 14px 28px;
             border-radius: 8px; border: none;
@@ -2903,7 +2904,7 @@
           /* admin login */
 
           .adm-login-page {
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -2926,7 +2927,7 @@
             content: 'ADMIN';
             position: absolute;
             bottom: -30px; left: -10px;
-            font-family: 'Lora', Georgia, serif;
+            font-family: var(--font-base);
             font-size: 160px;
             font-weight: 900;
             color: rgba(237,228,212,0.03);
@@ -2972,7 +2973,7 @@
             background: #648DB6;
           }
           .adm-login-title {
-            font-family: 'Lora', Georgia, serif;
+            font-family: var(--font-base);
             font-size: 28px;
             font-weight: 900;
             color: #2C3E50;
@@ -2999,7 +3000,7 @@
           .adm-input-wrap { position: relative; }
           .adm-input {
             width: 100%;
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             font-size: 14px;
             color: #2C3E50;
             background: #f8f6f2;
@@ -3039,7 +3040,7 @@
             display: flex; align-items: center; justify-content: center; gap: 10px;
             background: linear-gradient(180deg, #2C3E50 30.29%, #648DB6 87.5%);
             color: rgba(237,228,212,1);
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             font-size: 14px; font-weight: 600;
             padding: 14px 28px;
             border-radius: 8px; border: none;
@@ -3075,14 +3076,14 @@
           .otp-info-sub  { font-size: 12px; font-weight: 300; color: var(--ic-text-muted); margin: 0; }
           
           .otp-row { display: flex; gap: 10px; justify-content: center; margin-bottom: 16px; }
-          .otp-input { width: 48px; height: 56px; font-family: 'Lora', Georgia, serif; font-size: 22px; font-weight: 700; text-align: center; color: var(--ic-navy); background: var(--ic-cream); border: 1.5px solid rgba(21,70,101,0.12); border-radius: 10px; outline: none; transition: border-color 0.2s, box-shadow 0.2s, background 0.2s; }
+          .otp-input { width: 48px; height: 56px; font-family: var(--font-base); font-size: 22px; font-weight: 700; text-align: center; color: var(--ic-navy); background: var(--ic-cream); border: 1.5px solid rgba(21,70,101,0.12); border-radius: 10px; outline: none; transition: border-color 0.2s, box-shadow 0.2s, background 0.2s; }
           .otp-input.filled { background: var(--ic-white); border-color: var(--ic-gold); }
           .otp-input:focus  { border-color: var(--ic-steel); background: var(--ic-white); box-shadow: 0 0 0 3px rgba(45,106,143,0.1); }
           .otp-input.error-state { border-color: rgba(200,60,60,0.5); }
           
           .otp-error { font-size: 12px; color: rgba(180,40,40,0.8); text-align: center; margin-bottom: 12px; }
           
-          .otp-verify-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--ic-grad-vert); color: var(--ic-gold-light); font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; padding: 14px; border-radius: 8px; border: none; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 6px 20px rgba(21,70,101,0.28); margin-bottom: 16px; }
+          .otp-verify-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--ic-grad-vert); color: var(--ic-gold-light); font-family: var(--font-base); font-size: 14px; font-weight: 600; padding: 14px; border-radius: 8px; border: none; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 6px 20px rgba(21,70,101,0.28); margin-bottom: 16px; }
           .otp-verify-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(21,70,101,0.42); }
           .otp-verify-btn:disabled { opacity: 0.7; cursor: not-allowed; }
           
@@ -3109,7 +3110,7 @@
           * { box-sizing: border-box; }
 
           .adm-layout {
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             min-height: 100vh;
             background: #f0ede8;
             display: flex;
@@ -3135,7 +3136,7 @@
             gap: 12px;
           }
           .adm-nav-logo {
-            font-family: 'Lora', Georgia, serif;
+            font-family: var(--font-base);
             font-size: 20px;
             font-weight: 900;
             color: rgba(237,228,212,0.95);
@@ -3167,7 +3168,7 @@
             border: 1px solid rgba(237,228,212,0.15);
             border-radius: 8px;
             padding: 7px 14px;
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             font-size: 12px; font-weight: 500;
             color: rgba(237,228,212,0.7);
             cursor: pointer;
@@ -3194,7 +3195,7 @@
             margin-bottom: 6px;
           }
           .adm-page-title {
-            font-family: 'Lora', Georgia, serif;
+            font-family: var(--font-base);
             font-size: 28px;
             font-weight: 900;
             color: #2C3E50;
@@ -3238,7 +3239,7 @@
             border-radius: 14px 14px 0 0;
           }
           .adm-stat-num {
-            font-family: 'Lora', Georgia, serif;
+            font-family: var(--font-base);
             font-size: 36px;
             font-weight: 900;
             line-height: 1;
@@ -3279,7 +3280,7 @@
           }
           .adm-search {
             width: 100%;
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             font-size: 13px;
             color: #2C3E50;
             background: #ffffff;
@@ -3300,7 +3301,7 @@
             gap: 6px;
           }
           .adm-filter-btn {
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             font-size: 11.5px; font-weight: 500;
             padding: 8px 14px;
             border-radius: 8px;
@@ -3365,7 +3366,7 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             font-size: 12px; font-weight: 600;
             padding: 7px 14px;
             border-radius: 7px;
@@ -3446,7 +3447,7 @@
             border-radius: 18px 18px 0 0;
           }
           .adm-modal-title {
-            font-family: 'Lora', Georgia, serif;
+            font-family: var(--font-base);
             font-size: 20px;
             font-weight: 900;
             color: #2C3E50;
@@ -3543,7 +3544,7 @@
             display: flex; align-items: center; justify-content: center; gap: 8px;
             background: linear-gradient(135deg, #166534, #22c55e);
             color: #fff;
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             font-size: 13px; font-weight: 600;
             padding: 13px 20px;
             border-radius: 8px; border: none;
@@ -3562,7 +3563,7 @@
             display: flex; align-items: center; justify-content: center; gap: 8px;
             background: transparent;
             color: #991b1b;
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             font-size: 13px; font-weight: 600;
             padding: 13px 20px;
             border-radius: 8px;
@@ -3587,7 +3588,7 @@
             animation: admslideup 0.3s cubic-bezier(0.22,1,0.36,1);
           }
           .adm-reject-modal-title {
-            font-family: 'Lora', Georgia, serif;
+            font-family: var(--font-base);
             font-size: 18px; font-weight: 700;
             color: #2C3E50; margin-bottom: 6px;
           }
@@ -3598,7 +3599,7 @@
           }
           .adm-reject-textarea {
             width: 100%;
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             font-size: 13.5px; color: #2C3E50;
             background: #f8f6f2;
             border: 1.5px solid rgba(44,62,80,0.1);
@@ -3620,7 +3621,7 @@
             padding: 12px;
             background: linear-gradient(135deg, #991b1b, #ef4444);
             color: #fff;
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             font-size: 13px; font-weight: 600;
             border-radius: 8px; border: none;
             cursor: pointer;
@@ -3631,7 +3632,7 @@
             padding: 12px 20px;
             background: transparent;
             color: rgba(44,62,80,0.6);
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             font-size: 13px; font-weight: 500;
             border-radius: 8px;
             border: 1.5px solid rgba(44,62,80,0.15);
@@ -3723,8 +3724,8 @@
           --db-shadow-md:    0 4px 16px rgba(26,35,50,0.08), 0 2px 4px rgba(26,35,50,0.04);
           --db-shadow-lg:    0 12px 40px rgba(26,35,50,0.12);
 
-          --db-font-display: 'Sora', 'Inter', sans-serif;
-          --db-font-body:    'Inter', sans-serif;
+          --db-font-display: 'Sora', var(--font-base);
+          --db-font-body:    var(--font-base);
         }
 
         /* ── Layout shell ── */
@@ -4971,7 +4972,7 @@
 
           /* Title */
           .fp-title {
-            font-family: 'Lora', Georgia, serif;
+            font-family: var(--font-base);
             font-size: 22px;
             font-weight: 900;
             color: #2C3E50;
@@ -5002,7 +5003,7 @@
           }
           .fp-input {
             width: 100%;
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             font-size: 13px;
             color: #2C3E50;
             background: #fff;
@@ -5045,7 +5046,7 @@
             max-width: 100%;
             height: 52px;
             text-align: center;
-            font-family: 'Lora', Georgia, serif;
+            font-family: var(--font-base);
             font-size: 22px;
             font-weight: 900;
             color: #2C3E50;
@@ -5081,7 +5082,7 @@
             cursor: pointer;
             font-size: 12.5px;
             padding: 0;
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
           }
           .fp-resend-btn:hover { text-decoration: underline; }
 
@@ -5121,7 +5122,7 @@
             border: none;
             background: linear-gradient(180deg, #2C3E50 30.29%, #648DB6 87.5%);
             color: rgba(237, 228, 212, 1);
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             font-size: 13px;
             font-weight: 700;
             cursor: pointer;
@@ -5150,7 +5151,7 @@
             border: 1.5px solid rgba(44, 62, 80, 0.12);
             background: transparent;
             color: rgba(44, 62, 80, 0.55);
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-base);
             font-size: 12.5px;
             font-weight: 500;
             cursor: pointer;
@@ -5226,7 +5227,7 @@
 *, *::before, *::after { box-sizing: border-box; }
  
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-base);
   background: var(--ic-cream);
   color: var(--ic-text-dark);
   -webkit-font-smoothing: antialiased;
@@ -5234,7 +5235,7 @@ body {
   margin: 0;
 }
  
-h1, h2, h3, h4, h5, h6 { font-family: 'Lora', Georgia, serif; }
+h1, h2, h3, h4, h5, h6 { font-family: var(--font-base); }
 
 
 
@@ -5302,7 +5303,7 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Lora', Georgia, serif; }
 }
 
 .tc-modal-title {
-  font-family: 'Lora', Georgia, serif;
+  font-family: var(--font-base);
   font-size: 22px;
   font-weight: 900;
   color: #fff;
@@ -5387,7 +5388,7 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Lora', Georgia, serif; }
 }
 
 .tc-sidebar-num {
-  font-family: 'Lora', Georgia, serif;
+  font-family: var(--font-base);
   font-size: 10px;
   font-weight: 700;
   color: rgba(44,62,80,0.35);
@@ -5454,7 +5455,7 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Lora', Georgia, serif; }
 }
 
 .tc-section-num {
-  font-family: 'Lora', Georgia, serif;
+  font-family: var(--font-base);
   font-size: 11px;
   font-weight: 700;
   color: rgba(237,228,212,0.95);
@@ -5470,7 +5471,7 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Lora', Georgia, serif; }
 }
 
 .tc-section-title {
-  font-family: 'Lora', Georgia, serif;
+  font-family: var(--font-base);
   font-size: 16px;
   font-weight: 700;
   color: #2C3E50;
@@ -5582,7 +5583,7 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Lora', Georgia, serif; }
   border: 1.5px solid rgba(44,62,80,0.15);
   background: transparent;
   color: rgba(44,62,80,0.55);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-base);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -5600,7 +5601,7 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Lora', Georgia, serif; }
   padding: 11px 24px;
   border-radius: 8px;
   border: none;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-base);
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;

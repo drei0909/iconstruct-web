@@ -42,7 +42,7 @@ export async function getShopQuotations() {
   return fetchQuotationsByShop(user.uid);
 }
 
-export async function submitQuotation({ projectId, amount, note }) {
+export async function submitQuotation({ projectId, amount, note, items }) {
   const user = auth.currentUser;
   if (!user) throw new Error("Not authenticated");
 
@@ -57,10 +57,11 @@ export async function submitQuotation({ projectId, amount, note }) {
   await insertQuotation({
     projectId,
     projectTitle,
-    shopId:    user.uid,
-    shopName:  shop.shopName,              // ✅ added shopName
+    shopId:   user.uid,
+    shopName: shop.shopName,
     amount,
     note,
+    items: items || [],
   });
 }
 

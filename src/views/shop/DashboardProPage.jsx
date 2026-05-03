@@ -17,6 +17,29 @@ import { doc, onSnapshot } from "firebase/firestore";
 import StripePaymentForm from "../../components/forms/StripePaymentForm";
 import React from "react";
 
+import QuoteModal from "../../components/QuoteModal";
+import SettingsTab from "../../components/SettingsTab";
+
+import {
+  ClipboardText,
+  Ruler,
+  CurrencyDollar,
+  Tag,
+  MapPin,
+  ArrowRight,
+  CheckCircle,
+  XCircle,
+  Clock,
+  ChartBar,
+  Storefront,
+  Package,
+  Receipt,
+  Gear,
+  House,
+  FolderOpen,
+  Lightning,
+} from "@phosphor-icons/react";
+
 const NAV = [
   { key: "overview",   label: "Overview" },
   { key: "projects",   label: "All Projects" },
@@ -25,12 +48,13 @@ const NAV = [
   { key: "profile",    label: "Shop Profile" },
   { key: "products",   label: "My Products" },
   { key: "billing",    label: "Billing" },
+  { key: "settings",   label: "Settings" },
 ];
 
 function PlanBadge() {
   return (
     <span style={{ display:"inline-flex", alignItems:"center", gap:5, background:"#EFF6FF", color:"#1D4ED8", border:"1px solid #BFDBFE", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:700, letterSpacing:"0.1em" }}>
-       PRO · Active
+      PRO · Active
     </span>
   );
 }
@@ -39,7 +63,7 @@ function StatCard({ label, value, color, sub }) {
   return (
     <div style={{ background:"#fff", borderRadius:14, padding:"20px 22px", border:"1px solid #E2E8F0", position:"relative", overflow:"hidden" }}>
       <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:color, borderRadius:"14px 14px 0 0" }} />
-      <div style={{ fontSize:28, fontWeight:900, color, fontFamily:"'Playfair Display', serif", lineHeight:1, marginBottom:4 }}>{value}</div>
+      <div style={{ fontSize:28, fontWeight:900, color, fontFamily:"var(--font-base)", lineHeight:1, marginBottom:4 }}>{value}</div>
       <div style={{ fontSize:12, fontWeight:600, color:"#0F172A", marginBottom:2 }}>{label}</div>
       <div style={{ fontSize:11, color:"#94A3B8" }}>{sub}</div>
     </div>
@@ -53,7 +77,9 @@ function Overview({ quotations, projects, accepted, pending, rejected, winRate, 
     <div>
       <div style={{ background:"linear-gradient(135deg,#1D4ED8,#3B82F6)", borderRadius:14, padding:"20px 24px", marginBottom:24, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div>
-          <div style={{ fontSize:14, fontWeight:700, color:"#fff", marginBottom:3 }}> Pro Plan Active</div>
+          <div style={{ fontSize:14, fontWeight:700, color:"#fff", marginBottom:3, display:"flex", alignItems:"center", gap:6 }}>
+            <Lightning size={14} weight="fill" /> Pro Plan Active
+          </div>
           <div style={{ fontSize:12, color:"rgba(255,255,255,0.7)" }}>Priority listing · Unlimited bidding · Analytics · Promotional exposure</div>
         </div>
         <button onClick={() => setActiveTab("billing")} style={{ background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.3)", borderRadius:8, padding:"8px 16px", fontSize:11.5, fontWeight:600, color:"#fff", cursor:"pointer" }}>Manage Billing →</button>
@@ -100,8 +126,10 @@ function Overview({ quotations, projects, accepted, pending, rejected, winRate, 
               ? <div style={{ fontSize:11, color:"#94A3B8" }}>No open projects yet.</div>
               : projects.slice(0, 3).map(p => (
                   <div key={p.id} style={{ fontSize:12, color:"#334155", marginBottom:6, display:"flex", justifyContent:"space-between" }}>
-                   <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:120 }}>{p.projectName || "Project"}</span>
-                    <button onClick={() => setQuoteModal(p)} style={{ fontSize:10, fontWeight:600, color:"#3B82F6", background:"none", border:"none", cursor:"pointer" }}>Quote</button>
+                    <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:120 }}>{p.projectName || "Project"}</span>
+                    <button onClick={() => setQuoteModal(p)} style={{ fontSize:10, fontWeight:600, color:"#3B82F6", background:"none", border:"none", cursor:"pointer", display:"flex", alignItems:"center", gap:3 }}>
+                      Quote <ArrowRight size={10} weight="bold" />
+                    </button>
                   </div>
                 ))
             }
@@ -115,42 +143,61 @@ function Overview({ quotations, projects, accepted, pending, rejected, winRate, 
 function AllProjects({ filteredProjects, searchQuery, setSearchQuery, setQuoteModal }) {
   return (
     <div>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16, gap:12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, gap: 12 }}>
         <div>
-          <h2 style={{ fontFamily:"'Playfair Display', serif", fontSize:19, fontWeight:900, color:"#0F172A", marginBottom:2 }}>All Projects</h2>
-          <p style={{ fontSize:12, color:"#64748B" }}>Unlimited project access — Pro plan. {filteredProjects.length} available.</p>
+          <h2 style={{ fontFamily: "var(--font-base)", fontSize: 19, fontWeight: 700, color: "#0F172A", marginBottom: 2 }}>All Projects</h2>
+          <p style={{ fontSize: 12, color: "#64748B" }}>Unlimited project access — Pro plan. {filteredProjects.length} available.</p>
         </div>
-        <SearchBar
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          placeholder="Search projects..."
-          accentColor="#3B82F6"
-          width={220}
-        />
+        <SearchBar value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search projects..." accentColor="#3B82F6" width={220} />
       </div>
 
       {filteredProjects.length === 0 ? (
-        <div style={{ textAlign:"center", padding:64, color:"#94A3B8" }}>
-          <div style={{ fontSize:32, marginBottom:8 }}></div>
-          <div style={{ fontWeight:600, color:"#0F172A", marginBottom:4 }}>
-            {searchQuery ? "No projects match your search" : "No open projects yet"}
+        <div style={{ textAlign: "center", padding: 64, color: "#94A3B8" }}>
+          <div style={{ display:"flex", justifyContent:"center", marginBottom:8 }}>
+            <ClipboardText size={36} color="#CBD5E1" />
           </div>
-          {searchQuery && (
-            <button onClick={() => setSearchQuery("")} style={{ fontSize:12, color:"#3B82F6", background:"none", border:"none", cursor:"pointer" }}>
-              Clear search
-            </button>
-          )}
+          <div style={{ fontWeight: 600, color: "#0F172A", marginBottom: 4 }}>{searchQuery ? "No projects match your search" : "No open projects yet"}</div>
+          {searchQuery && <button onClick={() => setSearchQuery("")} style={{ fontSize: 12, color: "#3B82F6", background: "none", border: "none", cursor: "pointer" }}>Clear search</button>}
         </div>
       ) : (
-        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {filteredProjects.map(project => (
-            <div key={project.id} style={{ background:"#fff", borderRadius:12, border:"1px solid #E2E8F0", padding:"16px 20px", display:"flex", alignItems:"center", gap:16 }}>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:13.5, fontWeight:700, color:"#0F172A", marginBottom:3 }}>{project.title || "Construction Project"}</div>
-                <div style={{ fontSize:11.5, color:"#64748B" }}>{project.projectType || "Construction"} · {project.materials?.slice(0,3).join(", ") || "Materials TBD"}</div>
+            <div key={project.id} style={{ background: "#fff", borderRadius: 14, border: "1px solid #E2E8F0", padding: "18px 20px", display: "flex", alignItems: "center", gap: 16, transition: "box-shadow 0.2s" }}
+              onMouseEnter={e => e.currentTarget.style.boxShadow = "0 4px 16px rgba(59,130,246,0.1)"}
+              onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", marginBottom: 4 }}>{project.projectName || "Project"}</div>
+                <div style={{ fontSize: 12, color: "#64748B", marginBottom: 8 }}>
+                  {project.projectType || "—"}
+                  {project.materials?.length > 0 && ` · ${project.materials.slice(0, 3).map(m => m.name || m).join(", ")}`}
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {project.totalAreaSqm != null && (
+                    <span style={{ fontSize: 11, fontWeight: 600, background: "#EFF6FF", color: "#1D4ED8", border: "1px solid #BFDBFE", borderRadius: 20, padding: "3px 10px", display:"inline-flex", alignItems:"center", gap:4 }}>
+                      <Ruler size={11} weight="bold" /> {project.totalAreaSqm} sqm
+                    </span>
+                  )}
+                  {project.budget && (
+                    <span style={{ fontSize: 11, fontWeight: 600, background: "#F0FDF4", color: "#166534", border: "1px solid #86EFAC", borderRadius: 20, padding: "3px 10px", display:"inline-flex", alignItems:"center", gap:4 }}>
+                      <CurrencyDollar size={11} weight="bold" /> {project.budget}
+                    </span>
+                  )}
+                  {project.quotationCount != null && (
+                    <span style={{ fontSize: 11, fontWeight: 600, background: "#FEF3C7", color: "#92400E", border: "1px solid #FCD34D", borderRadius: 20, padding: "3px 10px", display:"inline-flex", alignItems:"center", gap:4 }}>
+                      <Tag size={11} weight="bold" /> {project.quotationCount} bid{project.quotationCount !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                  {project.locationCity && (
+                    <span style={{ fontSize: 11, fontWeight: 600, background: "#F8FAFC", color: "#64748B", border: "1px solid #E2E8F0", borderRadius: 20, padding: "3px 10px", display:"inline-flex", alignItems:"center", gap:4 }}>
+                      <MapPin size={11} weight="bold" /> {project.locationCity}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div style={{ fontSize:13, fontWeight:700, color:"#0F172A" }}>Budget: {project.budget || "—"}</div>
-              <button onClick={() => setQuoteModal(project)} style={{ padding:"8px 18px", borderRadius:8, border:"none", background:"#1D4ED8", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer" }}>Submit Quote</button>
+              <button onClick={() => setQuoteModal(project)} style={{ padding: "10px 20px", borderRadius: 8, border: "none", background: "#1D4ED8", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+                Submit Quote
+              </button>
             </div>
           ))}
         </div>
@@ -162,7 +209,7 @@ function AllProjects({ filteredProjects, searchQuery, setSearchQuery, setQuoteMo
 function Analytics({ quotations, accepted, pending, rejected, winRate, monthlyBreakdown }) {
   return (
     <div>
-      <h2 style={{ fontFamily:"'Playfair Display', serif", fontSize:19, fontWeight:900, color:"#0F172A", marginBottom:4 }}>Analytics</h2>
+      <h2 style={{ fontFamily:"var(--font-base)", fontSize:19, fontWeight:900, color:"#0F172A", marginBottom:4 }}>Analytics</h2>
       <p style={{ fontSize:12, color:"#64748B", marginBottom:20 }}>Quotation performance insights — Pro plan feature.</p>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14, marginBottom:20 }}>
@@ -212,7 +259,12 @@ function Analytics({ quotations, accepted, pending, rejected, winRate, monthlyBr
       <div style={{ background:"#fff", borderRadius:14, border:"1px solid #E2E8F0", overflow:"hidden" }}>
         <div style={{ padding:"16px 22px", borderBottom:"1px solid #F1F5F9", fontSize:13, fontWeight:700, color:"#0F172A" }}>Quotation History</div>
         {quotations.length === 0 ? (
-          <div style={{ padding:48, textAlign:"center", color:"#94A3B8", fontSize:12 }}>No quotations yet.</div>
+          <div style={{ padding:48, textAlign:"center", color:"#94A3B8", fontSize:12 }}>
+            <div style={{ display:"flex", justifyContent:"center", marginBottom:8 }}>
+              <ClipboardText size={36} color="#CBD5E1" />
+            </div>
+            No quotations yet.
+          </div>
         ) : (
           <table style={{ width:"100%", borderCollapse:"collapse" }}>
             <thead>
@@ -244,13 +296,13 @@ function Analytics({ quotations, accepted, pending, rejected, winRate, monthlyBr
 function Profile({ shop }) {
   return (
     <div>
-      <h2 style={{ fontFamily:"'Playfair Display', serif", fontSize:19, fontWeight:900, color:"#0F172A", marginBottom:20 }}>Shop Profile</h2>
+      <h2 style={{ fontFamily:"var(--font-base)", fontSize:19, fontWeight:900, color:"#0F172A", marginBottom:20 }}>Shop Profile</h2>
       {shop ? (
         <div style={{ background:"#fff", borderRadius:14, border:"1px solid #E2E8F0", padding:"28px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:24, paddingBottom:20, borderBottom:"1px solid #F1F5F9" }}>
             <div style={{ width:60, height:60, borderRadius:"50%", background:"linear-gradient(135deg,#1D4ED8,#3B82F6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, fontWeight:900, color:"#fff" }}>{shop.shopName?.[0] || "S"}</div>
             <div>
-              <div style={{ fontSize:18, fontWeight:700, color:"#0F172A", fontFamily:"'Playfair Display', serif" }}>{shop.shopName}</div>
+              <div style={{ fontSize:18, fontWeight:700, color:"#0F172A", fontFamily:"var(--font-base)" }}>{shop.shopName}</div>
               <div style={{ fontSize:12, color:"#64748B" }}>{shop.city}, {shop.province}</div>
               <div style={{ marginTop:6 }}><PlanBadge /></div>
             </div>
@@ -267,24 +319,18 @@ function Profile({ shop }) {
   );
 }
 
-// REPLACE the Billing function in BOTH DashboardProPage.jsx AND DashboardBusinessPage.jsx
-// Also add this import at the TOP of both files:
-// import StripePaymentForm from "../../components/forms/StripePaymentForm";
-
-// ─── FOR DashboardProPage.jsx ────────────────────────────────────────────────
 function Billing({ shop, setActiveTab }) {
   const [showRenew, setShowRenew] = React.useState(false);
 
   return (
     <div>
-      <h2 style={{ fontFamily:"'Playfair Display', serif", fontSize:19, fontWeight:900, color:"#0F172A", marginBottom:20 }}>Billing & Subscription</h2>
+      <h2 style={{ fontFamily:"var(--font-base)", fontSize:19, fontWeight:900, color:"#0F172A", marginBottom:20 }}>Billing & Subscription</h2>
 
-      {/* Current Plan Info */}
       <div style={{ background:"#fff", borderRadius:14, border:"1px solid #E2E8F0", padding:"24px", marginBottom: 20 }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20, paddingBottom:20, borderBottom:"1px solid #F1F5F9" }}>
           <div>
-            <div style={{ fontFamily:"'Playfair Display', serif", fontSize:18, fontWeight:900, color:"#0F172A", marginBottom:4 }}>Pro Plan</div>
-            <div style={{ fontSize:22, fontWeight:900, color:"#3B82F6", fontFamily:"'Playfair Display', serif" }}>
+            <div style={{ fontFamily:"var(--font-base)", fontSize:18, fontWeight:900, color:"#0F172A", marginBottom:4 }}>Pro Plan</div>
+            <div style={{ fontSize:22, fontWeight:900, color:"#3B82F6", fontFamily:"var(--font-base)" }}>
               ₱499<span style={{ fontSize:13, fontWeight:400, color:"#94A3B8" }}>/month</span>
             </div>
           </div>
@@ -304,7 +350,6 @@ function Billing({ shop, setActiveTab }) {
           </div>
         ))}
 
-        {/* Renew Button */}
         {!showRenew && (
           <button
             onClick={() => setShowRenew(true)}
@@ -319,7 +364,6 @@ function Billing({ shop, setActiveTab }) {
         )}
       </div>
 
-      {/* Stripe Renewal Form */}
       {showRenew && (
         <div style={{ background:"#fff", borderRadius:14, border:"1px solid #BFDBFE", padding:"24px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
@@ -336,67 +380,86 @@ function Billing({ shop, setActiveTab }) {
   );
 }
 
-
-// ─── FOR DashboardBusinessPage.jsx ───────────────────────────────────────────
-// Use this version instead — same logic, just different colors and plan
-function BillingBusiness({ shop }) {
-  const [showRenew, setShowRenew] = React.useState(false);
+function Quotations({ quotations, accentColor = "#1D4ED8" }) {
+  const [expanded, setExpanded] = useState(null);
+  const toggle = (id) => setExpanded(prev => prev === id ? null : id);
 
   return (
     <div>
-      <h2 style={{ fontFamily:"'Lora', Georgia, serif", fontSize:19, fontWeight:900, color:"#0F172A", marginBottom:20 }}>Billing & Subscription</h2>
+      <h2 style={{ fontFamily: "var(--font-base)", fontSize: 19, fontWeight: 700, color: "#0F172A", marginBottom: 4 }}>My Quotations</h2>
+      <p style={{ fontSize: 12, color: "#64748B", marginBottom: 20 }}>All submitted quotes with full item breakdown.</p>
 
-      {/* Current Plan Info */}
-      <div style={{ background:"#fff", borderRadius:14, border:"1px solid #E2E8F0", padding:"24px", marginBottom: 20 }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20, paddingBottom:20, borderBottom:"1px solid #F1F5F9" }}>
-          <div>
-            <div style={{ fontFamily:"'Lora', Georgia, serif", fontSize:18, fontWeight:900, color:"#0F172A", marginBottom:4 }}>Business Plan</div>
-            <div style={{ fontSize:26, fontWeight:900, color:"#7C3AED", fontFamily:"'Lora', Georgia, serif" }}>
-              ₱4,499<span style={{ fontSize:13, fontWeight:400, color:"#94A3B8" }}>/year</span>
-            </div>
+      {quotations.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 64, color: "#94A3B8" }}>
+          <div style={{ display:"flex", justifyContent:"center", marginBottom:8 }}>
+            <ClipboardText size={36} color="#CBD5E1" />
           </div>
-          <span style={{ display:"inline-flex", alignItems:"center", background:"linear-gradient(135deg,#7C3AED,#6D28D9)", color:"#fff", borderRadius:20, padding:"3px 12px", fontSize:10, fontWeight:700 }}>
-            BUSINESS
-          </span>
+          <div style={{ fontWeight: 600, color: "#0F172A", marginBottom: 4 }}>No quotations yet</div>
+          <div style={{ fontSize: 12 }}>Go to All Projects to submit your first quote.</div>
         </div>
-        {shop && [
-          ["Shop",                shop.shopName],
-          ["Subscription Plan",   shop.subscriptionPlan?.toUpperCase() || "BUSINESS"],
-          ["Subscription Status", shop.subscriptionStatus || "active"],
-          ["Expires",             shop.subscriptionExpiry?.toDate ? shop.subscriptionExpiry.toDate().toLocaleDateString("en-PH",{month:"long",day:"numeric",year:"numeric"}) : "—"],
-        ].map(([k,v]) => (
-          <div key={k} style={{ display:"flex", gap:12, marginBottom:12, fontSize:13 }}>
-            <span style={{ color:"#94A3B8", minWidth:160, flexShrink:0 }}>{k}</span>
-            <span style={{ color:"#0F172A", fontWeight:500 }}>{v}</span>
-          </div>
-        ))}
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {quotations.map(q => {
+            const isOpen = expanded === q.id;
+            const date   = q.createdAt?.toDate?.()?.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) || "—";
+            const sc = q.status === "accepted"
+              ? { bg: "#D1FAE5", color: "#065F46", border: "#6EE7B7" }
+              : q.status === "rejected"
+              ? { bg: "#FEE2E2", color: "#991B1B", border: "#FCA5A5" }
+              : { bg: "#FEF3C7", color: "#92400E", border: "#FCD34D" };
 
-        {/* Renew Button */}
-        {!showRenew && (
-          <button
-            onClick={() => setShowRenew(true)}
-            style={{
-              marginTop: 16, padding: "11px 24px", borderRadius: 10, border: "none",
-              background: "linear-gradient(135deg,#7C3AED,#6D28D9)",
-              color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer",
-            }}
-          >
-           Renew / Pay with Stripe →
-          </button>
-        )}
-      </div>
+            return (
+              <div key={q.id} style={{ background: "#fff", borderRadius: 14, border: "1px solid #E2E8F0", overflow: "hidden" }}>
+                <div onClick={() => toggle(q.id)} style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 20px", cursor: "pointer" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", marginBottom: 2 }}>{q.projectTitle || "Project"}</div>
+                    <div style={{ fontSize: 11.5, color: "#64748B" }}>{date}</div>
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "#0F172A", fontFamily: "var(--font-base)" }}>₱{q.amount?.toLocaleString()}</div>
+                    {q.items?.length > 0 && <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>{q.items.length} item{q.items.length > 1 ? "s" : ""}</div>}
+                  </div>
+                  <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 20, padding: "4px 12px", border: `1px solid ${sc.border}`, background: sc.bg, color: sc.color, letterSpacing: "0.08em", textTransform: "uppercase", flexShrink: 0 }}>
+                    {q.status || "pending"}
+                  </span>
+                  <span style={{ color: "#94A3B8", fontSize: 16, flexShrink: 0, transition: "transform 0.2s", transform: isOpen ? "rotate(90deg)" : "rotate(0deg)" }}>›</span>
+                </div>
 
-      {/* Stripe Renewal Form */}
-      {showRenew && (
-        <div style={{ background:"#fff", borderRadius:14, border:"1px solid #DDD6FE", padding:"24px" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
-            <button
-              onClick={() => setShowRenew(false)}
-              style={{ fontSize:12, color:"#64748B", background:"none", border:"none", cursor:"pointer", padding:0 }}
-            >← Back</button>
-            <div style={{ fontWeight:700, fontSize:15, color:"#0F172A" }}>Renew Your Plan</div>
-          </div>
-          <StripePaymentForm defaultPlan="business" onCancel={() => setShowRenew(false)} />
+                {isOpen && (
+                  <div style={{ borderTop: "1px solid #F1F5F9", padding: "16px 20px", background: "#FAFAFA" }}>
+                    {q.items?.length > 0 ? (
+                      <>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Items Quoted</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+                          {q.items.map((item, i) => (
+                            <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#fff", border: "1px solid #E2E8F0", borderRadius: 10, padding: "10px 14px" }}>
+                              <div>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{item.productName}</div>
+                                <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>{item.qty} {item.unit} × ₱{item.price?.toLocaleString()}</div>
+                              </div>
+                              <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>₱{item.subtotal?.toLocaleString()}</div>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: "1px solid #E2E8F0" }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>Total</span>
+                          <span style={{ fontSize: 18, fontWeight: 900, color: accentColor, fontFamily: "var(--font-base)" }}>₱{q.amount?.toLocaleString()}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ fontSize: 13, color: "#94A3B8" }}>No item breakdown available.</div>
+                    )}
+                    {q.note && (
+                      <div style={{ marginTop: 12, padding: "10px 14px", background: "#F8FAFC", borderRadius: 8, border: "1px solid #E4E9F0" }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Note</div>
+                        <div style={{ fontSize: 12.5, color: "#334155", lineHeight: 1.6 }}>{q.note}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -415,12 +478,10 @@ export default function ShopDashboardPro() {
   const [activeTab, setActiveTab]   = useState("overview");
   const [toast, setToast]           = useState(null);
   const [quoteModal, setQuoteModal] = useState(null);
-  const [quoteForm, setQuoteForm]   = useState({ amount: "", note: "" });
   const [submitting, setSubmitting] = useState(false);
   const [showPlanActivatedModal, setShowPlanActivatedModal] = useState(false);
   const prevStatusRef = useRef(null);
 
-  // Search state lives in parent — passed as props, NOT causing tab remount
   const [searchQuery, setSearchQuery, debouncedSearch] = useSearch("");
 
   useEffect(() => {
@@ -461,21 +522,6 @@ export default function ShopDashboardPro() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const handleQuote = async () => {
-    if (!quoteForm.amount) return;
-    setSubmitting(true);
-    try {
-      await submitQuotation({ projectId: quoteModal.id, ...quoteForm });
-      showToast("Quotation submitted!");
-      setQuoteModal(null);
-      setQuoteForm({ amount: "", note: "" });
-      const updated = await getShopQuotations();
-      setQuotations(updated);
-    } catch { showToast("Failed to submit.", "error"); }
-    finally { setSubmitting(false); }
-  };
-
-  // Derived stats
   const accepted    = quotations.filter(q => q.status === "accepted").length;
   const pending     = quotations.filter(q => q.status === "pending").length;
   const rejected    = quotations.filter(q => q.status === "rejected").length;
@@ -501,16 +547,15 @@ export default function ShopDashboardPro() {
     return Object.values(map).sort((a, b) => b.key.localeCompare(a.key)).slice(0, 6);
   })();
 
- const filteredProjects = projects.filter(p =>
-  p.projectName?.toLowerCase().includes(debouncedSearch.trim().toLowerCase()) ||
-  p.locationCity?.toLowerCase().includes(debouncedSearch.trim().toLowerCase())
-);
+  const filteredProjects = projects.filter(p =>
+    p.projectName?.toLowerCase().includes(debouncedSearch.trim().toLowerCase()) ||
+    p.locationCity?.toLowerCase().includes(debouncedSearch.trim().toLowerCase())
+  );
 
-  // Sidebar and Topbar are safe inside — they don't contain search inputs
   const Sidebar = () => (
     <aside style={{ width:228, minHeight:"100vh", flexShrink:0, background:"#0F172A", display:"flex", flexDirection:"column" }}>
       <div style={{ padding:"22px 20px 18px", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
-        <div style={{ fontFamily:"'Playfair Display', serif", fontSize:17, fontWeight:900, color:"#F1F5F9", marginBottom:3 }}>iConstruct</div>
+        <div style={{ fontFamily:"var(--font-base)", fontSize:17, fontWeight:900, color:"#F1F5F9", marginBottom:3 }}>iConstruct</div>
         <div style={{ fontSize:10, color:"rgba(148,163,184,0.6)", fontWeight:500, letterSpacing:"0.08em", textTransform:"uppercase" }}>Shop Manager</div>
         <div style={{ marginTop:10 }}><PlanBadge /></div>
       </div>
@@ -522,8 +567,7 @@ export default function ShopDashboardPro() {
         {NAV.map(item => {
           const isActive = activeTab === item.key;
           return (
-            <button key={item.key} onClick={() => setActiveTab(item.key)} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 20px", border:"none", cursor:"pointer", fontFamily:"''Inter'', sans-serif", fontSize:13, fontWeight:isActive?600:400, background:isActive?"rgba(59,130,246,0.15)":"transparent", color:isActive?"#93C5FD":"rgba(148,163,184,0.65)", borderLeft:isActive?"2px solid #3B82F6":"2px solid transparent", textAlign:"left", transition:"all 0.15s" }}>
-              <span style={{ fontSize:14 }}>{item.icon}</span>
+            <button key={item.key} onClick={() => setActiveTab(item.key)} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 20px", border:"none", cursor:"pointer", fontFamily:"var(--font-base)", fontSize:13, fontWeight:isActive?600:400, background:isActive?"rgba(59,130,246,0.15)":"transparent", color:isActive?"#93C5FD":"rgba(148,163,184,0.65)", borderLeft:isActive?"2px solid #3B82F6":"2px solid transparent", textAlign:"left", transition:"all 0.15s" }}>
               <span>{item.label}</span>
             </button>
           );
@@ -536,7 +580,7 @@ export default function ShopDashboardPro() {
             <div style={{ fontSize:10, color:"rgba(148,163,184,0.5)" }}>{shop.ownerName}</div>
           </div>
         )}
-        <button onClick={async () => { await logoutShop(); navigate("/login"); }} style={{ width:"100%", padding:"8px", borderRadius:8, border:"1px solid rgba(239,68,68,0.3)", background:"rgba(239,68,68,0.1)", color:"#F87171", fontSize:11.5, fontWeight:600, cursor:"pointer", fontFamily:"''Inter'', sans-serif" }}>Sign Out</button>
+        <button onClick={async () => { await logoutShop(); navigate("/login"); }} style={{ width:"100%", padding:"8px", borderRadius:8, border:"1px solid rgba(239,68,68,0.3)", background:"rgba(239,68,68,0.1)", color:"#F87171", fontSize:11.5, fontWeight:600, cursor:"pointer", fontFamily:"var(--font-base)" }}>Sign Out</button>
       </div>
     </aside>
   );
@@ -557,18 +601,22 @@ export default function ShopDashboardPro() {
     switch (activeTab) {
       case "overview":   return <Overview quotations={quotations} projects={projects} accepted={accepted} pending={pending} rejected={rejected} winRate={winRate} monthQuotes={monthQuotes} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} />;
       case "projects":   return <AllProjects filteredProjects={filteredProjects} searchQuery={searchQuery} setSearchQuery={setSearchQuery} setQuoteModal={setQuoteModal} />;
-      case "quotations":
+      case "quotations": return <Quotations quotations={quotations} accentColor="#1D4ED8" />;
       case "analytics":  return <Analytics quotations={quotations} accepted={accepted} pending={pending} rejected={rejected} winRate={winRate} monthlyBreakdown={monthlyBreakdown} />;
       case "profile":    return <Profile shop={shop} />;
       case "products":   return <ProductsTab plan="pro" />;
       case "billing":    return <Billing shop={shop} setActiveTab={setActiveTab} />;
+      case "settings":   return <SettingsTab shop={shop} accentColor="#1D4ED8" accentGradient="linear-gradient(135deg,#1D4ED8,#3B82F6)" />;
       default:           return <Overview quotations={quotations} projects={projects} accepted={accepted} pending={pending} rejected={rejected} winRate={winRate} monthQuotes={monthQuotes} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} />;
     }
   };
 
   return (
     <>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Playfair+Display:wght@700;900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}body{font-family:''Inter'',sans-serif;}`}</style>
+      <style>{`
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: var(--font-base); }
+      `}</style>
       <div style={{ display:"flex", minHeight:"100vh", background:"#F8FAFC" }}>
         <Sidebar />
         <div style={{ flex:1, display:"flex", flexDirection:"column" }}>
@@ -579,45 +627,44 @@ export default function ShopDashboardPro() {
         </div>
       </div>
 
-      {/* Quote Modal */}
       {quoteModal && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.5)", backdropFilter:"blur(6px)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
-          onClick={e => { if(e.target===e.currentTarget) setQuoteModal(null); }}>
-          <div style={{ background:"#fff", borderRadius:18, width:"100%", maxWidth:440, padding:"28px", boxShadow:"0 40px 100px rgba(0,0,0,0.25)" }}>
-            <h4 style={{ fontFamily:"'Playfair Display', serif", fontSize:17, fontWeight:700, color:"#0F172A", marginBottom:4 }}>Submit Quotation</h4>
-            <p style={{ fontSize:12, color:"#64748B", marginBottom:20 }}>For: <strong style={{ color:"#0F172A" }}>{quoteModal.projectName || "Construction Project"}</strong></p>
-            <div style={{ marginBottom:14 }}>
-              <label style={{ fontSize:11.5, fontWeight:600, color:"#334155", display:"block", marginBottom:5 }}>Quote Amount (₱)</label>
-              <input type="number" placeholder="e.g. 15000" value={quoteForm.amount} onChange={e => setQuoteForm(f=>({...f,amount:e.target.value}))} style={{ width:"100%", padding:"10px 14px", border:"1.5px solid #E2E8F0", borderRadius:8, fontSize:13, fontFamily:"''Inter'', sans-serif", outline:"none", color:"#0F172A" }} />
-            </div>
-            <div style={{ marginBottom:20 }}>
-              <label style={{ fontSize:11.5, fontWeight:600, color:"#334155", display:"block", marginBottom:5 }}>Notes (optional)</label>
-              <textarea rows={3} value={quoteForm.note} onChange={e => setQuoteForm(f=>({...f,note:e.target.value}))} style={{ width:"100%", padding:"10px 14px", border:"1.5px solid #E2E8F0", borderRadius:8, fontSize:13, fontFamily:"''Inter'', sans-serif", resize:"none", outline:"none", color:"#0F172A" }} />
-            </div>
-            <div style={{ display:"flex", gap:10 }}>
-              <button onClick={() => setQuoteModal(null)} style={{ padding:"11px 20px", borderRadius:8, border:"1px solid #E2E8F0", background:"#F8FAFC", fontSize:12.5, fontWeight:500, color:"#64748B", cursor:"pointer" }}>Cancel</button>
-              <button disabled={!quoteForm.amount||submitting} onClick={handleQuote} style={{ flex:1, padding:"11px", borderRadius:8, border:"none", background:quoteForm.amount?"#3B82F6":"#F1F5F9", color:quoteForm.amount?"#fff":"#94A3B8", fontSize:12.5, fontWeight:600, cursor:"pointer" }}>
-                {submitting ? "Submitting..." : "Submit Quotation"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <QuoteModal
+          project={quoteModal}
+          onClose={() => setQuoteModal(null)}
+          onSubmit={async ({ projectId, amount, note, items }) => {
+            setSubmitting(true);
+            try {
+              await submitQuotation({ projectId, amount, note, items });
+              showToast("Quotation submitted!");
+              setQuoteModal(null);
+              const updated = await getShopQuotations();
+              setQuotations(updated);
+            } catch (err) {
+              showToast(err.message || "Failed to submit.", "error");
+            } finally {
+              setSubmitting(false);
+            }
+          }}
+          submitting={submitting}
+          accentColor="#1D4ED8"
+          accentGradient="linear-gradient(135deg, #1D4ED8, #3B82F6)"
+        />
       )}
 
-      {/* Toast */}
       {toast && (
         <div style={{ position:"fixed", bottom:24, right:24, padding:"12px 18px", borderRadius:10, background:toast.type==="error"?"#DC2626":"#0F172A", color:"#fff", fontSize:12.5, fontWeight:500, boxShadow:"0 10px 30px rgba(0,0,0,0.25)", zIndex:500 }}>
           {toast.msg}
         </div>
       )}
 
-      {/* Plan Activation Modal */}
       {showPlanActivatedModal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.6)", backdropFilter:"blur(8px)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
           <div style={{ background:"#fff", borderRadius:20, padding:"40px 36px", width:"100%", maxWidth:420, textAlign:"center", boxShadow:"0 32px 80px rgba(0,0,0,0.25)", position:"relative", overflow:"hidden" }}>
             <div style={{ position:"absolute", top:0, left:0, right:0, height:4, background:"linear-gradient(90deg,#1D4ED8,#3B82F6)", borderRadius:"20px 20px 0 0" }} />
-            <div style={{ width:72, height:72, borderRadius:"50%", background:"linear-gradient(135deg,#D1FAE5,#A7F3D0)", border:"2px solid #6EE7B7", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px", fontSize:32 }}>🎉</div>
-            <div style={{ fontFamily:"'Playfair Display', serif", fontSize:22, fontWeight:900, color:"#0F172A", marginBottom:8 }}>Subscription Activated!</div>
+            <div style={{ width:72, height:72, borderRadius:"50%", background:"linear-gradient(135deg,#D1FAE5,#A7F3D0)", border:"2px solid #6EE7B7", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px" }}>
+              <CheckCircle size={36} color="#059669" weight="fill" />
+            </div>
+            <div style={{ fontFamily:"var(--font-base)", fontSize:22, fontWeight:900, color:"#0F172A", marginBottom:8 }}>Subscription Activated!</div>
             <p style={{ fontSize:14, color:"#64748B", lineHeight:1.7, marginBottom:8 }}>Your plan has been confirmed by the admin and is now <strong style={{ color:"#059669" }}>active</strong>.</p>
             <p style={{ fontSize:13, color:"#94A3B8", lineHeight:1.6, marginBottom:28 }}>To apply your new subscription features, please <strong style={{ color:"#0F172A" }}>sign out and log back in</strong>.</p>
             <div style={{ background:"#FFF7ED", border:"1px solid #FED7AA", borderRadius:10, padding:"12px 16px", marginBottom:24, fontSize:12.5, color:"#92400E", lineHeight:1.6 }}>

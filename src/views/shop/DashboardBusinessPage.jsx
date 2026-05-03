@@ -1,10 +1,4 @@
 // src/views/shop/DashboardBusinessPage.jsx
-// FIXES APPLIED:
-// 1. Billing tab now correctly uses BillingBusiness (purple/business theme),
-//    not the Pro (blue) Billing component.
-// 2. Dead code removed: duplicate Billing function removed from this file.
-// 3. NAV icons were missing — added back.
-// 4. renderContent "billing" case now calls <BillingBusiness shop={shop} />
 
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -19,6 +13,13 @@ import { auth, db } from "../../services/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import StripePaymentForm from "../../components/forms/StripePaymentForm";
 import React from "react";
+import QuoteModal from "../../components/QuoteModal";
+import SettingsTab from "../../components/SettingsTab";
+
+import {
+  TbClipboardList, TbCurrencyDollar, TbRuler2, TbTag,
+  TbMapPin, TbConfetti, TbAlertTriangle,
+} from "react-icons/tb";
 
 const NAV = [
   { key: "overview",   label: "Overview"           },
@@ -29,6 +30,7 @@ const NAV = [
   { key: "profile",    label: "Shop Profile"       },
   { key: "products",   label: "My Products"        },
   { key: "billing",    label: "Billing"            },
+  { key: "settings",   label: "Settings"           },
 ];
 
 function PlanBadge() {
@@ -45,14 +47,14 @@ function StatCard({ label, value, color, sub, featured }) {
       onMouseEnter={e => { e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow=`0 8px 24px ${color}20`; }}
       onMouseLeave={e => { e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}>
       <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${color},${color}80)`, borderRadius:"14px 14px 0 0" }} />
-      <div style={{ fontSize:28, fontWeight:900, color, fontFamily:"'Lora', Georgia, serif", lineHeight:1, marginBottom:4 }}>{value}</div>
+      <div style={{ fontSize:28, fontWeight:900, color, fontFamily:"var(--font-base)", lineHeight:1, marginBottom:4 }}>{value}</div>
       <div style={{ fontSize:12, fontWeight:600, color:"#0F172A", marginBottom:2 }}>{label}</div>
       <div style={{ fontSize:11, color:"#94A3B8" }}>{sub}</div>
     </div>
   );
 }
 
-// ─── TAB COMPONENTS (defined OUTSIDE parent — stable identity, no remount) ─
+// ─── TAB COMPONENTS ───────────────────────────────────────────────────────────
 
 function Overview({ quotations, projects, accepted, pending, rejected, winRate, monthQuotes, setQuoteModal, setActiveTab }) {
   return (
@@ -122,42 +124,149 @@ function Overview({ quotations, projects, accepted, pending, rejected, winRate, 
 function AllProjects({ filteredProjects, searchQuery, setSearchQuery, setQuoteModal }) {
   return (
     <div>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div>
-          <h2 style={{ fontFamily:"'Lora', Georgia, serif", fontSize:19, fontWeight:900, color:"#0F172A", marginBottom:2 }}>All Projects</h2>
-          <p style={{ fontSize:12, color:"#64748B" }}>Unlimited project access. {filteredProjects.length} available.</p>
+          <h2 style={{ fontFamily: "var(--font-base)", fontSize: 19, fontWeight: 700, color: "#0F172A", marginBottom: 2 }}>All Projects</h2>
+          <p style={{ fontSize: 12, color: "#64748B" }}>Unlimited project access. {filteredProjects.length} available.</p>
         </div>
-        <SearchBar
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          placeholder="Search projects..."
-          accentColor="#7C3AED"
-          width={220}
-        />
+        <SearchBar value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search projects..." accentColor="#7C3AED" width={220} />
       </div>
 
       {filteredProjects.length === 0 ? (
-        <div style={{ textAlign:"center", padding:64, color:"#94A3B8" }}>
-          <div style={{ fontSize:32, marginBottom:8 }}>📋</div>
-          <div style={{ fontWeight:600, color:"#0F172A", marginBottom:4 }}>{searchQuery ? "No projects match your search" : "No open projects yet"}</div>
-          {searchQuery && (
-            <button onClick={() => setSearchQuery("")} style={{ fontSize:12, color:"#7C3AED", background:"none", border:"none", cursor:"pointer" }}>Clear search</button>
-          )}
+        <div style={{ textAlign: "center", padding: 64, color: "#94A3B8" }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
+            <TbClipboardList size={36} color="#CBD5E1" />
+          </div>
+          <div style={{ fontWeight: 600, color: "#0F172A", marginBottom: 4 }}>{searchQuery ? "No projects match your search" : "No open projects yet"}</div>
+          {searchQuery && <button onClick={() => setSearchQuery("")} style={{ fontSize: 12, color: "#7C3AED", background: "none", border: "none", cursor: "pointer" }}>Clear search</button>}
         </div>
       ) : (
-        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {filteredProjects.map(project => (
-            <div key={project.id} style={{ background:"#fff", borderRadius:12, border:"1px solid #E2E8F0", padding:"16px 20px", display:"flex", alignItems:"center", gap:16 }}
-              onMouseEnter={e => e.currentTarget.style.boxShadow="0 4px 16px rgba(124,58,237,0.08)"}
-              onMouseLeave={e => e.currentTarget.style.boxShadow=""}>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:13.5, fontWeight:700, color:"#0F172A", marginBottom:3 }}>{project.projectName || project.title || "Construction Project"}</div>
-                <div style={{ fontSize:11.5, color:"#64748B" }}>{project.materials?.slice(0,3).join(", ") || "Materials TBD"} · {project.locationCity || project.city || "—"}</div>
+            <div key={project.id} style={{ background: "#fff", borderRadius: 14, border: "1px solid #E2E8F0", padding: "18px 20px", display: "flex", alignItems: "center", gap: 16, transition: "box-shadow 0.2s" }}
+              onMouseEnter={e => e.currentTarget.style.boxShadow = "0 4px 16px rgba(124,58,237,0.08)"}
+              onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", marginBottom: 4 }}>{project.projectName || "Project"}</div>
+                <div style={{ fontSize: 12, color: "#64748B", marginBottom: 8 }}>
+                  {project.projectType || "—"}
+                  {project.materials?.length > 0 && ` · ${project.materials.slice(0, 3).map(m => m.name || m).join(", ")}`}
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {project.totalAreaSqm != null && (
+                    <span style={{ fontSize: 11, fontWeight: 600, background: "#EFF6FF", color: "#1D4ED8", border: "1px solid #BFDBFE", borderRadius: 20, padding: "3px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <TbRuler2 size={11} /> {project.totalAreaSqm} sqm
+                    </span>
+                  )}
+                  {project.budget && (
+                    <span style={{ fontSize: 11, fontWeight: 600, background: "#F0FDF4", color: "#166534", border: "1px solid #86EFAC", borderRadius: 20, padding: "3px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <TbCurrencyDollar size={11} /> {project.budget}
+                    </span>
+                  )}
+                  {project.quotationCount != null && (
+                    <span style={{ fontSize: 11, fontWeight: 600, background: "#FEF3C7", color: "#92400E", border: "1px solid #FCD34D", borderRadius: 20, padding: "3px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <TbTag size={11} /> {project.quotationCount} bid{project.quotationCount !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                  {project.locationCity && (
+                    <span style={{ fontSize: 11, fontWeight: 600, background: "#F8FAFC", color: "#64748B", border: "1px solid #E2E8F0", borderRadius: 20, padding: "3px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <TbMapPin size={11} /> {project.locationCity}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div style={{ fontSize:13, fontWeight:700, color:"#0F172A" }}>₱{project.estimatedBudget?.toLocaleString() || project.budget || "—"}</div>
-              <button onClick={() => setQuoteModal(project)} style={{ padding:"8px 18px", borderRadius:8, border:"none", background:"linear-gradient(135deg,#7C3AED,#6D28D9)", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer" }}>Submit Quote</button>
+              <button onClick={() => setQuoteModal(project)} style={{ padding: "10px 20px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#7C3AED,#6D28D9)", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+                Submit Quote
+              </button>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QuotationsBusiness({ quotations, accentColor = "#7C3AED" }) {
+  const [expanded, setExpanded] = useState(null);
+  const toggle = (id) => setExpanded(prev => prev === id ? null : id);
+
+  return (
+    <div>
+      <h2 style={{ fontFamily: "var(--font-base)", fontSize: 19, fontWeight: 900, color: "#0F172A", marginBottom: 4 }}>My Quotations</h2>
+      <p style={{ fontSize: 12, color: "#64748B", marginBottom: 20 }}>All submitted quotes with full item breakdown.</p>
+
+      {quotations.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 64, color: "#94A3B8" }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
+            <TbClipboardList size={36} color="#CBD5E1" />
+          </div>
+          <div style={{ fontWeight: 600, color: "#0F172A", marginBottom: 4 }}>No quotations yet</div>
+          <div style={{ fontSize: 12 }}>Go to All Projects to submit your first quote.</div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {quotations.map(q => {
+            const isOpen = expanded === q.id;
+            const date   = q.createdAt?.toDate?.()?.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" }) || "—";
+            const sc = q.status === "accepted"
+              ? { bg: "#D1FAE5", color: "#065F46", border: "#6EE7B7" }
+              : q.status === "rejected"
+              ? { bg: "#FEE2E2", color: "#991B1B", border: "#FCA5A5" }
+              : { bg: "#FEF3C7", color: "#92400E", border: "#FCD34D" };
+
+            return (
+              <div key={q.id} style={{ background: "#fff", borderRadius: 14, border: "1px solid #E2E8F0", overflow: "hidden" }}>
+                <div onClick={() => toggle(q.id)} style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 20px", cursor: "pointer" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", marginBottom: 2 }}>{q.projectTitle || "Project"}</div>
+                    <div style={{ fontSize: 11.5, color: "#64748B" }}>{date}</div>
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "#0F172A", fontFamily: "var(--font-base)" }}>₱{q.amount?.toLocaleString()}</div>
+                    {q.items?.length > 0 && <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>{q.items.length} item{q.items.length > 1 ? "s" : ""}</div>}
+                  </div>
+                  <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 20, padding: "4px 12px", border: `1px solid ${sc.border}`, background: sc.bg, color: sc.color, letterSpacing: "0.08em", textTransform: "uppercase", flexShrink: 0 }}>
+                    {q.status || "pending"}
+                  </span>
+                  <span style={{ color: "#94A3B8", fontSize: 16, flexShrink: 0, transition: "transform 0.2s", transform: isOpen ? "rotate(90deg)" : "rotate(0deg)" }}>›</span>
+                </div>
+
+                {isOpen && (
+                  <div style={{ borderTop: "1px solid #F1F5F9", padding: "16px 20px", background: "#FAFAFA" }}>
+                    {q.items?.length > 0 ? (
+                      <>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Items Quoted</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+                          {q.items.map((item, i) => (
+                            <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#fff", border: "1px solid #E2E8F0", borderRadius: 10, padding: "10px 14px" }}>
+                              <div>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{item.productName}</div>
+                                <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>{item.qty} {item.unit} × ₱{item.price?.toLocaleString()}</div>
+                              </div>
+                              <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>₱{item.subtotal?.toLocaleString()}</div>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: "1px solid #E2E8F0" }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>Total</span>
+                          <span style={{ fontSize: 18, fontWeight: 900, color: accentColor, fontFamily: "var(--font-base)" }}>₱{q.amount?.toLocaleString()}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ fontSize: 13, color: "#94A3B8" }}>No item breakdown available.</div>
+                    )}
+                    {q.note && (
+                      <div style={{ marginTop: 12, padding: "10px 14px", background: "#F8FAFC", borderRadius: 8, border: "1px solid #E4E9F0" }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Note</div>
+                        <div style={{ fontSize: 12.5, color: "#334155", lineHeight: 1.6 }}>{q.note}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -167,7 +276,7 @@ function AllProjects({ filteredProjects, searchQuery, setSearchQuery, setQuoteMo
 function AdvancedAnalytics({ quotations, accepted, rejected, winRate, monthlyBreakdown }) {
   return (
     <div>
-      <h2 style={{ fontFamily:"'Lora', Georgia, serif", fontSize:19, fontWeight:900, color:"#0F172A", marginBottom:4 }}>Advanced Analytics</h2>
+      <h2 style={{ fontFamily:"var(--font-base)", fontSize:19, fontWeight:900, color:"#0F172A", marginBottom:4 }}>Advanced Analytics</h2>
       <p style={{ fontSize:12, color:"#64748B", marginBottom:20 }}>Full performance insights — Business plan exclusive.</p>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:20 }}>
@@ -250,14 +359,14 @@ function AdvancedAnalytics({ quotations, accepted, rejected, winRate, monthlyBre
 function FeaturedPlacement() {
   return (
     <div>
-      <h2 style={{ fontFamily:"'Lora', Georgia, serif", fontSize:19, fontWeight:900, color:"#0F172A", marginBottom:4 }}>Featured Placement</h2>
+      <h2 style={{ fontFamily:"var(--font-base)", fontSize:19, fontWeight:900, color:"#0F172A", marginBottom:4 }}>Featured Placement</h2>
       <p style={{ fontSize:12, color:"#64748B", marginBottom:20 }}>Manage how your shop is featured across the iConstruct platform.</p>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:20 }}>
         {[
-          { title:"Homepage Feature",    desc:"Your shop appears in the 'Recommended Shops' section on the app homepage." },
+         /*  { title:"Homepage Feature",    desc:"Your shop appears in the 'Recommended Shops' section on the app homepage." }, */
           { title:"Search Priority",     desc:"Ranked first when builders search for hardware shops in your area." },
-          { title:"Bidding Board Badge", desc:"A 'Business' badge appears on all your submitted quotations." },
-          { title:"Promotional Banner",  desc:"Rotating promotional slot in the builder's project feed." },
+          /* { title:"Bidding Board Badge", desc:"A 'Business' badge appears on all your submitted quotations." }, */
+         /*  { title:"Promotional Banner",  desc:"Rotating promotional slot in the builder's project feed." }, */
         ].map(item => (
           <div key={item.title} style={{ background:"#fff", borderRadius:14, border:"1px solid #E2E8F0", padding:"20px" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
@@ -279,13 +388,13 @@ function FeaturedPlacement() {
 function Profile({ shop }) {
   return (
     <div>
-      <h2 style={{ fontFamily:"'Lora', Georgia, serif", fontSize:19, fontWeight:900, color:"#0F172A", marginBottom:20 }}>Shop Profile</h2>
+      <h2 style={{ fontFamily:"var(--font-base)", fontSize:19, fontWeight:900, color:"#0F172A", marginBottom:20 }}>Shop Profile</h2>
       {shop ? (
         <div style={{ background:"#fff", borderRadius:14, border:"1px solid #E2E8F0", padding:"28px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:24, paddingBottom:20, borderBottom:"1px solid #F1F5F9" }}>
             <div style={{ width:60, height:60, borderRadius:"50%", background:"linear-gradient(135deg,#7C3AED,#6D28D9)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, fontWeight:900, color:"#fff" }}>{shop.shopName?.[0]||"S"}</div>
             <div>
-              <div style={{ fontSize:18, fontWeight:700, color:"#0F172A", fontFamily:"'Lora', Georgia, serif" }}>{shop.shopName}</div>
+              <div style={{ fontSize:18, fontWeight:700, color:"#0F172A", fontFamily:"var(--font-base)" }}>{shop.shopName}</div>
               <div style={{ fontSize:12, color:"#64748B" }}>{shop.city}, {shop.province}</div>
               <div style={{ marginTop:6 }}><PlanBadge /></div>
             </div>
@@ -302,29 +411,22 @@ function Profile({ shop }) {
   );
 }
 
-// ── FIX: BillingBusiness is the ONLY billing component here ───────────────
-// This uses the correct purple/business branding.
-// The blue "Billing" (Pro) component belongs ONLY in DashboardProPage.jsx.
 function BillingBusiness({ shop }) {
   const [showRenew, setShowRenew] = React.useState(false);
 
   return (
     <div>
-      <h2 style={{ fontFamily:"'Lora', Georgia, serif", fontSize:19, fontWeight:900, color:"#0F172A", marginBottom:20 }}>Billing & Subscription</h2>
-
+      <h2 style={{ fontFamily:"var(--font-base)", fontSize:19, fontWeight:900, color:"#0F172A", marginBottom:20 }}>Billing & Subscription</h2>
       <div style={{ background:"#fff", borderRadius:14, border:"1px solid #E2E8F0", padding:"24px", marginBottom:20 }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20, paddingBottom:20, borderBottom:"1px solid #F1F5F9" }}>
           <div>
-            <div style={{ fontFamily:"'Lora', Georgia, serif", fontSize:18, fontWeight:900, color:"#0F172A", marginBottom:4 }}>Business Plan</div>
-            <div style={{ fontSize:26, fontWeight:900, color:"#7C3AED", fontFamily:"'Lora', Georgia, serif" }}>
+            <div style={{ fontFamily:"var(--font-base)", fontSize:18, fontWeight:900, color:"#0F172A", marginBottom:4 }}>Business Plan</div>
+            <div style={{ fontSize:26, fontWeight:900, color:"#7C3AED", fontFamily:"var(--font-base)" }}>
               ₱4,499<span style={{ fontSize:13, fontWeight:400, color:"#94A3B8" }}>/year</span>
             </div>
           </div>
-          <span style={{ display:"inline-flex", alignItems:"center", background:"linear-gradient(135deg,#7C3AED,#6D28D9)", color:"#fff", borderRadius:20, padding:"3px 12px", fontSize:10, fontWeight:700 }}>
-            BUSINESS
-          </span>
+          <span style={{ display:"inline-flex", alignItems:"center", background:"linear-gradient(135deg,#7C3AED,#6D28D9)", color:"#fff", borderRadius:20, padding:"3px 12px", fontSize:10, fontWeight:700 }}>BUSINESS</span>
         </div>
-
         {shop && [
           ["Shop",                shop.shopName],
           ["Subscription Plan",   shop.subscriptionPlan?.toUpperCase() || "BUSINESS"],
@@ -338,14 +440,12 @@ function BillingBusiness({ shop }) {
             <span style={{ color:"#0F172A", fontWeight:500 }}>{v}</span>
           </div>
         ))}
-
         {!showRenew && (
           <button onClick={() => setShowRenew(true)} style={{ marginTop:16, padding:"11px 24px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#7C3AED,#6D28D9)", color:"#fff", fontWeight:700, fontSize:13, cursor:"pointer" }}>
             Renew / Pay with Stripe →
           </button>
         )}
       </div>
-
       {showRenew && (
         <div style={{ background:"#fff", borderRadius:14, border:"1px solid #DDD6FE", padding:"24px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
@@ -371,7 +471,6 @@ export default function ShopDashboardBusiness() {
   const [activeTab, setActiveTab]   = useState("overview");
   const [toast, setToast]           = useState(null);
   const [quoteModal, setQuoteModal] = useState(null);
-  const [quoteForm, setQuoteForm]   = useState({ amount: "", note: "" });
   const [submitting, setSubmitting] = useState(false);
   const [showPlanActivatedModal, setShowPlanActivatedModal] = useState(false);
   const prevStatusRef = useRef(null);
@@ -416,20 +515,6 @@ export default function ShopDashboardBusiness() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const handleQuote = async () => {
-    if (!quoteForm.amount) return;
-    setSubmitting(true);
-    try {
-      await submitQuotation({ projectId: quoteModal.id, ...quoteForm });
-      showToast("Quotation submitted!");
-      setQuoteModal(null);
-      setQuoteForm({ amount: "", note: "" });
-      const updated = await getShopQuotations();
-      setQuotations(updated);
-    } catch { showToast("Failed to submit.", "error"); }
-    finally  { setSubmitting(false); }
-  };
-
   const accepted    = quotations.filter(q => q.status === "accepted").length;
   const pending     = quotations.filter(q => q.status === "pending").length;
   const rejected    = quotations.filter(q => q.status === "rejected").length;
@@ -460,14 +545,14 @@ export default function ShopDashboardBusiness() {
     return (
       p.projectName?.toLowerCase().includes(q) ||
       p.locationCity?.toLowerCase().includes(q) ||
-      p.materials?.join(" ").toLowerCase().includes(q)
+      p.materials?.map(m => m.name || m).join(" ").toLowerCase().includes(q)
     );
   });
 
   const Sidebar = () => (
     <aside style={{ width:240, minHeight:"100vh", flexShrink:0, background:"linear-gradient(175deg,#1E0B3A 0%,#2D1B69 60%,#1E0B3A 100%)", display:"flex", flexDirection:"column" }}>
       <div style={{ padding:"22px 20px 18px", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
-        <div style={{ fontFamily:"'Lora', Georgia, serif", fontSize:17, fontWeight:900, color:"#F1F5F9", marginBottom:3 }}>iConstruct</div>
+        <div style={{ fontFamily:"var(--font-base)", fontSize:17, fontWeight:900, color:"#F1F5F9", marginBottom:3 }}>iConstruct</div>
         <div style={{ fontSize:10, color:"rgba(196,181,253,0.6)", fontWeight:500, letterSpacing:"0.08em", textTransform:"uppercase" }}>Shop Manager</div>
         <div style={{ marginTop:10 }}><PlanBadge /></div>
       </div>
@@ -483,7 +568,7 @@ export default function ShopDashboardBusiness() {
         {NAV.map(item => {
           const isActive = activeTab === item.key;
           return (
-            <button key={item.key} onClick={() => setActiveTab(item.key)} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 20px", border:"none", cursor:"pointer", fontFamily:"'Inter', sans-serif", fontSize:13, fontWeight:isActive?600:400, background:isActive?"rgba(124,58,237,0.2)":"transparent", color:isActive?"#C4B5FD":"rgba(196,181,253,0.55)", borderLeft:isActive?"2px solid #7C3AED":"2px solid transparent", textAlign:"left", transition:"all 0.15s" }}>
+            <button key={item.key} onClick={() => setActiveTab(item.key)} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 20px", border:"none", cursor:"pointer", fontFamily:"var(--font-base)", fontSize:13, fontWeight:isActive?600:400, background:isActive?"rgba(124,58,237,0.2)":"transparent", color:isActive?"#C4B5FD":"rgba(196,181,253,0.55)", borderLeft:isActive?"2px solid #7C3AED":"2px solid transparent", textAlign:"left", transition:"all 0.15s" }}>
               <span>{item.label}</span>
             </button>
           );
@@ -496,7 +581,7 @@ export default function ShopDashboardBusiness() {
             <div style={{ fontSize:10, color:"rgba(196,181,253,0.5)" }}>{shop.ownerName}</div>
           </div>
         )}
-        <button onClick={async () => { await logoutShop(); navigate("/login"); }} style={{ width:"100%", padding:"8px", borderRadius:8, border:"1px solid rgba(239,68,68,0.3)", background:"rgba(239,68,68,0.1)", color:"#F87171", fontSize:11.5, fontWeight:600, cursor:"pointer", fontFamily:"'Inter', sans-serif" }}>Sign Out</button>
+        <button onClick={async () => { await logoutShop(); navigate("/login"); }} style={{ width:"100%", padding:"8px", borderRadius:8, border:"1px solid rgba(239,68,68,0.3)", background:"rgba(239,68,68,0.1)", color:"#F87171", fontSize:11.5, fontWeight:600, cursor:"pointer", fontFamily:"var(--font-base)" }}>Sign Out</button>
       </div>
     </aside>
   );
@@ -513,24 +598,24 @@ export default function ShopDashboardBusiness() {
     </header>
   );
 
-  // ── FIX: billing case now correctly calls BillingBusiness ────────────────
   const renderContent = () => {
     switch (activeTab) {
       case "overview":   return <Overview quotations={quotations} projects={projects} accepted={accepted} pending={pending} rejected={rejected} winRate={winRate} monthQuotes={monthQuotes} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} />;
       case "projects":   return <AllProjects filteredProjects={filteredProjects} searchQuery={searchQuery} setSearchQuery={setSearchQuery} setQuoteModal={setQuoteModal} />;
-      case "quotations":
+      case "quotations": return <QuotationsBusiness quotations={quotations} accentColor="#7C3AED" />;
       case "analytics":  return <AdvancedAnalytics quotations={quotations} accepted={accepted} rejected={rejected} winRate={winRate} monthlyBreakdown={monthlyBreakdown} />;
       case "featured":   return <FeaturedPlacement />;
       case "profile":    return <Profile shop={shop} />;
       case "products":   return <ProductsTab plan="business" />;
-      case "billing":    return <BillingBusiness shop={shop} />;   // ← FIXED: was calling wrong Billing
+      case "billing":    return <BillingBusiness shop={shop} />;
+      case "settings":   return <SettingsTab shop={shop} accentColor="#7C3AED" accentGradient="linear-gradient(135deg,#7C3AED,#6D28D9)" />;
       default:           return <Overview quotations={quotations} projects={projects} accepted={accepted} pending={pending} rejected={rejected} winRate={winRate} monthQuotes={monthQuotes} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} />;
     }
   };
 
   return (
     <>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0;}body{font-family:'Inter',sans-serif;}`}</style>
+      <style>{`* { box-sizing: border-box; margin: 0; padding: 0; } body { font-family: var(--font-base); }`}</style>
       <div style={{ display:"flex", minHeight:"100vh", background:"#F8FAFC" }}>
         <Sidebar />
         <div style={{ flex:1, display:"flex", flexDirection:"column" }}>
@@ -541,45 +626,45 @@ export default function ShopDashboardBusiness() {
         </div>
       </div>
 
-      {/* Quote Modal */}
       {quoteModal && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.5)", backdropFilter:"blur(6px)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
-          onClick={e => { if(e.target===e.currentTarget) setQuoteModal(null); }}>
-          <div style={{ background:"#fff", borderRadius:18, width:"100%", maxWidth:440, padding:"28px", boxShadow:"0 40px 100px rgba(0,0,0,0.25)" }}>
-            <h4 style={{ fontFamily:"'Lora', Georgia, serif", fontSize:17, fontWeight:700, color:"#0F172A", marginBottom:4 }}>Submit Quotation</h4>
-            <p style={{ fontSize:12, color:"#64748B", marginBottom:20 }}>For: <strong style={{ color:"#0F172A" }}>{quoteModal.projectName || quoteModal.title || "Construction Project"}</strong></p>
-            <div style={{ marginBottom:14 }}>
-              <label style={{ fontSize:11.5, fontWeight:600, color:"#334155", display:"block", marginBottom:5 }}>Quote Amount (₱)</label>
-              <input type="number" placeholder="e.g. 15000" value={quoteForm.amount} onChange={e => setQuoteForm(f=>({...f, amount:e.target.value}))} style={{ width:"100%", padding:"10px 14px", border:"1.5px solid #E2E8F0", borderRadius:8, fontSize:13, fontFamily:"'Inter', sans-serif", outline:"none", color:"#0F172A" }} />
-            </div>
-            <div style={{ marginBottom:20 }}>
-              <label style={{ fontSize:11.5, fontWeight:600, color:"#334155", display:"block", marginBottom:5 }}>Notes (optional)</label>
-              <textarea rows={3} value={quoteForm.note} onChange={e => setQuoteForm(f=>({...f,note:e.target.value}))} style={{ width:"100%", padding:"10px 14px", border:"1.5px solid #E2E8F0", borderRadius:8, fontSize:13, fontFamily:"'Inter', sans-serif", resize:"none", outline:"none", color:"#0F172A" }} />
-            </div>
-            <div style={{ display:"flex", gap:10 }}>
-              <button onClick={() => setQuoteModal(null)} style={{ padding:"11px 20px", borderRadius:8, border:"1px solid #E2E8F0", background:"#F8FAFC", fontSize:12.5, fontWeight:500, color:"#64748B", cursor:"pointer" }}>Cancel</button>
-              <button disabled={!quoteForm.amount||submitting} onClick={handleQuote} style={{ flex:1, padding:"11px", borderRadius:8, border:"none", background:quoteForm.amount?"linear-gradient(135deg,#7C3AED,#6D28D9)":"#F1F5F9", color:quoteForm.amount?"#fff":"#94A3B8", fontSize:12.5, fontWeight:600, cursor:"pointer" }}>
-                {submitting ? "Submitting..." : "Submit Quotation"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <QuoteModal
+          project={quoteModal}
+          onClose={() => setQuoteModal(null)}
+          onSubmit={async ({ projectId, amount, note, items }) => {
+            setSubmitting(true);
+            try {
+              await submitQuotation({ projectId, amount, note, items });
+              showToast("Quotation submitted!");
+              setQuoteModal(null);
+              const updated = await getShopQuotations();
+              setQuotations(updated);
+            } catch (err) {
+              showToast(err.message || "Failed to submit.", "error");
+            } finally {
+              setSubmitting(false);
+            }
+          }}
+          submitting={submitting}
+          accentColor="#7C3AED"
+          accentGradient="linear-gradient(135deg, #7C3AED, #6D28D9)"
+        />
       )}
 
-      {/* Toast */}
       {toast && <div style={{ position:"fixed", bottom:24, right:24, padding:"12px 18px", borderRadius:10, background:toast.type==="error"?"#DC2626":"#0F172A", color:"#fff", fontSize:12.5, fontWeight:500, boxShadow:"0 10px 30px rgba(0,0,0,0.25)", zIndex:500 }}>{toast.msg}</div>}
 
-      {/* Plan Activation Modal */}
       {showPlanActivatedModal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.6)", backdropFilter:"blur(8px)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
           <div style={{ background:"#fff", borderRadius:20, padding:"40px 36px", width:"100%", maxWidth:420, textAlign:"center", boxShadow:"0 32px 80px rgba(0,0,0,0.25)", position:"relative", overflow:"hidden" }}>
             <div style={{ position:"absolute", top:0, left:0, right:0, height:4, background:"linear-gradient(90deg,#7C3AED,#6D28D9)", borderRadius:"20px 20px 0 0" }} />
-            <div style={{ width:72, height:72, borderRadius:"50%", background:"linear-gradient(135deg,#D1FAE5,#A7F3D0)", border:"2px solid #6EE7B7", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px", fontSize:32 }}>🎉</div>
-            <div style={{ fontFamily:"'Lora', Georgia, serif", fontSize:22, fontWeight:900, color:"#0F172A", marginBottom:8 }}>Subscription Activated!</div>
+            <div style={{ width:72, height:72, borderRadius:"50%", background:"linear-gradient(135deg,#D1FAE5,#A7F3D0)", border:"2px solid #6EE7B7", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px" }}>
+              <TbConfetti size={36} color="#059669" />
+            </div>
+            <div style={{ fontFamily:"var(--font-base)", fontSize:22, fontWeight:900, color:"#0F172A", marginBottom:8 }}>Subscription Activated!</div>
             <p style={{ fontSize:14, color:"#64748B", lineHeight:1.7, marginBottom:8 }}>Your plan has been confirmed by the admin and is now <strong style={{ color:"#059669" }}>active</strong>.</p>
             <p style={{ fontSize:13, color:"#94A3B8", lineHeight:1.6, marginBottom:28 }}>Please <strong style={{ color:"#0F172A" }}>sign out and log back in</strong> to apply your new features.</p>
-            <div style={{ background:"#FFF7ED", border:"1px solid #FED7AA", borderRadius:10, padding:"12px 16px", marginBottom:24, fontSize:12.5, color:"#92400E", lineHeight:1.6 }}>
-              ⚠️ You must sign out and sign back in for your upgraded plan to take effect.
+            <div style={{ background:"#FFF7ED", border:"1px solid #FED7AA", borderRadius:10, padding:"12px 16px", marginBottom:24, fontSize:12.5, color:"#92400E", lineHeight:1.6, display:"flex", alignItems:"flex-start", gap:8 }}>
+              <TbAlertTriangle size={15} style={{ flexShrink:0, marginTop:1 }} color="#D97706" />
+              You must sign out and sign back in for your upgraded plan to take effect.
             </div>
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={() => setShowPlanActivatedModal(false)} style={{ flex:1, padding:"12px", borderRadius:10, border:"1.5px solid rgba(44,62,80,0.15)", background:"transparent", color:"rgba(44,62,80,0.6)", fontSize:13, fontWeight:500, cursor:"pointer" }}>Remind Me Later</button>

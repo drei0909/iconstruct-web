@@ -134,7 +134,7 @@ const styles = {
   page: {
     minHeight: "100vh", background: "#F8FAFC",
     display: "flex", alignItems: "center", justifyContent: "center",
-    padding: 24, fontFamily: "'Inter', sans-serif",
+    padding: 24, fontFamily: "var(--font-base)",
   },
   card: {
     background: "#fff", borderRadius: 20, padding: "40px 36px",
@@ -147,7 +147,7 @@ const styles = {
     margin: "0 auto 20px", fontSize: 32,
   },
   title: {
-    fontFamily: "'Lora', Georgia, serif", fontSize: 22,
+    fontFamily: "var(--font-base)", fontSize: 22,
     fontWeight: 900, color: "#0F172A", marginBottom: 8,
   },
   sub: {
@@ -165,7 +165,7 @@ const styles = {
   btn: {
     width: "100%", padding: "13px", borderRadius: 10, border: "none",
     color: "#fff", fontWeight: 700, fontSize: 13,
-    cursor: "pointer", fontFamily: "'Inter', sans-serif",
+    cursor: "pointer", fontFamily: "var(--font-base)",
   },
   spinner: {
     width: 40, height: 40, borderRadius: "50%",

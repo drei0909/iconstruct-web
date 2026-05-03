@@ -79,7 +79,7 @@ export default function FilterChips({
               color        : isActive ? "#fff" : "#6B7F96",
               fontSize     : 11.5,
               fontWeight   : 600,
-              fontFamily   : "'Inter', sans-serif",
+              fontFamily   : "var(--font-base)",
               cursor       : "pointer",
               transition   : "all 0.15s",
               whiteSpace   : "nowrap",

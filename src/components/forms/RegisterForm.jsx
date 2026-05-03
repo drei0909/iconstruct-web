@@ -383,7 +383,6 @@ export default function RegisterForm() {
                 borderRadius:"50%", background:"#fff", border:"none", fontSize:20,
                 cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
                 boxShadow:"0 2px 12px rgba(0,0,0,0.3)", zIndex:1, lineHeight:1 }}>
-              ×
             </button>
             {previewModal.type?.startsWith("image") ? (
               <img src={previewModal.url} alt={previewModal.name}

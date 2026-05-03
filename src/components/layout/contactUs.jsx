@@ -1,5 +1,3 @@
-// src/components/layout/contactUs.jsx
-// ✅ NO separate CSS import — all styles live in src/style/global.css
 
 import { useState } from "react";
 
@@ -7,17 +5,17 @@ const contactInfo = [
   {
     number: "01",
     label: "Email Us",
-    value: "hello@iconstruct.ph",
+    value: "iconstruct2026@gmail.com",
     sub: "We reply within 24 hours",
-    href: "mailto:hello@iconstruct.ph",
+    href: "mailto:iconstruct2026@gmail.com",
   },
-  {
+  /* {
     number: "02",
     label: "Follow Us",
     value: "@iConstruct",
     sub: "Facebook & Instagram",
     href: "#",
-  },
+  }, */
   {
     number: "03",
     label: "Location",
