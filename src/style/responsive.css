@@ -1,0 +1,838 @@
+/* ============================================================
+   iConstruct — Mobile Responsiveness Fixes
+   Add this file to your project and import it in index.css
+   AFTER global.css:  @import './style/responsive.css';
+   ============================================================ */
+
+/* ── Base resets for mobile ── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+img, video, iframe { max-width: 100%; height: auto; }
+
+/* ================================================================
+   BREAKPOINTS USED
+   xl  : 1200px
+   lg  : 991px
+   md  : 768px
+   sm  : 640px
+   xs  : 480px
+   xxs : 380px
+   ================================================================ */
+
+
+/* ================================================================
+   1. NAVBAR
+   ================================================================ */
+
+/* On very small screens shrink the logo so it doesn't overflow */
+@media (max-width: 380px) {
+  .nb-nav { padding: 0 4vw; }
+  .nb-logo img { height: 60px !important; }
+  .nb-nav.scrolled .nb-logo img { height: 36px !important; }
+}
+
+/* Collapse height tweak when the hamburger menu is open */
+@media (max-width: 991px) {
+  :root { --nb-h: 64px; }
+
+  .nb-collapse {
+    top: var(--nb-h);
+    padding: 16px 5vw 20px;
+  }
+
+  .nb-collapse-link {
+    font-size: 13px;
+    padding: 11px 0;
+  }
+
+  .nb-collapse-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .nb-collapse-actions .nb-signin,
+  .nb-collapse-actions .nb-signup {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+    padding: 12px 20px;
+  }
+}
+
+
+/* ================================================================
+   2. HERO SECTION
+   ================================================================ */
+
+@media (max-width: 768px) {
+  .hero-root { min-height: 100svh; }
+
+  .hero-content-wrap {
+    padding: 100px 5vw 0;
+    align-items: flex-start;
+  }
+
+  .hero-inner { max-width: 100%; }
+
+  .hero-headline,
+  .hero-headline-highlight {
+    font-size: clamp(34px, 9vw, 54px) !important;
+  }
+
+  .hero-sub {
+    font-size: 15px;
+    margin-bottom: 28px;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .hero-btn-primary,
+  .hero-btn-ghost {
+    justify-content: center;
+    text-align: center;
+    padding: 14px 20px;
+    font-size: 14px;
+  }
+
+  /* Stats bar — stack vertically on very small screens */
+  .hero-stats {
+    left: 5vw;
+    right: 5vw;
+    bottom: 80px;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .hero-stat-num  { font-size: 20px; }
+  .hero-stat-label{ font-size: 10px; }
+  .hero-stat-divider { display: none; }
+
+  /* Hide scroll cue & controls on mobile */
+  .hero-scroll-cue  { display: none; }
+  .hero-controls    { right: 5vw; bottom: 16px; }
+}
+
+@media (max-width: 480px) {
+  .hero-tag { font-size: 10px; padding: 5px 12px; }
+  .hero-stats { bottom: 60px; }
+}
+
+
+/* ================================================================
+   3. FEATURES SECTION
+   ================================================================ */
+
+@media (max-width: 640px) {
+  .ft-section { padding: 56px 4vw 48px; }
+
+  .ft-h2 { font-size: clamp(22px, 6vw, 32px); }
+
+  .ft-cta {
+    padding: 20px 18px;
+  }
+
+  .ft-cta-text { font-size: 15px; }
+
+  .ft-cta-btns {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .ft-btn-fill,
+  .ft-btn-ghost {
+    width: 100%;
+    justify-content: center;
+    padding: 12px 16px;
+  }
+
+  .ft-stats { gap: 0; }
+
+  .ft-stat { padding: 16px 16px; }
+  .ft-stat-val { font-size: 20px; }
+}
+
+
+/* ================================================================
+   4. SUBSCRIPTION PLANS
+   ================================================================ */
+
+@media (max-width: 640px) {
+  .sp-section { padding: 56px 4vw 48px; }
+
+  .sp-plans { padding: 0 4vw; }
+
+  .sp-plan-card { padding: 24px 18px 20px; }
+
+  .sp-title { font-size: clamp(22px, 7vw, 32px); }
+
+  .sp-payments {
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+
+
+/* ================================================================
+   5. FOOTER
+   ================================================================ */
+
+@media (max-width: 575px) {
+  .fo-main { padding: 40px 4vw 28px; }
+
+  .fo-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .fo-bottom-links {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .fo-brand-text { max-width: 100%; }
+}
+
+
+/* ================================================================
+   6. LOGIN PAGE
+   ================================================================ */
+
+@media (max-width: 767px) {
+  .login-page { padding: 80px 16px 40px; }
+
+  .login-wrap {
+    border-radius: 14px;
+    max-width: 100%;
+  }
+
+  .login-right {
+    padding: 32px 24px;
+  }
+
+  .login-form-title { font-size: 22px; }
+}
+
+@media (max-width: 380px) {
+  .login-right { padding: 28px 16px; }
+}
+
+
+/* ================================================================
+   7. REGISTER PAGE
+   ================================================================ */
+
+@media (max-width: 767px) {
+  .reg-page { padding: 80px 16px 40px; }
+
+  .reg-wrap {
+    border-radius: 14px;
+    max-width: 100%;
+  }
+
+  .reg-right { padding: 32px 20px; }
+
+  .reg-form-title { font-size: 20px; }
+}
+
+@media (max-width: 500px) {
+  .reg-row { grid-template-columns: 1fr; }
+  .reg-right { padding: 24px 16px; }
+}
+
+
+/* ================================================================
+   8. FAQ PAGE
+   ================================================================ */
+
+@media (max-width: 640px) {
+  .faq-page { padding-top: 100px; padding-bottom: 64px; }
+
+  .faq-title { font-size: clamp(26px, 8vw, 40px); }
+
+  .faq-question { padding: 16px 16px; }
+
+  .faq-answer-inner { padding: 0 16px 20px 16px; }
+
+  .faq-q-num  { width: 26px; height: 26px; font-size: 10px; }
+
+  .faq-cta {
+    flex-direction: column;
+    padding: 24px 20px;
+  }
+
+  .faq-cta-btn { width: 100%; justify-content: center; }
+}
+
+
+/* ================================================================
+   9. ABOUT US PAGE
+   ================================================================ */
+
+@media (max-width: 640px) {
+  .about-page { padding-top: 100px; padding-bottom: 64px; }
+
+  .about-hero {
+    padding: 36px 20px;
+    flex-direction: column;
+  }
+
+  .about-hero-title { font-size: clamp(24px, 7vw, 40px); }
+
+  .about-capstone { padding: 24px 20px 24px 28px; }
+
+  .about-card { padding: 28px 22px; }
+}
+
+
+/* ================================================================
+   10. CONTACT US PAGE
+   ================================================================ */
+
+@media (max-width: 640px) {
+  .ct-page { padding-top: 100px; padding-bottom: 64px; }
+
+  .ct-form-card { padding: 28px 20px; }
+
+  .ct-title { font-size: clamp(26px, 8vw, 40px); }
+}
+
+@media (max-width: 500px) {
+  .ct-row { grid-template-columns: 1fr; }
+}
+
+
+/* ================================================================
+   11. OTP INPUTS (ForgotPassword + Register)
+   ================================================================ */
+
+@media (max-width: 480px) {
+  .fp-otp-row,
+  .otp-row {
+    gap: 6px;
+  }
+
+  .fp-otp-box,
+  .otp-input {
+    height: 46px;
+    font-size: 18px;
+  }
+
+  .fp-modal { padding: 28px 20px 24px; }
+}
+
+@media (max-width: 380px) {
+  .fp-otp-box,
+  .otp-input {
+    height: 42px;
+    font-size: 16px;
+  }
+}
+
+
+/* ================================================================
+   12. ADMIN DASHBOARD
+   ================================================================ */
+
+/* Stack the admin nav on mobile */
+@media (max-width: 768px) {
+  /* Hide sidebar, show as top drawer instead via inline style fallback */
+  .adm-nav { padding: 0 16px; }
+
+  .adm-main { padding: 16px; }
+
+  .adm-stats { grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .adm-table-wrap { overflow-x: auto; }
+
+  .adm-table th,
+  .adm-table td { padding: 10px 10px; font-size: 12px; }
+
+  .adm-modal { max-width: calc(100vw - 32px); }
+
+  .adm-modal-body  { padding: 16px 20px; }
+  .adm-modal-head  { padding: 18px 20px 14px; }
+  .adm-modal-actions { flex-direction: column; padding: 14px 20px 18px; }
+
+  .adm-approve-btn,
+  .adm-reject-btn { width: 100%; }
+
+  /* Toast position */
+  .adm-toast { right: 16px; bottom: 16px; left: 16px; right: 16px; }
+}
+
+@media (max-width: 480px) {
+  .adm-stats { grid-template-columns: 1fr; }
+}
+
+
+/* ================================================================
+   13. SHOP DASHBOARDS (Basic / Pro / Business)
+   ================================================================ */
+
+/* ── Sidebar — collapse to bottom tab bar on mobile ── */
+@media (max-width: 768px) {
+
+  /* Hide the desktop sidebar */
+  .db-sidebar {
+    display: none;
+  }
+
+  /* Make the main column full-width */
+  .db-shell {
+    flex-direction: column;
+  }
+
+  .db-main-col {
+    width: 100%;
+  }
+
+  .db-content {
+    padding: 16px 14px 80px; /* bottom padding for mobile nav */
+  }
+
+  /* Topbar adjustments */
+  .db-topbar {
+    padding: 0 14px;
+    height: 52px;
+  }
+
+  .db-topbar-title { font-size: 13px; }
+  .db-topbar-breadcrumb { font-size: 9px; }
+
+  /* Stat grids */
+  .db-stat-grid,
+  .db-stat-grid-4 {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .db-stat-value { font-size: 24px; }
+
+  /* Two column layouts go single */
+  .db-two-col { grid-template-columns: 1fr; }
+
+  /* Tables become horizontally scrollable */
+  .db-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  .db-table th,
+  .db-table td { padding: 10px 12px; font-size: 12px; white-space: nowrap; }
+
+  /* Plan grids */
+  .db-plan-grid { grid-template-columns: 1fr; }
+
+  /* Upgrade banner */
+  .db-upgrade-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .db-upgrade-cta-btn { width: 100%; }
+
+  /* Modal */
+  .db-modal-overlay { padding: 12px; }
+  .db-modal { max-width: 100%; }
+
+  /* Locked features grid */
+  .db-locked-grid { grid-template-columns: 1fr; }
+
+  /* Toast */
+  .db-toast {
+    left: 16px;
+    right: 16px;
+    bottom: 72px; /* above mobile nav */
+    max-width: 100%;
+  }
+}
+
+/* ── Mobile bottom navigation bar (replaces sidebar on phone) ── */
+@media (max-width: 768px) {
+  .db-mobile-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: var(--db-ink, #1A2332);
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    z-index: 100;
+    border-top: 1px solid rgba(255,255,255,0.07);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .db-mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    background: none;
+    border: none;
+    color: rgba(168,184,200,0.55);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 8px;
+    transition: color 0.15s;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .db-mobile-nav-item.active {
+    color: #93C5FD;
+  }
+
+  .db-mobile-nav-icon {
+    font-size: 18px;
+    line-height: 1;
+  }
+}
+
+@media (max-width: 480px) {
+  .db-stat-grid,
+  .db-stat-grid-4 { grid-template-columns: 1fr; }
+
+  .db-stat-value { font-size: 28px; }
+}
+
+
+/* ================================================================
+   14. QUOTE MODAL
+   ================================================================ */
+
+@media (max-width: 640px) {
+  /* Full-screen on mobile */
+  div[style*="padding: 24"]:has(> div[style*="maxWidth: 640"]) {
+    padding: 0 !important;
+    align-items: flex-end !important;
+  }
+}
+
+/* Target the QuoteModal overlay generically since it's inline-styled */
+@media (max-width: 640px) {
+  .quote-modal-overlay {
+    padding: 0 !important;
+    align-items: flex-end;
+  }
+
+  .quote-modal-card {
+    border-radius: 18px 18px 0 0 !important;
+    max-height: 94svh !important;
+  }
+}
+
+
+/* ================================================================
+   15. SYSTEM SETTINGS TAB (Admin)
+   ================================================================ */
+
+@media (max-width: 768px) {
+  /* Settings sidebar collapses above content */
+  div[style*="width: 200"][style*="sticky"] {
+    position: static !important;
+    width: 100% !important;
+  }
+
+  /* Settings layout becomes vertical */
+  div[style*="display: flex"][style*="gap: 22"] {
+    flex-direction: column !important;
+  }
+}
+
+
+/* ================================================================
+   16. ADMIN DASHBOARD — Advanced (inline-styled sidebars)
+   ================================================================ */
+
+/* The Business/Pro/Basic dashboards use inline styles for sidebar.
+   We patch the shell containers via class names that exist. */
+
+@media (max-width: 768px) {
+  /* Business dashboard sidebar override */
+  aside[style*="width:240"],
+  aside[style*="width: 240"],
+  aside[style*="width:228"],
+  aside[style*="width: 228"] {
+    display: none !important;
+  }
+
+  /* Pro/Business main content area full width */
+  div[style*="flex:1"][style*="flexDirection:column"],
+  div[style*="flex: 1"][style*="flex-direction: column"] {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* Admin sidebar */
+  aside[style*="minHeight:\"100vh\""],
+  aside[style*="min-height: 100vh"] {
+    display: none !important;
+  }
+}
+
+
+/* ================================================================
+   17. GENERAL TABLES — horizontal scroll wrapper
+   ================================================================ */
+
+@media (max-width: 640px) {
+  table {
+    min-width: 540px;
+  }
+
+  .adm-table-wrap,
+  .db-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 14px;
+  }
+}
+
+
+/* ================================================================
+   18. PAYMENT SUCCESS PAGE
+   ================================================================ */
+
+@media (max-width: 480px) {
+  /* The PaymentSuccessPage uses inline styles — patch via body/page */
+  body .payment-success-card,
+  div[style*="maxWidth: 420"][style*="textAlign: center"] {
+    padding: 28px 20px !important;
+  }
+}
+
+
+/* ================================================================
+   19. TERMS MODAL
+   ================================================================ */
+
+@media (max-width: 640px) {
+  .tc-modal { border-radius: 14px 14px 0 0; max-height: 96svh; }
+
+  .tc-modal-head { padding: 18px 18px 14px; }
+
+  .tc-modal-body { padding: 16px 18px; }
+
+  .tc-modal-foot {
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 16px;
+  }
+
+  .tc-foot-actions {
+    width: 100%;
+    flex-direction: column;
+    margin-left: 0;
+  }
+
+  .tc-btn-agree,
+  .tc-btn-decline {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .tc-scroll-hint { display: none; }
+}
+
+
+/* ================================================================
+   20. ADMIN LOGIN
+   ================================================================ */
+
+@media (max-width: 480px) {
+  .adm-login-card { padding: 36px 24px; }
+
+  .adm-login-title { font-size: 22px; }
+}
+
+
+/* ================================================================
+   21. PRODUCT TAB / FILTER CHIPS / SEARCH BAR
+   ================================================================ */
+
+@media (max-width: 640px) {
+  /* FilterChips — allow wrapping and reduce padding */
+  .filter-chips-wrap {
+    gap: 5px;
+  }
+
+  /* SearchBar — full width on mobile */
+  .search-bar-wrap {
+    width: 100% !important;
+  }
+
+  input[aria-label] {
+    font-size: 16px; /* prevents iOS zoom on focus */
+  }
+}
+
+
+/* ================================================================
+   22. INPUT FONT-SIZE FIX (iOS zoom prevention)
+   Always use font-size >= 16px on inputs on mobile
+   ================================================================ */
+
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="search"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+
+/* ================================================================
+   23. SAFE AREA INSETS (iPhone notch / home bar)
+   ================================================================ */
+
+@supports (padding: env(safe-area-inset-bottom)) {
+  .nb-root {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .db-content {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  }
+
+  .db-mobile-nav {
+    padding-bottom: env(safe-area-inset-bottom);
+    height: calc(60px + env(safe-area-inset-bottom));
+  }
+}
+
+
+/* ================================================================
+   24. OVERFLOW CONTROL — prevent horizontal scroll globally
+   ================================================================ */
+
+body { overflow-x: hidden; }
+
+.hero-root,
+.ft-section,
+.sp-section,
+.faq-page,
+.about-page,
+.ct-page,
+.login-page,
+.reg-page {
+  overflow-x: hidden;
+}
+
+
+/* ================================================================
+   25. TOUCH TARGET SIZES — all interactive elements min 44×44px
+   ================================================================ */
+
+@media (max-width: 768px) {
+  .nb-toggler,
+  .nb-bar-link,
+  .nb-link,
+  .nb-signin,
+  .nb-signup,
+  .db-nav-item,
+  .faq-question,
+  .adm-filter-btn,
+  .db-btn-primary,
+  .db-btn-secondary,
+  .ft-btn-fill,
+  .ft-btn-ghost,
+  .sp-plan-cta,
+  .hero-btn-primary,
+  .hero-btn-ghost {
+    min-height: 44px;
+  }
+}
+
+
+/* ================================================================
+   26. MODALS — full-screen slide-up on mobile
+   ================================================================ */
+
+@media (max-width: 640px) {
+  /* Admin detail modal */
+  .adm-overlay {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+
+  .adm-modal,
+  .adm-reject-modal {
+    border-radius: 18px 18px 0 0 !important;
+    max-width: 100% !important;
+    max-height: 94svh !important;
+  }
+
+  /* DB modal */
+  .db-modal-overlay {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+
+  .db-modal {
+    border-radius: 18px 18px 0 0 !important;
+    max-width: 100% !important;
+    max-height: 94svh !important;
+  }
+
+  /* ForgotPassword modal */
+  .fp-overlay {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+
+  .fp-modal {
+    border-radius: 18px 18px 0 0 !important;
+    max-width: 100% !important;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* nb download modal */
+  .nb-modal-overlay { align-items: flex-end; padding: 0; }
+  .nb-modal { border-radius: 18px 18px 0 0; max-width: 100%; }
+}
+
+
+/* ================================================================
+   27. MISCELLANEOUS HELPERS
+   ================================================================ */
+
+/* Prevent text overflow in narrow cells */
+@media (max-width: 640px) {
+  .adm-shop-name,
+  .adm-shop-owner,
+  .db-project-title,
+  .db-sidebar-user-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+  }
+}
+
+/* Hero accent band hidden on mobile (decorative only) */
+@media (max-width: 640px) {
+  .hero-accent-band { display: none; }
+  .hero-beige-strip { display: none; }
+}
+
+/* Ensure the subscription page header is centered on all sizes */
+@media (max-width: 480px) {
+  .sp-header { padding: 0 4vw; }
+  .sp-subtitle { font-size: 14px; }
+}

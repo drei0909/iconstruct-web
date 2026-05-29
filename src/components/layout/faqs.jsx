@@ -17,13 +17,13 @@ const faqs = [
     category: "Mobile App",
     question: "Is the mobile app free?",
     answer:
-      "Yes, the iConstruct mobile application is completely free to download from the Google Play Store and the Apple App Store.",
+      "Yes.",
   },
   {
     category: "Mobile App",
     question: "What platforms is the app available on?",
     answer:
-      "The iConstruct app is available on both Android (Google Play) and iOS (App Store). A web version is also accessible directly from your browser.",
+      "The iConstruct app is available on Android (Google Play) . A web version is also accessible directly from your browser.",
   },
   {
     category: "Hardware Shops",

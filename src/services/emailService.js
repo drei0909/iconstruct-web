@@ -1,11 +1,4 @@
 // src/services/emailService.js
-//
-// FIXES APPLIED:
-// 1. Reads notificationSettings from Firestore BEFORE sending any email.
-//    If the admin toggled off a notification type, it will NOT send.
-// 2. Deduplication guard retained — prevents double-sends within 10s.
-// 3. sendPaymentConfirmedEmail correctly handles planName.
-// 4. All exports are clean and consistent.
 
 import emailjs from "@emailjs/browser";
 import { db } from "./firebase";
@@ -19,7 +12,6 @@ const OTP_TEMPLATE   = "template_i4tvz8h";
 emailjs.init(PUBLIC_KEY);
 
 // ── Deduplication guard ────────────────────────────────────────────────────
-// Prevents the same email being sent twice within a 10-second window.
 const recentlySent = new Map();
 const DEDUP_WINDOW_MS = 10_000;
 
@@ -31,10 +23,9 @@ function isDuplicate(key) {
 }
 
 // ── Fetch notification settings from Firestore ─────────────────────────────
-// Returns the settings object. Falls back to all-enabled defaults if not set.
 let _cachedSettings = null;
 let _cacheTime = 0;
-const CACHE_TTL = 60_000; // re-fetch at most every 60 seconds
+const CACHE_TTL = 60_000;
 
 async function getNotifSettings() {
   if (_cachedSettings && Date.now() - _cacheTime < CACHE_TTL) {
@@ -45,7 +36,7 @@ async function getNotifSettings() {
     _cachedSettings = snap.exists() ? snap.data() : {};
     _cacheTime = Date.now();
   } catch {
-    _cachedSettings = {}; // on error, treat all as enabled
+    _cachedSettings = {};
   }
   return _cachedSettings;
 }
@@ -56,12 +47,9 @@ async function sendEmail(templateId, params) {
 }
 
 // ── Gated notification sender ──────────────────────────────────────────────
-// settingKey: the key in notificationSettings (e.g. "applicationApproved")
-// If that key is explicitly false, the email is suppressed.
 async function sendGatedNotification(settingKey, { toEmail, toName, shopName, statusTitle, message }) {
   const settings = await getNotifSettings();
 
-  // If the toggle exists and is explicitly false, suppress
   if (settingKey && settings[settingKey] === false) {
     console.info(`[emailService] "${settingKey}" notifications are disabled. Email suppressed.`);
     return { suppressed: true, reason: "admin_disabled" };
@@ -82,22 +70,16 @@ async function sendGatedNotification(settingKey, { toEmail, toName, shopName, st
   });
 }
 
-// ── OTP emails (never gated — always send) ─────────────────────────────────
+// ── OTP emails ─────────────────────────────────────────────────────────────
 export function sendOTPEmail({ toEmail, toName, otpCode }) {
   const key = `${OTP_TEMPLATE}|${toEmail}|otp`;
-  if (isDuplicate(key)) {
-    console.warn(`[emailService] Duplicate OTP suppressed for ${toEmail}`);
-    return Promise.resolve({ suppressed: true });
-  }
+  if (isDuplicate(key)) return Promise.resolve({ suppressed: true });
   return sendEmail(OTP_TEMPLATE, { to_email: toEmail, to_name: toName, otp_code: otpCode });
 }
 
 export function sendPasswordResetOTPEmail({ toEmail, toName, otpCode }) {
   const key = `${OTP_TEMPLATE}|${toEmail}|reset`;
-  if (isDuplicate(key)) {
-    console.warn(`[emailService] Duplicate reset OTP suppressed for ${toEmail}`);
-    return Promise.resolve({ suppressed: true });
-  }
+  if (isDuplicate(key)) return Promise.resolve({ suppressed: true });
   return sendEmail(OTP_TEMPLATE, { to_email: toEmail, to_name: toName, otp_code: otpCode });
 }
 
@@ -139,5 +121,29 @@ export function sendPaymentRejectedEmail({ toEmail, toName, shopName, reason }) 
     toEmail, toName, shopName,
     statusTitle: "Payment Rejected",
     message: `Your subscription payment for "${shopName}" was not confirmed.\n\nReason: ${reason || "Please contact support for more information."}\n\nYou may resubmit a new payment request from your dashboard.`,
+  });
+}
+
+// ── Quotation Accepted — notify PROJECT OWNER (mobile user) ───────────────
+// Called when the mobile user accepts a shop's quotation
+export function sendQuotationAcceptedToUser({ toEmail, toName, projectTitle, shopName, amount }) {
+  return sendGatedNotification("quotationAcceptedUser", {
+    toEmail,
+    toName,
+    shopName,
+    statusTitle: "Your Project Quote Was Accepted!",
+    message: `Great news! The hardware shop "${shopName}" has submitted a quotation of ₱${Number(amount).toLocaleString()} for your project "${projectTitle}".\n\nLog in to the iConstruct app to review the full quote and contact the shop directly.`,
+  });
+}
+
+// ── Quotation Accepted — notify SHOP OWNER (hardware admin) ───────────────
+// Called when the mobile user accepts a shop's quotation
+export function sendQuotationAcceptedToShop({ toEmail, toName, shopName, projectTitle, amount }) {
+  return sendGatedNotification("quotationAcceptedShop", {
+    toEmail,
+    toName,
+    shopName,
+    statusTitle: "Your Quotation Was Accepted!",
+    message: `Congratulations! The project owner has accepted your quotation of ₱${Number(amount).toLocaleString()} for the project "${projectTitle}".\n\nLog in to your iConstruct Shop Dashboard to view the details and coordinate with the client.`,
   });
 }

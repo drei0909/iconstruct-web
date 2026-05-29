@@ -20,12 +20,18 @@ import {
   updatePaymentStatus,
   updateShopSubscription,
 } from "../models/adminModel";
+
+// ADD this to the existing emailService imports line
 import {
   sendApprovalEmail,
   sendRejectionEmail,
   sendPaymentConfirmedEmail,
   sendPaymentRejectedEmail,
+  sendQuotationAcceptedToUser,   // ← ADD THIS
 } from "../services/emailService";
+
+
+
 
 // ── System Log Writer ──────────────────────────────────────────────────────
 // level: "info" | "success" | "warn" | "error"
