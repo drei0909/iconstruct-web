@@ -23,11 +23,13 @@ export async function fetchCategoryById(shopId, categoryId) {
   return { id: snap.id, ...snap.data() };
 }
 
-export async function insertCategory(shopId, { name, description, icon, projectId }) {
+export async function insertCategory(shopId, { name, description, icon, iconKey, projectId }) {
+  const iconVal = iconKey || icon || "PiPackage";
   const ref = await addDoc(categoriesRef(shopId), {
     name:        name.trim(),
     description: (description || "").trim(),
-    icon:        icon || "",
+    icon:        iconVal,
+    iconKey:     iconVal,
     projectId:   projectId || "",
     createdAt:   serverTimestamp(),
   });

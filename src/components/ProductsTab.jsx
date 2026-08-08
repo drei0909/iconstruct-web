@@ -10,8 +10,14 @@ import {
   getLivePlanConfig,
   formatProductLimit,
   isAtProductLimit,
+  getProductSlotsRemaining,
 } from "../config/planConfig";
 import { getMyCategories, addCategory, editCategory, removeCategory } from "../controllers/shopCategoryController";
+import {
+  previewBulkProductImport,
+  runBulkProductImport,
+} from "../controllers/productBulkController";
+import { downloadProductCsvTemplate, parseProductCsv } from "../utils/productCsv";
 
 // ── Phosphor Icons ────────────────────────────────────────────
 import {
@@ -22,6 +28,7 @@ import {
   PiLightningA, PiDropHalf, PiWrench, PiHouse, PiGridFour,
   PiShower, PiPlugs, PiWall,
   PiArrowsHorizontal, PiArrowsVertical, PiSealCheck,
+  PiUploadSimple, PiDownloadSimple,
 } from "react-icons/pi";
 
 // Aliases
@@ -42,25 +49,30 @@ const FIXED_PROJECTS = [
 
 // ── Category icon picker options ─────────────────────────────
 const CAT_ICONS = [
-  { key: "PiPackage",        Icon: PiPackage },
-  { key: "PiStack",          Icon: PiStack },
-  { key: "PiTag",            Icon: PiTag },
-  { key: "PiHammer",         Icon: PiHammer },
-  { key: "PiPaintBrush",     Icon: PiPaintBrush },
-  { key: "PiWrench",         Icon: PiWrench },
-  { key: "PiLightningA",     Icon: PiLightningA },
-  { key: "PiDropHalf",       Icon: PiDropHalf },
-  { key: "PiHouse",          Icon: PiHouse },
-  { key: "PiGrid4",          Icon: PiGrid4 },
-  { key: "PiShower",         Icon: PiShower },
-  { key: "PiPlugs",          Icon: PiPlugs },
-  { key: "PiBricks",         Icon: PiBricks },
-  { key: "PiArrowsVertical", Icon: PiArrowsVertical },
+  { key: "PiPackage",         Icon: PiPackage,         label: "Package" },
+  { key: "PiStack",           Icon: PiStack,           label: "Stack" },
+  { key: "PiTag",             Icon: PiTag,             label: "Tag" },
+  { key: "PiHammer",          Icon: PiHammer,          label: "Hammer" },
+  { key: "PiPaintBrush",      Icon: PiPaintBrush,      label: "Paint" },
+  { key: "PiWrench",          Icon: PiWrench,          label: "Wrench" },
+  { key: "PiLightningA",      Icon: PiLightningA,      label: "Electrical" },
+  { key: "PiDropHalf",        Icon: PiDropHalf,        label: "Plumbing" },
+  { key: "PiHouse",           Icon: PiHouse,           label: "House" },
+  { key: "PiGrid4",           Icon: PiGrid4,           label: "Grid" },
+  { key: "PiShower",          Icon: PiShower,          label: "Shower" },
+  { key: "PiPlugs",           Icon: PiPlugs,           label: "Plugs" },
+  { key: "PiBricks",          Icon: PiBricks,          label: "Bricks" },
+  { key: "PiArrowsVertical",  Icon: PiArrowsVertical,  label: "Height" },
 ];
 
 function getCatIcon(key) {
   const found = CAT_ICONS.find(c => c.key === key);
   return found ? found.Icon : PiPackage;
+}
+
+function getCatIconLabel(key) {
+  const found = CAT_ICONS.find(c => c.key === key);
+  return found ? found.label : "Package";
 }
 
 const T = {
@@ -202,6 +214,12 @@ export default function ProductsTab({ plan = "basic" }) {
   const [showCatModal,  setShowCatModal]  = useState(false);
   const [editCatData,   setEditCatData]   = useState(null);
   const [showProdModal, setShowProdModal] = useState(false);
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkPreview, setBulkPreview] = useState(null);
+  const [bulkParseErrors, setBulkParseErrors] = useState([]);
+  const [bulkImporting, setBulkImporting] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const bulkFileRef = useRef(null);
 
   const [catForm, setCatForm] = useState({ name: "", description: "", iconKey: "PiPackage" });
   const [prodForm, setProdForm] = useState({
@@ -405,12 +423,83 @@ export default function ProductsTab({ plan = "basic" }) {
     } catch { showToast("Failed to remove product.", "error"); }
   };
 
+  const openBulkModal = () => {
+    setBulkPreview(null);
+    setBulkParseErrors([]);
+    setShowBulkModal(true);
+  };
+
+  const handleBulkFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setBulkBusy(true);
+    setBulkPreview(null);
+    setBulkParseErrors([]);
+    try {
+      const text = await file.text();
+      const { rows, errors } = parseProductCsv(text);
+      setBulkParseErrors(errors);
+      if (!rows.length) {
+        showToast(errors[0] || "No valid products found in CSV.", "error");
+        return;
+      }
+      const preview = await previewBulkProductImport(rows);
+      setBulkPreview(preview);
+    } catch (err) {
+      showToast(err.message || "Could not read CSV.", "error");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const confirmBulkImport = async () => {
+    if (!bulkPreview?.willUpload) {
+      showToast(
+        bulkPreview?.slotsRemaining === 0
+          ? `Plan full (${bulkPreview.currentCount}/${bulkPreview.productLimit === Infinity ? "∞" : bulkPreview.productLimit}). Upgrade or remove products first.`
+          : "Nothing to import.",
+        "error"
+      );
+      return;
+    }
+    setBulkImporting(true);
+    try {
+      const result = await runBulkProductImport(bulkPreview.accepted);
+      const limitTxt =
+        result.productLimit === Infinity ? "unlimited" : String(result.productLimit);
+      let msg = `Uploaded ${result.created} of ${bulkPreview.fileRowCount} products (${bulkPreview.planLabel}, max ${limitTxt}).`;
+      if (bulkPreview.willSkip > 0) {
+        msg += ` ${bulkPreview.willSkip} not credited — plan limit only allows the first ${bulkPreview.willUpload} open slot(s).`;
+      }
+      if (result.categoriesCreated > 0) {
+        msg += ` ${result.categoriesCreated} categor${result.categoriesCreated === 1 ? "y" : "ies"} created.`;
+      }
+      showToast(msg, result.created > 0 ? "success" : "error");
+      setShowBulkModal(false);
+      setBulkPreview(null);
+      const all = await fetchAllProducts();
+      setAllProducts(all);
+      if (view === "products" && selectedCat) {
+        await fetchProductsForCategory(selectedCat.id);
+      }
+      if (view === "categories" && selectedProject) {
+        await fetchCategoriesForProject(selectedProject.id);
+      }
+    } catch (err) {
+      showToast(err.message || "Import failed.", "error");
+    } finally {
+      setBulkImporting(false);
+    }
+  };
+
   const countForCat     = (catId)     => allProducts.filter(p => p.categoryId === catId).length;
   const countForProject = (projectId) => allProducts.filter(p => p.projectId  === projectId).length;
   const totalCount = allProducts.length;
   const pct      = !cfgReady ? 0 : isUnlimited ? 100 : Math.min((totalCount / limit) * 100, 100);
   const barColor = !cfgReady ? T.green : isUnlimited ? T.green : pct >= 100 ? T.red : pct >= 75 ? T.amber : T.green;
   const limitLabel = !cfgReady ? "Loading..." : isUnlimited ? `${totalCount} listed · no cap` : `${totalCount} / ${limit} used`;
+  const slotsLeft = !cfgReady ? 0 : getProductSlotsRemaining(totalCount, limit);
   const planLabel  = cfgReady
     ? (cfg.label + ": " + (isUnlimited ? "unlimited products." : `up to ${formatProductLimit(limit)} products total.`))
     : "Loading plan limits...";
@@ -440,7 +529,20 @@ export default function ProductsTab({ plan = "basic" }) {
           </p>
         </div>
 
-        <div style={{ display:"flex", gap:10 }}>
+        <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+          <button
+            type="button"
+            onClick={openBulkModal}
+            style={{
+              padding:"10px 16px", borderRadius:T.radiusSm,
+              border:`1.5px solid ${cfgReady ? cfg.color : T.border}`, cursor:"pointer",
+              background:T.surface, color: cfgReady ? cfg.color : T.ink2,
+              fontSize:13, fontWeight:600, fontFamily:T.fontBody,
+              display:"flex", alignItems:"center", gap:6,
+            }}
+          >
+            <PiUploadSimple size={16} /> Bulk upload CSV
+          </button>
           {view !== "projects" && (
             <button
               onClick={view === "categories" ? backToProjects : backToCategories}
@@ -507,7 +609,13 @@ export default function ProductsTab({ plan = "basic" }) {
             <div style={{ height:"100%", width:`${pct}%`, background:barColor, borderRadius:99, transition:"width 0.6s ease" }} />
           </div>
           <div style={{ fontSize:11, color:T.ink4, marginTop:6 }}>
-            {totalCount} total products across all projects{!isUnlimited && ` · limit: ${limit}`}
+            {totalCount} total products across all projects
+            {!isUnlimited && ` · limit: ${limit} · ${slotsLeft} slot${slotsLeft === 1 ? "" : "s"} left`}
+            {!isUnlimited && (
+              <span style={{ display:"block", marginTop:4 }}>
+                Bulk upload only credits remaining free slots (e.g. Basic 20: a 40-row file → first 20 only if empty).
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -758,21 +866,41 @@ export default function ProductsTab({ plan = "basic" }) {
         >
           <Field label="Icon">
             <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:4 }}>
-              {CAT_ICONS.map(({ key, Icon: IconComp }) => (
-                <button
-                  key={key}
-                  onClick={() => setCatForm(f => ({ ...f, iconKey: key }))}
-                  style={{
-                    width:40, height:40, borderRadius:8,
-                    display:"flex", alignItems:"center", justifyContent:"center",
-                    border:`2px solid ${catForm.iconKey===key ? cfg.color : T.border}`,
-                    background: catForm.iconKey===key ? `${cfg.color}15` : T.surface2,
-                    cursor:"pointer", transition:"all 0.15s",
-                  }}
-                >
-                  <IconComp size={20} color={catForm.iconKey===key ? cfg.color : T.ink3} />
-                </button>
-              ))}
+              {CAT_ICONS.map(({ key, Icon: IconComp, label }) => {
+                const selected = catForm.iconKey === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    title={label}
+                    onClick={() => setCatForm(f => ({ ...f, iconKey: key }))}
+                    style={{
+                      minWidth: 56, padding: "8px 6px 6px",
+                      borderRadius: 8,
+                      display: "flex", flexDirection: "column",
+                      alignItems: "center", justifyContent: "center", gap: 4,
+                      border: `2px solid ${selected ? cfg.color : T.border}`,
+                      background: selected ? `${cfg.color}15` : T.surface2,
+                      cursor: "pointer", transition: "all 0.15s",
+                    }}
+                  >
+                    <IconComp size={20} color={selected ? cfg.color : T.ink3} />
+                    <span style={{
+                      fontSize: 9, fontWeight: selected ? 700 : 500,
+                      color: selected ? cfg.color : T.ink3,
+                      lineHeight: 1.1, textAlign: "center",
+                      maxWidth: 52, fontFamily: T.fontBody,
+                    }}>
+                      {label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{
+              fontSize: 12, color: T.ink2, marginTop: 6, fontFamily: T.fontBody,
+            }}>
+              Selected: <strong style={{ color: cfg.color }}>{getCatIconLabel(catForm.iconKey)}</strong>
             </div>
           </Field>
           <Field label="Category Name" required>
@@ -914,9 +1042,131 @@ export default function ProductsTab({ plan = "basic" }) {
         </Modal>
       )}
 
+      {/* ── BULK CSV IMPORT ─────────────────────────────────── */}
+      {showBulkModal && (
+        <Modal title="Bulk upload products" onClose={() => !bulkImporting && setShowBulkModal(false)}>
+          <p style={{ fontSize: 13, color: T.ink3, lineHeight: 1.55, marginBottom: 14 }}>
+            Upload a CSV catalog. Your plan only <strong>credits free slots</strong>
+            {cfgReady && !isUnlimited && (
+              <> — {cfg.label}: <strong>{totalCount}/{limit}</strong> used, <strong>{slotsLeft}</strong> left</>
+            )}
+            {cfgReady && isUnlimited && <> — Business: unlimited listings</>}
+            . Extra rows in the file are kept offline (not uploaded).
+          </p>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
+            <button
+              type="button"
+              onClick={downloadProductCsvTemplate}
+              style={{
+                padding: "10px 14px", borderRadius: T.radiusSm, border: `1px solid ${T.border}`,
+                background: T.surface2, color: T.ink2, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 6, fontFamily: T.fontBody,
+              }}
+            >
+              <PiDownloadSimple size={15} /> Download template
+            </button>
+            <button
+              type="button"
+              disabled={bulkBusy || bulkImporting}
+              onClick={() => bulkFileRef.current?.click()}
+              style={{
+                padding: "10px 14px", borderRadius: T.radiusSm, border: "none",
+                background: cfgReady ? cfg.accentGradient : T.border, color: "#fff",
+                fontSize: 12.5, fontWeight: 600, cursor: bulkBusy ? "wait" : "pointer",
+                display: "flex", alignItems: "center", gap: 6, fontFamily: T.fontBody,
+              }}
+            >
+              {bulkBusy
+                ? <><PiSpinner size={15} style={{ animation: "pt-spin 0.8s linear infinite" }} /> Reading…</>
+                : <><PiUploadSimple size={15} /> Choose CSV file</>
+              }
+            </button>
+            <input
+              ref={bulkFileRef}
+              type="file"
+              accept=".csv,text/csv"
+              style={{ display: "none" }}
+              onChange={handleBulkFile}
+            />
+          </div>
+
+          <div style={{ fontSize: 11, color: T.ink4, marginBottom: 12, lineHeight: 1.5 }}>
+            Columns: projectType, category, name, unit, description, sizes, type, inStock.
+            projectType e.g. kitchen_renovation, plumbing_installation, electrical_installation.
+          </div>
+
+          {bulkParseErrors.length > 0 && (
+            <div style={{ background: T.amberLight || "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 12, color: "#92400E" }}>
+              {bulkParseErrors.slice(0, 5).map((e, i) => <div key={i}>• {e}</div>)}
+            </div>
+          )}
+
+          {bulkPreview && (
+            <div style={{ background: T.surface2, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16, marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, marginBottom: 10 }}>Import preview</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 12.5, color: T.ink2 }}>
+                <div>Rows in file</div><div style={{ fontWeight: 700 }}>{bulkPreview.fileRowCount}</div>
+                <div>Already listed</div><div style={{ fontWeight: 700 }}>{bulkPreview.currentCount}</div>
+                <div>Plan limit</div>
+                <div style={{ fontWeight: 700 }}>
+                  {bulkPreview.isUnlimited ? "Unlimited" : bulkPreview.productLimit}
+                </div>
+                <div style={{ color: T.green }}>Will upload / credit</div>
+                <div style={{ fontWeight: 700, color: T.green }}>{bulkPreview.willUpload}</div>
+                <div style={{ color: T.amber }}>Not credited (over limit)</div>
+                <div style={{ fontWeight: 700, color: T.amber }}>{bulkPreview.willSkip}</div>
+              </div>
+              {bulkPreview.willSkip > 0 && (
+                <p style={{ fontSize: 12, color: "#92400E", marginTop: 12, lineHeight: 1.5, marginBottom: 0 }}>
+                  Only {bulkPreview.willUpload} product{bulkPreview.willUpload === 1 ? "" : "s"} can upload
+                  on your plan right now. The first {bulkPreview.willUpload} valid row{bulkPreview.willUpload === 1 ? "" : "s"} will be credited;
+                  the other {bulkPreview.willSkip} stay in your file only.
+                </p>
+              )}
+              {bulkPreview.willUpload === 0 && (
+                <p style={{ fontSize: 12, color: T.red, marginTop: 12, marginBottom: 0 }}>
+                  No free slots. Remove products or upgrade plan before importing.
+                </p>
+              )}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+            <button
+              type="button"
+              disabled={bulkImporting}
+              onClick={() => setShowBulkModal(false)}
+              style={{ flex: 1, padding: "11px", borderRadius: T.radiusSm, border: `1px solid ${T.border}`, background: T.surface2, color: T.ink3, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: T.fontBody }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={bulkImporting || !bulkPreview?.willUpload}
+              onClick={confirmBulkImport}
+              style={{
+                flex: 2, padding: "11px", borderRadius: T.radiusSm, border: "none", fontFamily: T.fontBody,
+                background: bulkImporting || !bulkPreview?.willUpload ? T.border : cfgReady ? cfg.accentGradient : T.border,
+                color: bulkImporting || !bulkPreview?.willUpload ? T.ink3 : "#fff",
+                fontSize: 13, fontWeight: 600,
+                cursor: bulkImporting || !bulkPreview?.willUpload ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              }}
+            >
+              {bulkImporting
+                ? <><PiSpinner size={15} style={{ animation: "pt-spin 0.8s linear infinite" }} /> Uploading…</>
+                : bulkPreview
+                  ? `Upload ${bulkPreview.willUpload} product${bulkPreview.willUpload === 1 ? "" : "s"}`
+                  : "Choose a CSV first"}
+            </button>
+          </div>
+        </Modal>
+      )}
+
       {/* Toast */}
       {toast && (
-        <div style={{ position:"fixed", bottom:24, right:24, padding:"12px 18px", borderRadius:10, background:toast.type==="error"?T.red:T.ink, color:"#fff", fontSize:12.5, fontWeight:500, boxShadow:"0 10px 30px rgba(0,0,0,0.2)", zIndex:500, fontFamily:T.fontBody, maxWidth:300, display:"flex", alignItems:"center", gap:8 }}>
+        <div style={{ position:"fixed", bottom:24, right:24, padding:"12px 18px", borderRadius:10, background:toast.type==="error"?T.red:T.ink, color:"#fff", fontSize:12.5, fontWeight:500, boxShadow:"0 10px 30px rgba(0,0,0,0.2)", zIndex:500, fontFamily:T.fontBody, maxWidth:380, display:"flex", alignItems:"center", gap:8 }}>
           {toast.type === "error" ? <PiWarning size={16} /> : <PiSealCheck size={16} />}
           {toast.msg}
         </div>

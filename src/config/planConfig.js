@@ -12,6 +12,8 @@ export const PLAN_CONFIG = {
   basic: {
     key: "basic",
     label: "Free · Basic",
+    price: 0,
+    billingCycle: "month",
     productLimit: 20,
     quotaLimit: 3,
     projectLimit: 5,
@@ -24,14 +26,23 @@ export const PLAN_CONFIG = {
     sidebarActiveColor: "#93C5FD",
     sidebarActiveBorder: "#3B82F6",
     sidebarActiveBg: "rgba(59,130,246,0.12)",
+    features: [
+      "List up to 20 products",
+      "Public shop profile",
+      "View limited project postings (5)",
+      "Submit up to 3 quotations / month",
+      "Standard search visibility",
+    ],
   },
   pro: {
     key: "pro",
     label: "Pro · Active",
+    price: 999,
+    billingCycle: "month",
     productLimit: 150,
     quotaLimit: Infinity,
     projectLimit: Infinity,
-    color: "#3B82F6",
+    color: "#2C3E50",
     badgeBg: "#EFF6FF",
     badgeColor: "#1D4ED8",
     badgeBorder: "#BFDBFE",
@@ -40,24 +51,63 @@ export const PLAN_CONFIG = {
     sidebarActiveColor: "#93C5FD",
     sidebarActiveBorder: "#3B82F6",
     sidebarActiveBg: "rgba(59,130,246,0.15)",
+    features: [
+      "Everything in Basic",
+      "Up to 150 product listings",
+      "Unlimited quotes & full project board",
+      "Revenue & pipeline analytics",
+      "Export quotation history (CSV)",
+      "Quote note templates",
+      "Live pricing guide when bidding",
+      "Follow-up queue for pending bids",
+    ],
   },
   business: {
     key: "business",
     label: "Business",
+    price: 4999,
+    billingCycle: "month",
     productLimit: Infinity,
     quotaLimit: Infinity,
     projectLimit: Infinity,
-    color: "#7C3AED",
-    badgeBg: "linear-gradient(135deg, #7C3AED, #6D28D9)",
-    badgeColor: "#FFFFFF",
-    badgeBorder: "transparent",
-    accentGradient: "linear-gradient(135deg, #4C1D95, #7C3AED)",
-    sidebarBg: "linear-gradient(175deg, #1E0B3A 0%, #2D1B69 60%, #1E0B3A 100%)",
-    sidebarActiveColor: "#C4B5FD",
-    sidebarActiveBorder: "#7C3AED",
-    sidebarActiveBg: "rgba(124,58,237,0.2)",
+    color: "#154665",
+    badgeBg: "#E8F1F7",
+    badgeColor: "#154665",
+    badgeBorder: "#A8C5D8",
+    accentGradient: "linear-gradient(135deg, #0D2E43, #2D6A8F)",
+    sidebarBg: "#0D2E43",
+    sidebarActiveColor: "#E8D9BC",
+    sidebarActiveBorder: "#CFB184",
+    sidebarActiveBg: "rgba(207,177,132,0.15)",
+    features: [
+      "Everything in Pro",
+      "Unlimited product listings",
+      "Business intelligence dashboard",
+      "Monthly revenue & lost-value tracking",
+      "Smart pricing insights",
+      "Extended follow-up & history limits",
+      "Bid toolkit (template library)",
+    ],
   },
 };
+
+/** Paid plans for checkout / upgrade UIs (single source). */
+export function getPaidPlans() {
+  return ["pro", "business"].map((key) => {
+    const p = PLAN_CONFIG[key];
+    return {
+      id: key,
+      name: key === "pro" ? "Pro Plan" : "Business Plan",
+      price: p.price,
+      priceLabel: `₱${p.price.toLocaleString("en-PH")}`,
+      period: `/ ${p.billingCycle}`,
+      label: `₱${p.price.toLocaleString("en-PH")}/${p.billingCycle}`,
+      color: p.color,
+      badge: key === "pro" ? "Most Popular" : "Best Value",
+      features: p.features,
+    };
+  });
+}
 
 /**
  * Returns the static plan config (theme/UI only).
@@ -111,10 +161,7 @@ export async function getLivePlanConfig(planKey) {
         if (firestorePlan.label) {
           base.label = firestorePlan.label;
         }
-        // Price
-        if (firestorePlan.price !== undefined) {
-          base.price = firestorePlan.price;
-        }
+        // Price stays from PLAN_CONFIG (synced with PayMongo amounts)
       }
     }
   } catch (err) {
@@ -130,4 +177,36 @@ export function formatProductLimit(limit) {
 
 export function isAtProductLimit(currentCount, limit) {
   return limit !== Infinity && currentCount >= limit;
+}
+
+/** How many more products this plan still allows. */
+export function getProductSlotsRemaining(currentCount, limit) {
+  if (limit === Infinity) return Infinity;
+  return Math.max(0, (Number(limit) || 0) - (Number(currentCount) || 0));
+}
+
+/**
+ * Credit only as many rows as the plan still has room for.
+ * Example Basic (20): shop has 0, file has 40 → accept 20, skip 20.
+ * Example Pro (150): shop has 140, file has 40 → accept 10, skip 30.
+ */
+export function applyProductPlanQuota(rows, currentCount, limit) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (limit === Infinity) {
+    return {
+      accepted: list,
+      skipped: [],
+      slotsRemaining: Infinity,
+      limit,
+      currentCount: Number(currentCount) || 0,
+    };
+  }
+  const slotsRemaining = getProductSlotsRemaining(currentCount, limit);
+  return {
+    accepted: list.slice(0, slotsRemaining),
+    skipped: list.slice(slotsRemaining),
+    slotsRemaining,
+    limit,
+    currentCount: Number(currentCount) || 0,
+  };
 }

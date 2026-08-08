@@ -166,7 +166,7 @@ export default function ForgotPassword({ onClose }) {
           <>
             <h3 className="fp-title">Check Your Email</h3>
             <p className="fp-sub">We sent a 6-digit code to</p>
-            <div className="fp-email-badge">📧 {email}</div>
+            <div className="fp-email-badge"> {email}</div>
 
             <div className="fp-otp-row" onPaste={handleOtpPaste}>
               {otp.map((digit, i) => (

@@ -48,24 +48,25 @@ Approval is granted only after all submitted documents are verified for authenti
 
 Basic Plan — Free
 • Up to 20 product listings
-• Basic shop profile visibility
+• Public shop profile
 • View limited project postings
 • Submit up to 3 quotations per month
 
-Pro Plan — ₱499/month
+Pro Plan — ₱999/month
 • Up to 150 product listings
-• Priority listing in search results
-• Unlimited project bidding access
-• Promotional exposure on the platform
-• Quotation performance insights
+• Unlimited project bidding
+• Revenue and pipeline analytics
+• Export quotation history (CSV)
+• Quote note templates
+• Live pricing guide when bidding
 
-Business Plan — ₱4,499/year
+Business Plan — ₱4,999/month
 • Unlimited product listings
 • All Pro Plan features
-• Featured placement on the platform
-• Advanced analytics dashboard
-• Bulk product import (CSV/Excel)
-• Priority customer support
+• Business intelligence insights
+• Monthly revenue and lost-value tracking
+• Bid toolkit (template library)
+• Extended follow-up queue
 
 Subscription fees are non-refundable once a billing cycle has begun. If you downgrade your plan, product listings exceeding your new plan's limit will be hidden — not permanently deleted — until your listing count falls within the allowed limit or you upgrade again. iConstruct does not process direct financial transactions between users and hardware shops; subscription payments are the only fees processed through the platform.`,
   },

@@ -19,6 +19,18 @@ import {
 } from "../models/shopModel";
 import { getDoc, doc } from "firebase/firestore";
 import { db } from "../services/firebase";
+import { evaluateShopLoginAccess, isShopApproved } from "../utils/shopAccess";
+
+async function requireApprovedShop() {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Not authenticated");
+  const shop = await fetchShopById(user.uid);
+  if (!isShopApproved(shop.status)) {
+    const access = evaluateShopLoginAccess(shop.status);
+    throw new Error(access.message || "Shop is not approved for this action.");
+  }
+  return { user, shop };
+}
 
 // ── Shop Profile ──────────────────────────────────────────────────────────────
 
@@ -30,6 +42,7 @@ export async function getShopProfile() {
 
 // ── Projects ──────────────────────────────────────────────────────────────────
 
+/** All builder project posts from Firestore (Flutter + web) for shops to bid on. */
 export async function getPostedProjects() {
   return fetchOpenProjects();
 }
@@ -43,23 +56,25 @@ export async function getShopQuotations() {
 }
 
 export async function submitQuotation({ projectId, amount, note, items }) {
-  const user = auth.currentUser;
-  if (!user) throw new Error("Not authenticated");
+  const { user, shop } = await requireApprovedShop();
 
-  // ✅ was doc(db, "projects", projectId) — wrong collection
+  const n = Number(amount);
+  if (!projectId) throw new Error("Project is required.");
+  if (!Number.isFinite(n) || n <= 0) throw new Error("Enter a valid quote amount.");
+
   const projectSnap = await getDoc(doc(db, "projectPosts", projectId));
   if (!projectSnap.exists()) throw new Error("Project not found");
-  const projectTitle = projectSnap.data()?.projectName || "Project";
-
-  // Get shop name to include in quotation
-  const shop = await fetchShopById(user.uid);
+  const projectTitle =
+    projectSnap.data()?.projectName ||
+    projectSnap.data()?.title ||
+    "Project";
 
   await insertQuotation({
     projectId,
     projectTitle,
     shopId:   user.uid,
     shopName: shop.shopName,
-    amount,
+    amount: n,
     note,
     items: items || [],
   });
@@ -76,15 +91,12 @@ export async function getMyPaymentRequest() {
 export async function submitPaymentRequest({
   planName, planPrice, paymentMethod, referenceNumber, screenshotBase64,
 }) {
-  const user = auth.currentUser;
-  if (!user) throw new Error("Not authenticated");
+  const { user, shop } = await requireApprovedShop();
 
   const hasPending = await fetchPendingPaymentByShop(user.uid);
   if (hasPending) {
     throw new Error("You already have a pending payment request. Please wait for admin confirmation.");
   }
-
-  const shop = await fetchShopById(user.uid);
 
   await insertPaymentRequest({
     shopId:          user.uid,
@@ -133,13 +145,10 @@ export async function getMyProducts() {
 export async function addProduct({
   name, description, price, unit, category, imageBase64, sizes,
 }) {
-  const user = auth.currentUser;
-  if (!user) throw new Error("Not authenticated");
+  const { user, shop } = await requireApprovedShop();
 
   if (!name || !name.trim()) throw new Error("Product name is required.");
   if (!price || isNaN(parseFloat(price))) throw new Error("Valid price is required.");
-
-  const shop = await fetchShopById(user.uid);
 
   const productId = await insertProduct({
     shopId:      user.uid,
@@ -158,15 +167,18 @@ export async function addProduct({
 
 // Toggle product availability (in stock / out of stock)
 export async function toggleProductAvailability(productId, available) {
+  await requireApprovedShop();
   await updateProductAvailability(productId, available);
 }
 
 // Edit product details
 export async function editProduct(productId, data) {
+  await requireApprovedShop();
   await updateProduct(productId, data);
 }
 
 // Remove a product from the catalog
 export async function deleteProduct(productId) {
+  await requireApprovedShop();
   await removeProduct(productId);
 }

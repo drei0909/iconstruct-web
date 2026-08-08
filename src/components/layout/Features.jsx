@@ -2,9 +2,12 @@
 // Fetches subscription plans live from Firestore (systemConfig/subscriptionPlans)
 // so any edit made in SystemSettingsTab is immediately reflected here.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { db } from "../../services/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { PLAN_CONFIG } from "../../config/planConfig";
+
+const FEATURE_DWELL_MS = 5500;
 
 // ─── Static feature cards (unchanged) ────────────────────────────────────────
 const features = [
@@ -27,10 +30,10 @@ const features = [
       "Project cost estimates are generated using live unit prices from registered shops in Lipa City — giving builders accurate, locally grounded budget figures tied directly to your inventory.",
   },
   {
-    tag: "Marketing",
-    title: "Promotional Exposure & Featured Placement",
+    tag: "Growth",
+    title: "Tools That Help You Win More Bids",
     description:
-      "Pro and Business subscribers gain priority listing in search results and featured placement on the platform — putting your shop in front of active buyers at the right moment.",
+      "Pro and Business plans unlock unlimited bidding, revenue analytics, CSV export, pricing guides, and reusable bid templates — so every peso of subscription helps you close more supply work.",
   },
   {
     tag: "Trust",
@@ -52,84 +55,47 @@ const stats = [
   { val: "Free", label: "To Get Started"       },
 ];
 
-// ─── Default fallback plans (used if Firestore has no data yet) ───────────────
-const DEFAULT_PLANS = [
-  {
-    key: "basic",
-    name: "Basic",
-    price: "Free",
-    period: "",
-    badge: null,
-    color: "#648DB6",
-    features: [
-      "List up to 20 products",
-      "Shop profile listing",
-      "View limited project postings",
-      "Submit up to 3 quotations/month",
-      "Basic shop visibility",
-    ],
-    cta: "Included on Registration",
-    ctaStyle: "outline",
-    limitNote: "20 products max",
-    limitPct: 15,
+// ─── Default fallback plans (from planConfig — single source) ───────────────
+const DEFAULT_PLANS = ["basic", "pro", "business"].map((key) => {
+  const p = PLAN_CONFIG[key];
+  const isBasic = key === "basic";
+  const price = isBasic && p.price === 0 ? "Free" : `₱${p.price.toLocaleString("en-PH")}`;
+  return {
+    key,
+    name: key === "basic" ? "Basic" : key === "pro" ? "Pro" : "Business",
+    price,
+    period: isBasic && p.price === 0 ? "" : `/ ${p.billingCycle}`,
+    badge: key === "pro" ? "Most Popular" : key === "business" ? "Best Value" : null,
+    color: p.color,
+    features: p.features,
+    cta: isBasic
+      ? "Included on Registration"
+      : `Get ${key === "pro" ? "Pro" : "Business"} — ${price}/mo`,
+    ctaStyle: key === "pro" ? "filled" : "outline",
+    limitNote: p.productLimit === Infinity ? "No product cap" : `${p.productLimit} products max`,
+    limitPct: p.productLimit === Infinity ? 100 : key === "pro" ? 58 : 15,
     isPublic: true,
-  },
-  {
-    key: "pro",
-    name: "Pro",
-    price: "₱499",
-    period: "/ month",
-    badge: "Most Popular",
-    color: "#2C3E50",
-    features: [
-      "List up to 150 products",
-      "Everything in Basic",
-      "Priority listing in search",
-      "Unlimited project bidding",
-      "Promotional exposure",
-      "Quotation performance insights",
-    ],
-    cta: "Get Pro — ₱499/mo",
-    ctaStyle: "filled",
-    limitNote: "150 products max",
-    limitPct: 58,
-    isPublic: true,
-  },
-  {
-    key: "business",
-    name: "Business",
-    price: "₱999",
-    period: "/ month",
-    badge: "Best Value",
-    color: "#648DB6",
-    features: [
-      "Unlimited product listings",
-      "Everything in Pro",
-      "Featured placement on platform",
-      "Priority customer support",
-      "Custom branding",
-    ],
-    cta: "Get Business — ₱999/mo",
-    ctaStyle: "outline",
-    limitNote: "No product cap",
-    limitPct: 100,
-    isPublic: true,
-  },
-];
+  };
+});
 
 // ─── Helper: convert Firestore plan doc → display shape ──────────────────────
+// Limits/features come from Firestore; price always from planConfig (PayMongo sync).
 function firestorePlanToDisplay(key, plan) {
+  const staticPlan = PLAN_CONFIG[key] ?? {};
   const isBasic    = key === "basic";
   const isPro      = key === "pro";
   const isBusiness = key === "business";
 
+  const priceNum = staticPlan.price ?? plan.price ?? 0;
+  const billingCycle = staticPlan.billingCycle ?? plan.billingCycle ?? "month";
+
   const price = isBasic
-    ? (plan.price === 0 ? "Free" : `₱${plan.price}`)
-    : `₱${plan.price?.toLocaleString() ?? 0}`;
+    ? (priceNum === 0 ? "Free" : `₱${priceNum}`)
+    : `₱${Number(priceNum).toLocaleString("en-PH")}`;
 
-  const period = isBasic && plan.price === 0 ? "" : `/ ${plan.billingCycle ?? "month"}`;
+  const period = isBasic && priceNum === 0 ? "" : `/ ${billingCycle}`;
 
-  const productLimit = plan.productLimit === -1 ? "Unlimited" : String(plan.productLimit ?? 20);
+  const productLimit = plan.productLimit === -1 ? "Unlimited" : String(plan.productLimit ?? staticPlan.productLimit ?? 20);
   const quotaLimit   = plan.quotaLimit   === -1 ? "Unlimited" : `${plan.quotaLimit ?? 3}/mo`;
 
   // limitPct for the visual progress bar
@@ -144,7 +110,7 @@ function firestorePlanToDisplay(key, plan) {
   // CTA text
   const ctaText = isBasic
     ? "Included on Registration"
-    : `Get ${plan.label ?? key} — ${price}/${plan.billingCycle ?? "month"}`;
+    : `Get ${plan.label ?? key} — ${price}/${billingCycle}`;
 
   return {
     key,
@@ -153,7 +119,7 @@ function firestorePlanToDisplay(key, plan) {
     period,
     badge:     isPro ? "Most Popular" : isBusiness ? "Best Value" : null,
     color:     isBusiness ? "#648DB6" : isPro ? "#2C3E50" : "#648DB6",
-    features:  plan.features ?? [],
+    features:  plan.features ?? staticPlan.features ?? [],
     cta:       ctaText,
     ctaStyle:  isPro ? "filled" : "outline",
     limitNote: plan.productLimit === -1 ? "No product cap" : `${productLimit} products max`,
@@ -164,8 +130,15 @@ function firestorePlanToDisplay(key, plan) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function Features() {
-  const [plans, setPlans]       = useState(DEFAULT_PLANS);
-  const [loading, setLoading]   = useState(true);
+  const [plans, setPlans]         = useState(DEFAULT_PLANS);
+  const [loading, setLoading]     = useState(true);
+  const [active, setActive]       = useState(0);
+  const [paused, setPaused]       = useState(false);
+  const [progressKey, setProgressKey] = useState(0);
+  const sectionRef = useRef(null);
+  const [inView, setInView]       = useState(false);
+
+  const activeFeature = features[active];
 
   // Fetch live plans from Firestore on mount
   useEffect(() => {
@@ -176,12 +149,11 @@ export default function Features() {
           const data  = snap.data().plans ?? {};
           const order = ["basic", "pro", "business"];
           const live  = order
-            .filter(k => data[k] && data[k].isPublic !== false) // hide non-public plans
+            .filter(k => data[k] && data[k].isPublic !== false)
             .map(k => firestorePlanToDisplay(k, data[k]));
 
           if (live.length > 0) setPlans(live);
         }
-        // If no Firestore doc yet → keep DEFAULT_PLANS as fallback
       } catch (err) {
         console.warn("Features: could not load plans from Firestore, using defaults.", err);
       } finally {
@@ -190,10 +162,49 @@ export default function Features() {
     })();
   }, []);
 
+  // Reveal stage when section enters viewport
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setInView(true);
+          setProgressKey((k) => k + 1);
+          io.disconnect();
+        }
+      },
+      { threshold: 0.2 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  // Slow autoplay — one feature at a time so visitors can actually read
+  useEffect(() => {
+    if (paused || !inView) return;
+    const id = setInterval(() => {
+      setActive((i) => (i + 1) % features.length);
+      setProgressKey((k) => k + 1);
+    }, FEATURE_DWELL_MS);
+    return () => clearInterval(id);
+  }, [paused, inView, active]);
+
+  const selectFeature = (index) => {
+    setActive(index);
+    setProgressKey((k) => k + 1);
+  };
+
   return (
     <>
       {/* ── Features Section ── */}
-      <section className="ft-section">
+      <section
+        ref={sectionRef}
+        className={`ft-section${inView ? " ft-section--in" : ""}`}
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+      >
+        <div className="ft-stage-bg" aria-hidden="true" />
 
         <div className="ft-head">
           <div className="ft-head-left">
@@ -208,25 +219,53 @@ export default function Features() {
             </h2>
           </div>
           <p className="ft-head-right">
-            Everything your hardware business needs to connect with the
-            builders, contractors, and homeowners looking for you.
+            Slow down for a moment. Six reasons hardware shops in Lipa
+            choose iConstruct — one at a time.
           </p>
         </div>
 
-        <div className="ft-grid">
-          {features.map((f, i) => (
-            <div
-              key={i}
-              className={`ft-cell${i === 0 ? " ft-cell--wide" : ""}`}
-            >
-              <div className="ft-cell-idx">{String(i + 1).padStart(2, "0")}</div>
-              <span className="ft-cell-tag">{f.tag}</span>
-              <h3 className="ft-cell-h3">{f.title}</h3>
-              <p className="ft-cell-p">{f.description}</p>
-              <div className="ft-cell-bar" />
-              <span className="ft-cell-glyph">{String(i + 1).padStart(2, "0")}</span>
+        <div className="ft-stage">
+          <nav className="ft-rail" aria-label="Platform features">
+            {features.map((f, i) => (
+              <button
+                key={f.tag}
+                type="button"
+                className={`ft-rail-item${i === active ? " is-active" : ""}`}
+                onClick={() => selectFeature(i)}
+                aria-current={i === active ? "true" : undefined}
+              >
+                <span className="ft-rail-num">{String(i + 1).padStart(2, "0")}</span>
+                <span className="ft-rail-label">{f.tag}</span>
+              </button>
+            ))}
+          </nav>
+
+          <div className="ft-spotlight" key={active}>
+            <div className="ft-spotlight-meta">
+              <span className="ft-spotlight-tag">{activeFeature.tag}</span>
+              <span className="ft-spotlight-count">
+                {String(active + 1).padStart(2, "0")}
+                <span> / {String(features.length).padStart(2, "0")}</span>
+              </span>
             </div>
-          ))}
+
+            <p className="ft-spotlight-index" aria-hidden="true">
+              {String(active + 1).padStart(2, "0")}
+            </p>
+
+            <h3 className="ft-spotlight-title">{activeFeature.title}</h3>
+            <p className="ft-spotlight-body">{activeFeature.description}</p>
+
+            <div className="ft-progress" aria-hidden="true">
+              {inView && (
+                <div
+                  key={progressKey}
+                  className={`ft-progress-fill${paused ? " is-paused" : ""}`}
+                  style={{ animationDuration: `${FEATURE_DWELL_MS}ms` }}
+                />
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="ft-stats">
@@ -243,15 +282,14 @@ export default function Features() {
             Ready to grow your <span>hardware business?</span>
           </p>
           <div className="ft-cta-btns">
-            <a href="#" className="ft-btn-ghost">Learn More</a>
+            <a href="#plans" className="ft-btn-ghost">See Plans</a>
             <a href="/register" className="ft-btn-fill">Register Your Shop →</a>
           </div>
         </div>
-
       </section>
 
       {/* ── Subscription Plans Section ── */}
-      <section className="sp-section">
+      <section className="sp-section" id="plans">
         <div className="container">
 
           <div className="sp-header">
@@ -362,7 +400,7 @@ export default function Features() {
           <div className="sp-payments">
             <span className="sp-payments-label">Accepted payments</span>
             <div className="sp-payment-chips">
-              {["GCash", "Maya", "BDO", "BPI", "Visa / Mastercard", "UnionBank"].map((m) => (
+              {["GCash", "Maya"].map((m) => (
                 <span key={m} className="sp-payment-chip">{m}</span>
               ))}
             </div>

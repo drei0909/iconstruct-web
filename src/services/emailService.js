@@ -103,8 +103,8 @@ export function sendRejectionEmail({ toEmail, toName, shopName, reason }) {
 // ── Payment status emails ──────────────────────────────────────────────────
 export function sendPaymentConfirmedEmail({ toEmail, toName, shopName, planName }) {
   const planLabels = {
-    pro:      "Pro (₱499/month)",
-    business: "Business (₱4,499/year)",
+    pro:      "Pro (₱999/month)",
+    business: "Business (₱4,999/month)",
     basic:    "Basic (Free)",
   };
   const label = planLabels[planName?.toLowerCase()] ?? "Selected Plan";

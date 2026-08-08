@@ -66,7 +66,7 @@ function Avatar({ name = "", size = 36 }) {
   const colors = ["#3B5998", "#E8643A", "#4F46E5", "#0891B2", "#7C3AED", "#B45309"];
   const color = colors[(name.charCodeAt(0) || 0) % colors.length];
   return (
-    <span style={{ width: size, height: size, borderRadius: "50%", background: color, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.36, fontWeight: 700, fontFamily: "'DM Sans',sans-serif", flexShrink: 0 }}>
+    <span style={{ width: size, height: size, borderRadius: "50%", background: color, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.36, fontWeight: 700, flexShrink: 0 }}>
       {initials || "A"}
     </span>
   );
@@ -97,7 +97,6 @@ const inputStyle = (focus) => ({
   borderRadius: 8,
   border: `1.5px solid ${focus ? T.borderFocus : T.border}`,
   fontSize: 13,
-  fontFamily: "'DM Sans',sans-serif",
   color: T.text,
   background: "#F8FAFC",
   outline: "none",
@@ -148,7 +147,7 @@ function Btn({ onClick, disabled, loading, children, variant = "primary", size =
   const isDisabled = disabled || loading;
   return (
     <button onClick={onClick} disabled={isDisabled}
-      style={{ padding: sizes[size], borderRadius: 8, border: isDisabled ? `1px solid ${T.border}` : v.border, background: isDisabled ? "#E2E8F0" : v.bg, color: isDisabled ? T.textLight : v.color, fontSize: 12.5, fontWeight: 600, cursor: isDisabled ? "not-allowed" : "pointer", fontFamily: "'DM Sans',sans-serif", transition: "opacity 0.15s, transform 0.1s", ...extStyle }}
+      style={{ padding: sizes[size], borderRadius: 8, border: isDisabled ? `1px solid ${T.border}` : v.border, background: isDisabled ? "#E2E8F0" : v.bg, color: isDisabled ? T.textLight : v.color, fontSize: 12.5, fontWeight: 600, cursor: isDisabled ? "not-allowed" : "pointer", transition: "opacity 0.15s, transform 0.1s", ...extStyle }}
       onMouseDown={e => { if (!isDisabled) e.currentTarget.style.transform = "scale(0.97)"; }}
       onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
       onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>
@@ -314,7 +313,7 @@ function LogEntry({ entry }) {
   const levelBg = { info: T.infoLight, warn: T.warningLight, error: T.dangerLight, success: T.successLight };
   const level = entry.level || "info";
   return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 16px", borderBottom: `1px solid #F8FAFC`, fontFamily: "'DM Mono','Courier New',monospace" }}>
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 16px", borderBottom: `1px solid #F8FAFC`, fontFamily: "var(--font-mono)" }}>
       <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: levelBg[level] || T.infoLight, color: levelColors[level] || T.info, letterSpacing: "0.06em", textTransform: "uppercase", flexShrink: 0, marginTop: 1 }}>{level}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 12, color: T.text }}>{entry.message}</div>
@@ -472,22 +471,32 @@ export default function SystemSettingsTab({ currentUser }) {
       try {
         const snap = await getDoc(doc(db, "systemConfig", "subscriptionPlans"));
         if (snap.exists()) {
-          setPlans(snap.data().plans || {});
+          const loaded = snap.data().plans || {};
+          // Keep Firestore limits/features; sync prices from planConfig
+          const synced = {};
+          Object.keys(PLAN_CONFIG).forEach((key) => {
+            synced[key] = {
+              ...(loaded[key] || {}),
+              price: PLAN_CONFIG[key].price,
+              billingCycle: loaded[key]?.billingCycle || "monthly",
+            };
+          });
+          setPlans(synced);
         } else {
           const defaultPlans = {};
           Object.entries(PLAN_CONFIG).forEach(([key, cfg]) => {
             defaultPlans[key] = {
               key, label: cfg.label,
-              price: key === "basic" ? 0 : key === "pro" ? 499 : 999,
+              price: key === "basic" ? 0 : key === "pro" ? 999 : 4999,
               billingCycle: "monthly",
               productLimit: cfg.productLimit === Infinity ? -1 : cfg.productLimit,
               quotaLimit: cfg.quotaLimit === Infinity ? -1 : cfg.quotaLimit,
               isPublic: true,
               features: key === "basic"
-                ? ["Up to 20 products", "3 quotations/month", "Basic analytics"]
+                ? ["Up to 20 products", "3 quotations/month", "Limited project board"]
                 : key === "pro"
-                ? ["Up to 150 products", "Unlimited quotations", "Priority listing", "Advanced analytics"]
-                : ["Unlimited products", "Unlimited quotations", "Featured placement", "Dedicated support", "Custom branding"],
+                ? ["Up to 150 products", "Unlimited quotations", "Revenue analytics", "CSV export", "Quote templates"]
+                : ["Unlimited products", "Business insights", "Revenue & lost-value tracking", "Bid toolkit", "Smart pricing tips"],
             };
           });
           setPlans(defaultPlans);
@@ -1053,7 +1062,7 @@ const handleSavePlan = async () => {
           <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
             {logLevels.map(level => (
               <button key={level} onClick={() => setLogFilter(level)}
-                style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize", fontFamily: "'DM Sans',sans-serif", border: "none", background: logFilter === level ? T.text : "#F1F5F9", color: logFilter === level ? "#fff" : T.textMuted }}>
+                style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize", border: "none", background: logFilter === level ? T.text : "#F1F5F9", color: logFilter === level ? "#fff" : T.textMuted }}>
                 {level}
               </button>
             ))}
@@ -1099,19 +1108,18 @@ const handleSavePlan = async () => {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
         @keyframes fadeUp { from { opacity:0; transform:translateX(-50%) translateY(8px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
       `}</style>
 
-      <div style={{ fontFamily: "'DM Sans',sans-serif" }}>
+      <div className="settings-shell">
         <div style={{ marginBottom: 22 }}>
-          <h2 style={{ fontSize: 22, fontWeight: 700, color: T.text, marginBottom: 3 }}>System Settings</h2>
+          <h2 style={{ fontSize: 22, fontWeight: 700, color: T.text, marginBottom: 3, fontFamily: "var(--font-display)" }}>System Settings</h2>
           <p style={{ fontSize: 13, color: T.textMuted }}>Configure and manage all platform-level settings from one place.</p>
         </div>
 
-        <div style={{ display: "flex", gap: 22, alignItems: "flex-start" }}>
+        <div className="settings-layout">
           {/* Settings Sidebar */}
-          <div style={{ width: 200, flexShrink: 0, background: T.surface, borderRadius: 14, border: `1px solid ${T.border}`, overflow: "hidden", position: "sticky", top: 16 }}>
+          <div className="settings-nav">
             <div style={{ padding: "14px 16px", borderBottom: `1px solid ${T.border}` }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: T.textLight }}>Configuration</div>
             </div>
@@ -1120,7 +1128,8 @@ const handleSavePlan = async () => {
                 const isActive = activeSection === sec.key;
                 return (
                   <button key={sec.key} onClick={() => setActiveSection(sec.key)}
-                    style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "9px 16px", background: isActive ? T.accentLight : "transparent", borderLeft: `3px solid ${isActive ? T.accent : "transparent"}`, border: "none", borderRight: "none", cursor: "pointer", color: isActive ? T.accent : T.textMuted, fontFamily: "'DM Sans',sans-serif", fontSize: 12.5, fontWeight: isActive ? 600 : 400, textAlign: "left", transition: "all 0.15s" }}
+                    className={`settings-nav-item${isActive ? " active" : ""}`}
+                    style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "9px 16px", background: isActive ? T.accentLight : "transparent", borderLeft: `3px solid ${isActive ? T.accent : "transparent"}`, border: "none", borderRight: "none", cursor: "pointer", color: isActive ? T.accent : T.textMuted, fontSize: 12.5, fontWeight: isActive ? 600 : 400, textAlign: "left", transition: "all 0.15s" }}
                     onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "#F8FAFC"; }}
                     onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
                     <span style={{ flexShrink: 0, display: "flex", alignItems: "center" }}>{sec.icon}</span>
@@ -1132,7 +1141,7 @@ const handleSavePlan = async () => {
           </div>
 
           {/* Main Content */}
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="settings-main">
             {(sectionRenderers[activeSection] || (() => null))()}
           </div>
         </div>

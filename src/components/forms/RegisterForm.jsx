@@ -106,7 +106,9 @@ export default function RegisterForm() {
 
   // ── Field change ──
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    let { name, value } = e.target;
+    // Keep email format consistent with login (lowercase, no spaces)
+    if (name === "email") value = value.replace(/\s/g, "").toLowerCase();
     setForm(p => ({ ...p, [name]: value }));
     setErrors(p => ({ ...p, [name]: "" }));
   };
@@ -116,8 +118,9 @@ export default function RegisterForm() {
     const e = {};
     if (!form.ownerName.trim())
       e.ownerName = "Full name is required.";
-    if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
-      e.email = "Enter a valid email address.";
+    const email = form.email.trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      e.email = "The email address is not valid.";
     if (form.password.length < 8)
       e.password = "Password must be at least 8 characters.";
     if (!/[A-Z]/.test(form.password))
@@ -254,7 +257,8 @@ export default function RegisterForm() {
         setForm(p => ({
           ...p,
           documents: [...p.documents, {
-            url:     ev.target.result,
+            url:     ev.target.result, // local preview only
+            file,                      // real File → uploaded to Storage on submit
             name:    file.name,
             type:    file.type,
             docType: "other",
@@ -295,23 +299,35 @@ export default function RegisterForm() {
 
   // ── Submit ──
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (!termsAccepted) {
-    setGlobalError("You must accept the Terms and Conditions to proceed.");
-    return;
-  }
-  setLoading(true); setGlobalError("");
-  try {
-    await registerShop(form);
-    setSubmitted(true);
-  } catch (err) {
-    const msg = {
-      "auth/email-already-in-use": "This email is already registered.",
-      "auth/invalid-email":        "The email address is not valid.",
-      "auth/weak-password":        "Password is too weak.",
-    };
-    setGlobalError(msg[err.code] || "Something went wrong. Please try again.");
-  } finally { setLoading(false); }
+    e.preventDefault();
+    if (!termsAccepted) {
+      setGlobalError("You must accept the Terms and Conditions to proceed.");
+      return;
+    }
+    setLoading(true);
+    setGlobalError("");
+    try {
+      await registerShop(form);
+      setSubmitted(true);
+    } catch (err) {
+      const byCode = {
+        "auth/email-already-in-use": "This email is already registered.",
+        "auth/invalid-email": "The email address is not valid.",
+        "auth/weak-password": "Password is too weak.",
+        "storage/unauthorized":
+          "Firebase Storage blocked the upload. Deploy storage.rules (or update Rules in Firebase Console), then try again.",
+      };
+      const message =
+        byCode[err.code] ||
+        (typeof err.message === "string" && err.message.includes("storage/unauthorized")
+          ? byCode["storage/unauthorized"]
+          : null) ||
+        err.message ||
+        "Something went wrong. Please try again.";
+      setGlobalError(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // ── Password strength ──
@@ -368,31 +384,28 @@ export default function RegisterForm() {
       onAccept={() => { setTermsAccepted(true); setTermsOpen(false); }}
       onDecline={() => setTermsOpen(false)}
     />
-      {/* Document preview modal */}
+      {/* Document preview modal — constrained size */}
       {previewModal && (
-        <div
-          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:1000,
-            display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
-          onClick={() => setPreviewModal(null)}
-        >
-          <div style={{ position:"relative", maxWidth:780, width:"100%", maxHeight:"90vh" }}
-            onClick={e => e.stopPropagation()}>
+        <div className="reg-preview-overlay" onClick={() => setPreviewModal(null)}>
+          <div className="reg-preview-modal" onClick={e => e.stopPropagation()}>
             <button
+              type="button"
+              className="reg-preview-close"
               onClick={() => setPreviewModal(null)}
-              style={{ position:"absolute", top:-14, right:-14, width:34, height:34,
-                borderRadius:"50%", background:"#fff", border:"none", fontSize:20,
-                cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
-                boxShadow:"0 2px 12px rgba(0,0,0,0.3)", zIndex:1, lineHeight:1 }}>
+              aria-label="Close preview"
+            >
+              ×
             </button>
             {previewModal.type?.startsWith("image") ? (
-              <img src={previewModal.url} alt={previewModal.name}
-                style={{ width:"100%", maxHeight:"85vh", objectFit:"contain", borderRadius:14,
-                  display:"block", background:"#111" }} />
+              <img
+                src={previewModal.url}
+                alt={previewModal.name}
+                className="reg-preview-img"
+              />
             ) : (
-              <div style={{ background:"#fff", borderRadius:14, padding:40, textAlign:"center" }}>
-                <div style={{ fontSize:56, marginBottom:16 }}></div>
-                <div style={{ fontSize:15, fontWeight:600, color:"#0F172A" }}>{previewModal.name}</div>
-                <p style={{ fontSize:13, color:"#64748B", marginTop:8 }}>PDF preview not available. File is uploaded.</p>
+              <div className="reg-preview-pdf">
+                <div className="reg-preview-pdf-name">{previewModal.name}</div>
+                <p>PDF preview not available. File is uploaded.</p>
               </div>
             )}
           </div>
@@ -509,9 +522,16 @@ export default function RegisterForm() {
 
                     <div className="reg-field">
                       <label className="reg-label">Email Address</label>
-                      <input className={`reg-input ${errors.email ? "error" : ""}`}
-                        type="email" name="email" placeholder="juan@email.com"
-                        value={form.email} onChange={handleChange} />
+                      <input
+                        className={`reg-input ${errors.email ? "error" : ""}`}
+                        type="email"
+                        name="email"
+                        inputMode="email"
+                        autoComplete="email"
+                        placeholder="yourshop@email.com"
+                        value={form.email}
+                        onChange={handleChange}
+                      />
                       <FieldError msg={errors.email} />
                     </div>
 
@@ -569,7 +589,7 @@ export default function RegisterForm() {
                 {step === 1 && (
                   <div>
                     <div className="otp-info-box">
-                      <p className="otp-info-email"> {form.email}</p>
+                      <p className="otp-info-email">{form.email}</p>
                       <p className="otp-info-sub">
                         Check your inbox and spam folder. The code expires in 10 minutes.
                       </p>
@@ -730,127 +750,92 @@ export default function RegisterForm() {
 
                 {/* ══ STEP 3: Documents ══ */}
                 {step === 3 && (
-                  <div>
-                    {/* Requirement info box — all 4 required */}
-                    <div style={{ background:"#F0F9FF", border:"1px solid #BAE6FD",
-                      borderRadius:10, padding:"14px 16px", marginBottom:18, fontSize:12.5 }}>
-                      <div style={{ fontWeight:700, color:"#0369A1", marginBottom:8, fontSize:13 }}>
-                         4 Documents Required
-                      </div>
-                      <div style={{ color:"#0C4A6E", lineHeight:2 }}>
-                        <span style={{ display:"block" }}>
-                           <strong>1 Business Document</strong> — DTI, Business Permit, Mayor's Permit, or BIR
-                        </span>
-                        <span style={{ display:"block" }}>
-                           <strong>1 Shop Exterior Photo</strong> — Clear photo of your shop front
-                        </span>
-                        <span style={{ display:"block" }}>
-                           <strong>1 Valid Government ID</strong> — Any government-issued ID
-                        </span>
-                        <span style={{ display:"block" }}>
-                           <strong>1 Selfie with Valid ID</strong> — Photo of you holding your ID
-                        </span>
-                      </div>
-                      <div style={{ color:"#64748B", fontSize:11, marginTop:6 }}>
+                  <div className="reg-docs-step">
+                    <div className="reg-docs-info">
+                      <div className="reg-docs-info-title">4 Documents Required</div>
+                      <ul className="reg-docs-info-list">
+                        <li><strong>1 Business Document</strong> — DTI, Business Permit, Mayor&apos;s Permit, or BIR</li>
+                        <li><strong>1 Shop Exterior Photo</strong> — Clear photo of your shop front</li>
+                        <li><strong>1 Valid Government ID</strong> — Any government-issued ID</li>
+                        <li><strong>1 Selfie with Valid ID</strong> — Photo of you holding your ID</li>
+                      </ul>
+                      <p className="reg-docs-info-note">
                         All 4 documents are required. The admin will verify before approving your shop.
-                      </div>
+                      </p>
                     </div>
 
-                    {/* Upload zone */}
-                    <label style={{ display:"flex", flexDirection:"column", alignItems:"center",
-                      justifyContent:"center", padding:"24px 20px",
-                      border:"2px dashed #CBD5E1", borderRadius:12, cursor:"pointer",
-                      background:"#F8FAFC", marginBottom:14, transition:"border-color 0.2s, background 0.2s" }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = "#648DB6"; e.currentTarget.style.background = "#F0F9FF"; }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = "#CBD5E1"; e.currentTarget.style.background = "#F8FAFC"; }}>
-                      <input ref={fileRef} type="file" multiple
+                    <label className="upload-zone reg-docs-upload">
+                      <input
+                        ref={fileRef}
+                        type="file"
+                        multiple
                         accept=".jpg,.jpeg,.png,.pdf"
-                        onChange={handleFileAdd} style={{ display:"none" }} />
-                      <div style={{ fontSize:30, marginBottom:8 }}></div>
-                      <div style={{ fontSize:13, fontWeight:600, color:"#334155", marginBottom:4 }}>
-                        Click to upload files
+                        onChange={handleFileAdd}
+                      />
+                      <div className="upload-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#2C3E50" strokeWidth="1.8"
+                          strokeLinecap="round" strokeLinejoin="round" width="22" height="22">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="17 8 12 3 7 8" />
+                          <line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
                       </div>
-                      <div style={{ fontSize:11.5, color:"#64748B" }}>
-                        JPG, PNG, PDF · Max 5MB each · Multiple files allowed
-                      </div>
+                      <div className="upload-title">Click to upload files</div>
+                      <div className="upload-sub">JPG, PNG, PDF · Max 5MB each · Multiple files allowed</div>
                     </label>
 
-                    {/* Status chips — show progress on all 4 */}
                     {form.documents.length > 0 && (
-                      <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:14 }}>
-                        {docStatus.map(({ ok, label, icon }) => (
-                          <div key={label} style={{
-                            display:"flex", alignItems:"center", gap:5,
-                            fontSize:11, fontWeight:700,
-                            color: ok ? "#065F46" : "#92400E",
-                            background: ok ? "#D1FAE5" : "#FEF3C7",
-                            border: `1px solid ${ok ? "#6EE7B7" : "#FCD34D"}`,
-                            borderRadius:20, padding:"4px 10px",
-                          }}>
-                            {ok ? "✓" : "○"} {icon} {label}
+                      <div className="reg-docs-chips">
+                        {docStatus.map(({ ok, label }) => (
+                          <div
+                            key={label}
+                            className={`reg-docs-chip ${ok ? "is-ok" : "is-pending"}`}
+                          >
+                            {ok ? "✓" : "○"} {label}
                           </div>
                         ))}
                       </div>
                     )}
 
-                    {/* Uploaded files list */}
                     {form.documents.length > 0 && (
-                      <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:12 }}>
+                      <div className="reg-docs-list">
                         {form.documents.map((doc, i) => (
-                          <div key={i} style={{ display:"flex", alignItems:"center", gap:12,
-                            background:"#fff", border:"1px solid #E2E8F0", borderRadius:10,
-                            padding:"10px 14px" }}>
-
-                            {/* Thumbnail */}
-                            <div
+                          <div key={i} className="reg-docs-card">
+                            <button
+                              type="button"
+                              className="reg-docs-thumb"
                               onClick={() => setPreviewModal(doc)}
-                              style={{ width:48, height:48, borderRadius:8, overflow:"hidden",
-                                flexShrink:0, cursor:"pointer", border:"1px solid #E2E8F0",
-                                background:"#F1F5F9", display:"flex", alignItems:"center",
-                                justifyContent:"center", position:"relative" }}>
+                              title="Preview"
+                            >
                               {doc.type?.startsWith("image") ? (
-                                <>
-                                  <img src={doc.url} alt={doc.name}
-                                    style={{ width:"100%", height:"100%", objectFit:"cover" }} />
-                                  <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0)",
-                                    display:"flex", alignItems:"center", justifyContent:"center",
-                                    transition:"background 0.15s" }}
-                                    onMouseEnter={e => e.currentTarget.style.background = "rgba(0,0,0,0.35)"}
-                                    onMouseLeave={e => e.currentTarget.style.background = "rgba(0,0,0,0)"}>
-                                  </div>
-                                </>
+                                <img src={doc.url} alt="" />
                               ) : (
-                                <span style={{ fontSize:22 }}></span>
+                                <span className="reg-docs-pdf-badge">PDF</span>
                               )}
-                            </div>
+                            </button>
 
-                            <div style={{ flex:1, minWidth:0 }}>
-                              <div style={{ fontSize:12.5, fontWeight:600, color:"#0F172A",
-                                whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                                {doc.name}
-                              </div>
-                              <div style={{ fontSize:10.5, color:"#94A3B8", marginTop:2 }}>
+                            <div className="reg-docs-meta">
+                              <div className="reg-docs-name" title={doc.name}>{doc.name}</div>
+                              <div className="reg-docs-size">
                                 {(doc.size / 1024).toFixed(0)} KB · Click thumbnail to preview
                               </div>
+                              <select
+                                className="reg-docs-select"
+                                value={doc.docType}
+                                onChange={e => handleDocTypeChange(i, e.target.value)}
+                              >
+                                {DOCUMENT_TYPES.map(t => (
+                                  <option key={t.value} value={t.value}>{t.label}</option>
+                                ))}
+                              </select>
                             </div>
 
-                            {/* Document type selector */}
-                            <select
-                              value={doc.docType}
-                              onChange={e => handleDocTypeChange(i, e.target.value)}
-                              style={{ fontSize:11, padding:"5px 8px", borderRadius:6,
-                                border:"1px solid #E2E8F0", background:"#F8FAFC",
-                                color:"#334155", cursor:"pointer", flexShrink:0 }}>
-                              {DOCUMENT_TYPES.map(t => (
-                                <option key={t.value} value={t.value}>{t.label}</option>
-                              ))}
-                            </select>
-
-                            <button onClick={() => handleRemoveDoc(i)}
-                              style={{ width:28, height:28, borderRadius:6, border:"1px solid #FCA5A5",
-                                background:"#FEF2F2", color:"#EF4444", cursor:"pointer",
-                                fontSize:15, display:"flex", alignItems:"center",
-                                justifyContent:"center", flexShrink:0, lineHeight:1 }}>
+                            <button
+                              type="button"
+                              className="reg-docs-remove"
+                              onClick={() => handleRemoveDoc(i)}
+                              aria-label="Remove file"
+                            >
                               ×
                             </button>
                           </div>
@@ -858,16 +843,15 @@ export default function RegisterForm() {
                       </div>
                     )}
 
-                    {/* Empty state */}
                     {form.documents.length === 0 && (
-                      <div style={{ textAlign:"center", padding:"20px 0", color:"#94A3B8", fontSize:12.5 }}>
+                      <div className="reg-docs-empty">
                         No files uploaded yet. Upload all 4 required documents above.
                       </div>
                     )}
 
                     <FieldError msg={errors.documents} />
 
-                    <div className="reg-actions" style={{ marginTop:16 }}>
+                    <div className="reg-actions" style={{ marginTop: 16 }}>
                       <button type="button" className="reg-btn-back" onClick={goBack}>← Back</button>
                       <button type="button" className="reg-btn-next" onClick={goNext}>
                         Continue →
@@ -931,14 +915,14 @@ export default function RegisterForm() {
                         </div>
                       ))}
                       <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:10 }}>
-                        {docStatus.map(({ ok, label, icon }) => (
+                        {docStatus.map(({ ok, label }) => (
                           <span key={label} style={{
                             fontSize:10, fontWeight:700, padding:"3px 8px", borderRadius:20,
                             color: ok ? "#065F46" : "#991B1B",
                             background: ok ? "#D1FAE5" : "#FEE2E2",
                             border: `1px solid ${ok ? "#6EE7B7" : "#FCA5A5"}`,
                           }}>
-                            {ok ? "✓" : "✗"} {icon} {label}
+                            {ok ? "✓" : "✗"} {label}
                           </span>
                         ))}
                       </div>

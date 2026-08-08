@@ -1,34 +1,3 @@
-// src/components/ui/FilterChips.jsx
-// ─────────────────────────────────────────────────────────────────────────────
-// Shared filter chip / tab row used by ALL dashboards and Admin panel.
-//
-// Works for:
-//   • Status filters — "all" | "pending" | "approved" | "rejected"
-//   • Category filters — "All" | "Cement" | "Tiles" | "Paint" ...
-//   • Plan filters — "all" | "pro" | "business"
-//
-// Props
-// ─────
-//   options      {string[]}   Array of filter key values.
-//                             e.g. ["all", "pending", "approved", "rejected"]
-//
-//   active       {string}     Currently active key — from useFilter's activeFilter.
-//
-//   onSelect     {Function}   (value: string) => void — pass useFilter's setFilter.
-//
-//   accentColor  {string}     Active chip fill colour (default "#1A2332").
-//                             Pass your dashboard's plan colour for consistency.
-//
-//   labelMap     {object}     Optional display overrides.
-//                             e.g. { all: "All Applications", pending: "Awaiting Review" }
-//                             Keys not in labelMap auto-capitalise.
-//
-//   counts       {object}     Optional count badges per option.
-//                             e.g. { pending: 4, approved: 12 }
-//                             Pass only the counts you want to show.
-//
-//   style        {object}     Extra wrapper styles.
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * @param {object} props

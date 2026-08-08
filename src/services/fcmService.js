@@ -1,9 +1,5 @@
 import { getToken, onMessage } from "firebase/messaging";
 import {
-  collection,
-  query,
-  where,
-  getDocs,
   doc,
   updateDoc,
   arrayUnion,
@@ -20,19 +16,8 @@ const VAPID_KEY = "BH_v-D15brArRsVBcVQFDVmRKWWJ7T1_F5oZv4XK99PcJCdZUIHE4krWHIpuO
 // First tries shops/{uid} directly, then falls back to a query.
 // ─────────────────────────────────────────────────────────────────────────────
 async function resolveShopDocId(shopUid) {
-  const q = query(
-    collection(db, "shops"),
-    where("uid", "==", shopUid)
-  );
-
-  const snapshot = await getDocs(q);
-
-  if (!snapshot.empty) {
-    return snapshot.docs[0].id;
-  }
-
-  // Fallback: assume docId === uid
-  console.warn("[FCM] No shop found via uid query, falling back to direct path.");
+  // shops/{uid} is the document id — avoid collection list queries
+  // (Firestore rules only allow owner / approved reads, so where() list is denied).
   return shopUid;
 }
 

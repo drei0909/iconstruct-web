@@ -14,6 +14,8 @@ import {
   updateCategory,
   deleteCategory,
 } from "../models/shopCategoryModel";
+import { fetchShopById } from "../models/shopModel";
+import { isShopApproved } from "../utils/shopAccess";
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -21,6 +23,15 @@ function getUid() {
   const user = auth.currentUser;
   if (!user) throw new Error("Not authenticated.");
   return user.uid;
+}
+
+async function requireApprovedUid() {
+  const uid = getUid();
+  const shop = await fetchShopById(uid);
+  if (!isShopApproved(shop.status)) {
+    throw new Error("Only approved shops can manage categories.");
+  }
+  return uid;
 }
 
 // ── READ ──────────────────────────────────────────────────────
@@ -49,10 +60,16 @@ export async function getCategory(categoryId) {
  * Validates name before writing.
  * @returns {Promise<string>} New category document ID
  */
-export async function addCategory({ name, description, icon, projectId }) {
+export async function addCategory({ name, description, icon, iconKey, projectId }) {
   if (!name || !name.trim()) throw new Error("Category name is required.");
-  const uid = getUid();
-  return insertCategory(uid, { name, description, icon, projectId });
+  const uid = await requireApprovedUid();
+  return insertCategory(uid, {
+    name,
+    description,
+    icon: iconKey || icon,
+    iconKey: iconKey || icon,
+    projectId,
+  });
 }
 
 // ── UPDATE ────────────────────────────────────────────────────
@@ -62,7 +79,7 @@ export async function addCategory({ name, description, icon, projectId }) {
  */
 export async function editCategory(categoryId, { name, description, icon }) {
   if (!name || !name.trim()) throw new Error("Category name is required.");
-  const uid = getUid();
+  const uid = await requireApprovedUid();
   return updateCategory(uid, categoryId, { name: name.trim(), description, icon });
 }
 
@@ -73,7 +90,7 @@ export async function editCategory(categoryId, { name, description, icon }) {
  * will fall back to "Uncategorized" display in the UI.
  */
 export async function removeCategory(categoryId) {
-  const uid = getUid();
+  const uid = await requireApprovedUid();
   return deleteCategory(uid, categoryId);
 }
 

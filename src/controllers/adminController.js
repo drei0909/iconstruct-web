@@ -21,14 +21,14 @@ import {
   updateShopSubscription,
 } from "../models/adminModel";
 
-// ADD this to the existing emailService imports line
 import {
   sendApprovalEmail,
   sendRejectionEmail,
   sendPaymentConfirmedEmail,
   sendPaymentRejectedEmail,
-  sendQuotationAcceptedToUser,   // ← ADD THIS
+  sendQuotationAcceptedToUser,
 } from "../services/emailService";
+import { assertRateLimit, RATE } from "../utils/rateLimit";
 
 
 
@@ -52,13 +52,15 @@ async function writeLog(level, message) {
 
 // ── Auth ───────────────────────────────────────────────────────────────────
 export async function loginAdmin(email, password) {
-  const cred = await signInWithEmailAndPassword(auth, email, password);
+  const normalized = String(email || "").trim().toLowerCase();
+  assertRateLimit(`admin-login:${normalized}`, RATE.login, "Too many admin login attempts");
+  const cred = await signInWithEmailAndPassword(auth, normalized, password);
   const snap = await getDoc(doc(db, "admins", cred.user.uid));
   if (!snap.exists()) {
     await signOut(auth);
     throw new Error("Not authorized as admin.");
   }
-  await writeLog("info", `Admin signed in: ${email}`);
+  await writeLog("info", `Admin signed in: ${normalized}`);
   return cred.user;
 }
 

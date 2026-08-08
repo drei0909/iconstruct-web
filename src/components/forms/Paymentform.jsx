@@ -1,38 +1,24 @@
-// src/components/layout/PaymentForm.jsx
-// iConstruct — Shop Owner Payment Submission Form
-// Called from ShopDashboardBasic / Pro Upgrade tab
+// src/components/forms/Paymentform.jsx
+// iConstruct — Shop Owner Manual Payment Submission Form
 // Submits a payment request to Firestore for admin review
 
 import { useState } from "react";
-import { submitPaymentRequest, getMyPaymentRequest } from "../../controllers/shopController";
+import { submitPaymentRequest } from "../../controllers/shopController";
+import { getPaidPlans } from "../../config/planConfig";
 
-
-
-
-const PLANS = [
-  {
-    id: "pro",
-    name: "Pro Plan",
-    price: "₱499",
-    period: "/month",
-    label: "₱499/month",
-    color: "#2C3E50",
-    features: ["Unlimited project bidding", "Priority listing", "Promo exposure", "Quotation analytics"],
-  },
-  {
-    id: "business",
-    name: "Business Plan",
-    price: "₱4,499",
-    period: "/year",
-    label: "₱4,499/year",
-    color: "#648DB6",
-    badge: "Best Value",
-    features: ["Everything in Pro", "Featured placement", "Priority support", "Advanced analytics", "Save ₱1,489 vs monthly"],
-  },
-];
+const PLANS = getPaidPlans().map((p) => ({
+  id: p.id,
+  name: p.name,
+  price: p.priceLabel,
+  period: p.period,
+  label: p.label,
+  color: p.color,
+  badge: p.badge,
+  features: p.features,
+}));
 
 const PAYMENT_METHODS = [
-  { id: "GCash",          label: "GCash",          color: "#007aff", hint: "Send to: 0924-360-0285 (iConstruct)" },
+  { id: "GCash", label: "GCash", color: "#007aff", hint: "Send to: 0924-360-0285 (iConstruct)" },
 ];
 
 export default function PaymentForm({ onSuccess, existingRequest }) {

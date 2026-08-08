@@ -1,13 +1,14 @@
-// Import Firebase core
+// src/services/firebase.js
 import { initializeApp } from "firebase/app";
-
-// Import Firebase services
-import { getFirestore } from "firebase/firestore";
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 import { getMessaging, isSupported } from "firebase/messaging";
 
-// Your Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyC4hyvv3ZtGWs0XmpeRgkIsJloFvahc6LI",
   authDomain: "iconstruct-58a87.firebaseapp.com",
@@ -18,16 +19,20 @@ const firebaseConfig = {
   measurementId: "G-527KSF5D03",
 };
 
-// Initialize Firebase app
 const app = initializeApp(firebaseConfig);
 
-// Initialize services (same as before — nothing removed)
-export const storage = getStorage(app);
-export const db = getFirestore(app);
-export const auth = getAuth(app);
+// ── Firestore with persistent local cache (multi-tab safe) ──────────────────
+// This replaces getFirestore(app).
+// persistentLocalCache = data cached in IndexedDB across sessions.
+// persistentMultipleTabManager = safe when multiple tabs are open.
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
+});
 
-// Initialize Firebase Cloud Messaging
-// isSupported() checks if the browser supports FCM (not all browsers do)
+export const storage  = getStorage(app);
+export const auth     = getAuth(app);
 export const messaging = isSupported().then((supported) =>
   supported ? getMessaging(app) : null
 );

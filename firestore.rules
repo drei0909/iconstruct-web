@@ -1,0 +1,180 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function shopIsApproved(shopId) {
+      return shopId is string
+        && exists(/databases/$(database)/documents/shops/$(shopId))
+        && get(/databases/$(database)/documents/shops/$(shopId)).data.status is string
+        && get(/databases/$(database)/documents/shops/$(shopId)).data.status.matches('(?i)^approved$');
+    }
+
+    // ── Admins ──────────────────────────────────────────────────────────────
+    match /admins/{adminId} {
+      allow read: if isAdmin() || isOwner(adminId);
+      allow write: if isAdmin();
+    }
+
+    // ── Shops ───────────────────────────────────────────────────────────────
+    match /shops/{shopId} {
+      allow read: if isOwner(shopId) || isAdmin()
+                  || (resource.data.status == "approved");
+      allow create: if isOwner(shopId)
+                    && request.resource.data.subscriptionPlan == "basic"
+                    && request.resource.data.status == "pending";
+      // Owners may edit profile fields only — not plan, approval, or billing status.
+      // Cloud Functions (Admin SDK) bypass rules for PayMongo activation.
+      allow update: if isAdmin() || (
+        isOwner(shopId)
+        && !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny([
+              "subscriptionPlan",
+              "subscriptionStatus",
+              "subscriptionExpiry",
+              "status",
+            ])
+      )
+      || (
+        isOwner(shopId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt"])
+        && request.resource.data.status == "deleted"
+      );
+      allow delete: if isAdmin();
+
+      // Product categories under a shop (used by ProductsTab)
+      match /categories/{categoryId} {
+        allow read: if isOwner(shopId) || isAdmin()
+                    || get(/databases/$(database)/documents/shops/$(shopId)).data.status == "approved";
+        allow write: if (isOwner(shopId) && shopIsApproved(shopId)) || isAdmin();
+      }
+    }
+
+    // ── OTPs (email verification)
+    // Codes are written/read only by Cloud Functions (Admin SDK).
+    match /otps/{email} {
+      allow read, write: if false;
+    }
+
+    // PayMongo audit (Admin SDK only)
+    match /paymongoActivations/{sessionId} {
+      allow read, write: if false;
+    }
+    match /paymongoEvents/{eventId} {
+      allow read, write: if false;
+    }
+    match /checkoutSessions/{sessionId} {
+      allow read, write: if false;
+    }
+
+    // ── Subscription payments ───────────────────────────────────────────────
+    match /subscriptionPayments/{paymentId} {
+      allow read: if isAdmin()
+                  || (signedIn() && resource.data.shopId == request.auth.uid);
+      allow create: if signedIn()
+                    && request.resource.data.shopId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // ── System config (plans, maintenance, etc.) ────────────────────────────
+    match /systemConfig/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /systemLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // ── Products ────────────────────────────────────────────────────────────
+    match /products/{productId} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.shopId == request.auth.uid
+        && shopIsApproved(request.auth.uid);
+      allow update: if signedIn()
+        && resource.data.shopId == request.auth.uid
+        && request.resource.data.shopId == request.auth.uid
+        && shopIsApproved(request.auth.uid);
+      allow delete: if signedIn()
+        && resource.data.shopId == request.auth.uid
+        && shopIsApproved(request.auth.uid);
+    }
+
+    // ── Builders / mobile app users (Flutter — do not lock this out) ────────
+    // App stores builder profiles + fcmTokens under users/{uid}.
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create, update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ── Project posts / quotations (shared: web shops + Flutter builders) ───
+    // Keep these permissive for the collab app. Tighten only with teammate agreement.
+    match /projectPosts/{postId} {
+      allow read: if signedIn();
+      // Builders (app) create/edit posts; shops may only bump bid counters.
+      allow create: if signedIn();
+      allow update: if signedIn() && (
+        isAdmin()
+        || request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(["quotationCount", "updatedAt"])
+        || resource.data.userId == request.auth.uid
+        || resource.data.builderId == request.auth.uid
+        || resource.data.ownerId == request.auth.uid
+        || resource.data.postedBy == request.auth.uid
+      );
+      allow delete: if isAdmin()
+        || (signedIn() && (
+          resource.data.userId == request.auth.uid
+          || resource.data.builderId == request.auth.uid
+          || resource.data.ownerId == request.auth.uid
+          || resource.data.postedBy == request.auth.uid
+        ));
+
+      match /quotations/{quotationId} {
+        allow read: if signedIn();
+        // Shops quote as themselves when approved; must set shopId = their uid.
+        allow create: if signedIn()
+          && request.resource.data.keys().hasAll(["shopId"])
+          && request.resource.data.shopId == request.auth.uid
+          && shopIsApproved(request.auth.uid);
+        allow update, delete: if isAdmin()
+          || (signedIn()
+              && resource.data.shopId == request.auth.uid
+              && shopIsApproved(request.auth.uid));
+      }
+    }
+
+    // Collection-group queries used by the web shop dashboard
+    match /{path=**}/quotations/{quotationId} {
+      allow read: if signedIn();
+      // Mirror create so nested path + collection-group match stay consistent
+      allow create: if signedIn()
+        && request.resource.data.keys().hasAll(["shopId"])
+        && request.resource.data.shopId == request.auth.uid
+        && shopIsApproved(request.auth.uid);
+    }
+
+    // Default deny for unknown collections only.
+    // If the Flutter app adds a new collection, add an explicit rule above
+    // or it will be blocked — coordinate with the mobile teammate first.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

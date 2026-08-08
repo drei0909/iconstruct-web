@@ -5,7 +5,7 @@
   import {
     doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc,
     collection, collectionGroup, query, where, orderBy,
-    serverTimestamp,
+    serverTimestamp, increment,
   } from "firebase/firestore";
 
   // ── Shop ──────────────────────────────────────────────────────────────────────
@@ -17,29 +17,63 @@
   }
 
   // ── Projects ──────────────────────────────────────────────────────────────────
+  // Shared with Flutter: collection "projectPosts". Fetch all posts builders create
+  // so the web shop dashboard can list them (not only status === "open").
+
+  const CLOSED_STATUSES = new Set([
+    "closed", "cancelled", "canceled", "completed", "rejected", "deleted",
+  ]);
+
+  function projectTimestamp(p) {
+    const t = p.postedAt || p.createdAt || p.updatedAt || p.timestamp;
+    if (!t) return 0;
+    if (typeof t.toMillis === "function") return t.toMillis();
+    if (typeof t.seconds === "number") return t.seconds * 1000;
+    const d = new Date(t);
+    return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+  }
+
+  /** Normalize app/web field names so the dashboard always has projectName, etc. */
+  function normalizeProjectPost(id, data) {
+    const location =
+      data.locationCity ||
+      data.location ||
+      data.city ||
+      data.address ||
+      "";
+    return {
+      id,
+      ...data,
+      projectName:
+        data.projectName || data.title || data.name || data.project_name || "Project",
+      projectType:
+        data.projectType || data.type || data.category || data.project_type || "",
+      locationCity: location,
+      materials: Array.isArray(data.materials) ? data.materials : [],
+      budget: data.budget ?? data.budgetRange ?? data.budget_range ?? null,
+      totalAreaSqm:
+        data.totalAreaSqm ?? data.area ?? data.totalArea ?? data.total_area_sqm ?? null,
+      status: (data.status || "open").toString().toLowerCase(),
+    };
+  }
 
   export async function fetchOpenProjects() {
+    // Full collection read (rules: signed-in). No status filter — Flutter may omit
+    // "status" or use a different value; shops still need to see those posts.
+    let docs = [];
     try {
-      const q = query(
-        collection(db, "projectPosts"),
-        where("status", "==", "open"),
-        orderBy("postedAt", "desc")
-      );
+      const q = query(collection(db, "projectPosts"), orderBy("postedAt", "desc"));
       const snap = await getDocs(q);
-      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      console.log("First project fields:", JSON.stringify(docs[0], null, 2)); // ← ADD THIS
-      return docs;
-    } catch (err) {
-      console.warn("Composite index missing, falling back:", err.message);
-      const q = query(
-        collection(db, "projectPosts"),
-        where("status", "==", "open")
-      );
-      const snap = await getDocs(q);
-      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    /*  console.log("Fallback first project:", JSON.stringify(docs[0], null, 2)); */ // ← ADD THIS TOO
-      return docs;
+      docs = snap.docs.map((d) => normalizeProjectPost(d.id, d.data()));
+    } catch {
+      // Missing index / no postedAt on some docs → plain collection scan
+      const snap = await getDocs(collection(db, "projectPosts"));
+      docs = snap.docs.map((d) => normalizeProjectPost(d.id, d.data()));
+      docs.sort((a, b) => projectTimestamp(b) - projectTimestamp(a));
     }
+
+    // Hide only clearly finished posts; keep open / missing status / active / etc.
+    return docs.filter((p) => !CLOSED_STATUSES.has(p.status));
   }
 
   // ── Quotations ────────────────────────────────────────────────────────────────
@@ -55,27 +89,42 @@
   }
 
   export async function insertQuotation({ projectId, projectTitle, shopId, shopName, amount, note, items }) {
-  const quotationRef = collection(db, "projectPosts", projectId, "quotations");
-  await addDoc(quotationRef, {
-    projectId,
-    projectTitle,
-    shopId,
-    shopName,
-    amount:      parseFloat(amount),
-    note:        note  || "",
-    items:       items || [],
-    status:      "pending",
-    createdAt:   serverTimestamp(),
-    updatedAt:   serverTimestamp(),
-  });
-
-    const postRef  = doc(db, "projectPosts", projectId);
-    const postSnap = await getDoc(postRef);
-    const currentCount = postSnap.data()?.quotationCount || 0;
-    await updateDoc(postRef, {
-      quotationCount: currentCount + 1,
+    const quotationRef = collection(db, "projectPosts", projectId, "quotations");
+    const payload = {
+      projectId: String(projectId),
+      projectTitle: projectTitle || "Project",
+      shopId: String(shopId),
+      shopName: shopName || "",
+      amount: parseFloat(amount),
+      note: note || "",
+      items: Array.isArray(items) ? items : [],
+      status: "pending",
+      createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    });
+    };
+
+    try {
+      await addDoc(quotationRef, payload);
+    } catch (err) {
+      const msg = String(err?.message || err || "");
+      if (/permission|insufficient/i.test(msg)) {
+        throw new Error(
+          "Firebase blocked this quote (permissions). Confirm your shop status is approved and run: firebase deploy --only firestore:rules"
+        );
+      }
+      throw err;
+    }
+
+    // Bid counter is best-effort — quote already saved if this fails
+    try {
+      const postRef = doc(db, "projectPosts", projectId);
+      await updateDoc(postRef, {
+        quotationCount: increment(1),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn("quotationCount update skipped:", err.message);
+    }
   }
 
   // ── Payments ──────────────────────────────────────────────────────────────────

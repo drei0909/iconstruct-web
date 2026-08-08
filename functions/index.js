@@ -1,95 +1,1366 @@
-require("dotenv").config();
-// iConstruct — Cloud Functions: Stripe + FCM Notifications
+require("dotenv").config({ path: require("path").join(__dirname, ".env.local") });
+// iConstruct — Cloud Functions: PayMongo Checkout + FCM Notifications
 
-const { onRequest }        = require("firebase-functions/v2/https");
-const { onDocumentCreated, onDocumentUpdated, onDocumentWritten } = require("firebase-functions/v2/firestore");
+const { onRequest } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
+const {
+  onDocumentCreated,
+  onDocumentUpdated,
+  onDocumentWritten,
+} = require("firebase-functions/v2/firestore");
 const { setGlobalOptions } = require("firebase-functions/v2");
-const logger               = require("firebase-functions/logger");
-const stripe               = require("stripe")(process.env.STRIPE_SECRET_KEY);
-const cors                 = require("cors")({ origin: true });
-const admin                = require("firebase-admin");
+const { defineSecret } = require("firebase-functions/params");
+const logger = require("firebase-functions/logger");
+const admin = require("firebase-admin");
+const crypto = require("crypto");
 
-// Initialize Firebase Admin (required for FCM + Firestore access)
 admin.initializeApp();
 const db = admin.firestore();
 
 setGlobalOptions({ maxInstances: 10 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PLAN PRICES
-// ─────────────────────────────────────────────────────────────────────────────
+const paymongoSecret = defineSecret("PAYMONGO_SECRET_KEY");
+
+// Amounts in centavos (PHP × 100) — keep in sync with src/config/planConfig.js
 const PLAN_PRICES = {
-  pro:      { amount: 49900,  currency: "php", name: "iConstruct Pro Plan",     interval: "month" },
-  business: { amount: 449900, currency: "php", name: "iConstruct Business Plan", interval: "year"  },
+  pro: { amount: 99900, currency: "PHP", name: "iConstruct Pro Plan", interval: "month" },
+  business: { amount: 499900, currency: "PHP", name: "iConstruct Business Plan", interval: "month" },
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STRIPE: CREATE CHECKOUT SESSION
-// ─────────────────────────────────────────────────────────────────────────────
-exports.createCheckoutSession = onRequest((req, res) => {
-  cors(req, res, async () => {
-    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-    try {
-      const { planId, shopId, shopEmail, successUrl, cancelUrl } = req.body;
-      if (!planId || !PLAN_PRICES[planId]) return res.status(400).json({ error: "Invalid plan selected." });
+// In-memory rate limit (per Cloud Function instance)
+const rateBuckets = new Map();
 
-      const plan    = PLAN_PRICES[planId];
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ["card"],
-        mode: "payment",
-        line_items: [{
-          price_data: {
-            currency:     plan.currency,
-            product_data: {
-              name:        plan.name,
-              description: `iConstruct ${planId.charAt(0).toUpperCase() + planId.slice(1)} Plan subscription`,
-            },
-            unit_amount: plan.amount,
-          },
-          quantity: 1,
-        }],
-        customer_email: shopEmail || undefined,
-        metadata: { shopId: shopId || "", planId, source: "iconstruct-web" },
-        success_url: successUrl || `${req.headers.origin}/shop/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url:  cancelUrl  || `${req.headers.origin}/shop/dashboard`,
-      });
+function rateLimit(key, { max, windowMs }) {
+  const now = Date.now();
+  const entry = rateBuckets.get(key) || { stamps: [] };
+  entry.stamps = entry.stamps.filter((t) => t > now - windowMs);
+  if (entry.stamps.length >= max) {
+    const retryAfterSec = Math.ceil((entry.stamps[0] + windowMs - now) / 1000);
+    rateBuckets.set(key, entry);
+    return { ok: false, retryAfterSec };
+  }
+  entry.stamps.push(now);
+  rateBuckets.set(key, entry);
+  return { ok: true, retryAfterSec: 0 };
+}
 
-      logger.info("Checkout session created", { sessionId: session.id, planId, shopId });
-      return res.status(200).json({ url: session.url, sessionId: session.id });
-    } catch (err) {
-      logger.error("Stripe checkout error", err);
-      return res.status(500).json({ error: err.message || "Failed to create checkout session." });
-    }
+function getPaymongoSecret() {
+  // Bound secret (production) or dotenv (local emulator / fallback)
+  try {
+    const bound = paymongoSecret.value();
+    if (bound) return bound;
+  } catch {
+    /* secret not bound in this context */
+  }
+  const fromEnv = process.env.PAYMONGO_SECRET_KEY;
+  if (!fromEnv) {
+    throw new Error("PAYMONGO_SECRET_KEY is not configured.");
+  }
+  return fromEnv;
+}
+
+async function paymongoFetch(apiPath, options = {}) {
+  const secret = getPaymongoSecret();
+  const res = await fetch(`https://api.paymongo.com${apiPath}`, {
+    ...options,
+    headers: {
+      Authorization: "Basic " + Buffer.from(`${secret}:`).toString("base64"),
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
   });
-});
+  const json = await res.json();
+  if (!res.ok) {
+    const msg =
+      json?.errors?.[0]?.detail ||
+      json?.error ||
+      `PayMongo request failed (${res.status})`;
+    const err = new Error(msg);
+    err.status = res.status;
+    err.body = json;
+    throw err;
+  }
+  return json;
+}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STRIPE: VERIFY PAYMENT SESSION
-// ─────────────────────────────────────────────────────────────────────────────
-exports.verifyPaymentSession = onRequest((req, res) => {
-  cors(req, res, async () => {
-    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+/** Require Firebase Auth Bearer token. */
+async function requireAuth(req, res) {
+  applyCors(req, res);
+  const header = req.headers.authorization || "";
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  if (!match) {
+    res.status(401).json({ error: "Missing auth token. Sign in and try again." });
+    return null;
+  }
+  try {
+    return await admin.auth().verifyIdToken(match[1]);
+  } catch (err) {
+    logger.warn("Invalid auth token", err.message);
+    res.status(401).json({ error: "Invalid or expired session. Please sign in again." });
+    return null;
+  }
+}
+
+/** Browser CORS for SPA (localhost:5173 + Firebase Hosting). */
+function applyCors(req, res) {
+  const origin = req.headers.origin || "*";
+  res.set("Access-Control-Allow-Origin", origin);
+  res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.set(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Requested-With"
+  );
+  res.set("Access-Control-Max-Age", "3600");
+  // Needed when Authorization header is used with non-* origin
+  if (origin !== "*") {
+    res.set("Access-Control-Allow-Credentials", "true");
+  }
+  res.set("Vary", "Origin");
+}
+
+/** Handle OPTIONS preflight; return true if response already sent. */
+function handlePreflight(req, res) {
+  applyCors(req, res);
+  if (req.method === "OPTIONS") {
+    res.status(204).send("");
+    return true;
+  }
+  return false;
+}
+
+function clientIp(req) {
+  return (
+    req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+    req.ip ||
+    req.connection?.remoteAddress ||
+    "unknown"
+  );
+}
+
+/** Only allow redirects back to our own origin (blocks open-redirect phishing). */
+function safeAppUrl(candidate, fallback) {
+  try {
+    const base = new URL(fallback);
+    const next = new URL(candidate || fallback, base.origin);
+    if (next.origin !== base.origin) return fallback;
+    return next.toString();
+  } catch {
+    return fallback;
+  }
+}
+
+async function activateShopSubscription(shopId, planId, opts = {}) {
+  const {
+    sessionId = null,
+    source = "unknown",
+    amountCentavos = null,
+  } = opts;
+
+  if (!shopId || !PLAN_PRICES[planId]) {
+    logger.warn("activateShopSubscription skipped", { shopId, planId });
+    return null;
+  }
+
+  // Idempotent: same PayMongo session never double-extends expiry
+  if (sessionId) {
+    const actRef = db.collection("paymongoActivations").doc(sessionId);
+    const actSnap = await actRef.get();
+    if (actSnap.exists && actSnap.data()?.ok) {
+      logger.info("Activation already applied for session", { sessionId, shopId, planId });
+      return actSnap.data();
+    }
+  }
+
+  const shopRef = db.collection("shops").doc(shopId);
+
+  const result = await db.runTransaction(async (tx) => {
+    if (sessionId) {
+      const actRef = db.collection("paymongoActivations").doc(sessionId);
+      const actSnap = await tx.get(actRef);
+      if (actSnap.exists && actSnap.data()?.ok) {
+        return actSnap.data();
+      }
+    }
+
+    const shopSnap = await tx.get(shopRef);
+    if (!shopSnap.exists) {
+      throw new Error("Shop not found for subscription activation.");
+    }
+    const data = shopSnap.data() || {};
+
+    // Renew reliability: stack +30 days from later of (now | current expiry)
+    let baseMs = Date.now();
+    const exp = data.subscriptionExpiry;
+    if (exp) {
+      const d = typeof exp.toDate === "function" ? exp.toDate() : new Date(exp);
+      if (!Number.isNaN(d.getTime()) && d.getTime() > baseMs) {
+        baseMs = d.getTime();
+      }
+    }
+    const newExpiry = new Date(baseMs + 30 * 24 * 60 * 60 * 1000);
+    const amount =
+      amountCentavos != null
+        ? amountCentavos / 100
+        : PLAN_PRICES[planId].amount / 100;
+
+    tx.set(
+      shopRef,
+      {
+        subscriptionPlan: planId,
+        subscriptionStatus: "active",
+        subscriptionExpiry: admin.firestore.Timestamp.fromDate(newExpiry),
+        lastPaymentAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastPaymentSource: source,
+        lastPaymentSessionId: sessionId || null,
+        lastPaymentPlanId: planId,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    const payRef = db.collection("subscriptionPayments").doc();
+    tx.set(payRef, {
+      shopId,
+      shopName: data.shopName || "",
+      ownerName: data.ownerName || "",
+      email: data.email || "",
+      planName: planId,
+      planPrice: amount,
+      paymentMethod: "paymongo",
+      status: "confirmed",
+      source,
+      sessionId: sessionId || null,
+      referenceNumber: sessionId || `paymongo_${Date.now()}`,
+      submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+      confirmedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    if (sessionId) {
+      tx.set(
+        db.collection("paymongoActivations").doc(sessionId),
+        {
+          ok: true,
+          shopId,
+          planId,
+          source,
+          amount,
+          expiryMs: newExpiry.getTime(),
+          paymentDocId: payRef.id,
+          activatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    }
+
+    return {
+      ok: true,
+      shopId,
+      planId,
+      source,
+      expiry: newExpiry.toISOString(),
+    };
+  });
+
+  logger.info("Shop subscription activated/renewed", {
+    shopId,
+    planId,
+    source,
+    sessionId,
+    expiry: result?.expiry,
+  });
+  return result;
+}
+
+async function isCheckoutPaid(attrs = {}) {
+  const payments = attrs.payments || [];
+  return (
+    payments.some(
+      (p) => p?.attributes?.status === "paid" || p?.status === "paid"
+    ) ||
+    attrs.payment_intent?.attributes?.status === "succeeded" ||
+    attrs.status === "paid"
+  );
+}
+
+function extractPaidAmount(attrs = {}) {
+  const payments = attrs.payments || [];
+  return (
+    payments[0]?.attributes?.amount ??
+    payments[0]?.amount ??
+    attrs.amount ??
+    null
+  );
+}
+
+/**
+ * PayMongo sends several webhook envelope shapes. Normalize to one structure.
+ * See: docs.paymongo.com checkout_session.payment.paid
+ */
+function normalizePaymongoWebhook(body) {
+  if (!body || typeof body !== "object") {
+    return { eventId: null, eventType: "", sessionId: null, resource: null, attrs: {}, metadata: {} };
+  }
+
+  // ── Newer Hosted Checkout style ──────────────────────────────────────────
+  // { event_type, data: { type: "checkout_session.payment.paid", data: { id: "cs_…", attributes } } }
+  if (body.data && body.data.data && (body.data.type || body.event_type)) {
+    const outer = body.data;
+    const resource = outer.data || {};
+    const attrs = resource.attributes || {};
+    return {
+      eventId:
+        outer.id ||
+        resource.id ||
+        (body.event_type
+          ? `${body.event_type}_${resource.id || Date.now()}`
+          : null),
+      eventType: String(outer.type || body.event_type || ""),
+      sessionId: resource.id || null,
+      resource,
+      attrs,
+      metadata: attrs.metadata || {},
+      referenceNumber: attrs.reference_number || null,
+      paymentIntentId:
+        attrs.payment_intent?.id ||
+        attrs.payment_intent_id ||
+        null,
+    };
+  }
+
+  // ── Classic event style ──────────────────────────────────────────────────
+  // { data: { id: "evt_…", type: "event", attributes: { type: "…", data: { id, attributes } } } }
+  if (body.data?.attributes) {
+    const evt = body.data;
+    const attributes = evt.attributes || {};
+    const resource = attributes.data || {};
+    const attrs = resource.attributes || {};
+    const eventType = String(attributes.type || "");
+    let sessionId = null;
+    if (String(resource.id || "").startsWith("cs_")) {
+      sessionId = resource.id;
+    } else if (attrs.checkout_session_id) {
+      sessionId = attrs.checkout_session_id;
+    } else if (resource.type === "checkout_session") {
+      sessionId = resource.id;
+    }
+    return {
+      eventId: evt.id || null,
+      eventType,
+      sessionId,
+      resource,
+      attrs,
+      metadata: attrs.metadata || {},
+      referenceNumber: attrs.reference_number || null,
+      paymentIntentId:
+        attrs.payment_intent_id ||
+        attrs.payment_intent?.id ||
+        (String(resource.id || "").startsWith("pi_") ? resource.id : null),
+      paymentId: String(resource.id || "").startsWith("pay_") ? resource.id : null,
+    };
+  }
+
+  // ── Fallback flat ────────────────────────────────────────────────────────
+  const attrs = body.attributes || body;
+  return {
+    eventId: body.id || null,
+    eventType: String(body.type || body.event_type || ""),
+    sessionId: body.id?.startsWith?.("cs_") ? body.id : null,
+    resource: body,
+    attrs,
+    metadata: attrs.metadata || {},
+    referenceNumber: attrs.reference_number || null,
+    paymentIntentId: attrs.payment_intent_id || null,
+  };
+}
+
+function parseReferenceShopPlan(ref) {
+  if (!ref) return null;
+  // Format written at checkout create: ic|{shopId}|{planId}
+  const parts = String(ref).split("|");
+  if (parts.length >= 3 && parts[0] === "ic" && PLAN_PRICES[parts[2]]) {
+    return { shopId: parts[1], planId: parts[2] };
+  }
+  return null;
+}
+
+/**
+ * Resolve shopId + planId + sessionId for activation from a webhook envelope.
+ */
+async function resolveWebhookActivation(parsed) {
+  let shopId =
+    parsed.metadata?.shopId ||
+    parsed.metadata?.shop_id ||
+    null;
+  let planId =
+    parsed.metadata?.planId ||
+    parsed.metadata?.plan_id ||
+    null;
+  let sessionId = parsed.sessionId;
+
+  const fromRef = parseReferenceShopPlan(parsed.referenceNumber);
+  if (fromRef) {
+    shopId = shopId || fromRef.shopId;
+    planId = planId || fromRef.planId;
+  }
+
+  // Re-fetch checkout session from PayMongo for canonical metadata
+  if (sessionId && String(sessionId).startsWith("cs_")) {
     try {
-      const { sessionId } = req.body;
-      if (!sessionId) return res.status(400).json({ error: "Session ID is required." });
-
-      const session = await stripe.checkout.sessions.retrieve(sessionId);
-      if (session.payment_status === "paid") {
-        return res.status(200).json({
-          success: true, paid: true,
-          planId:  session.metadata?.planId,
-          shopId:  session.metadata?.shopId,
-          email:   session.customer_email,
-          amountPaid: session.amount_total,
-        });
-      } else {
-        return res.status(200).json({ success: true, paid: false });
+      const cs = await paymongoFetch(`/v1/checkout_sessions/${sessionId}`, {
+        method: "GET",
+      });
+      const csAttrs = cs?.data?.attributes || {};
+      const meta = csAttrs.metadata || {};
+      shopId = shopId || meta.shopId || meta.shop_id;
+      planId = planId || meta.planId || meta.plan_id;
+      const refPlan = parseReferenceShopPlan(csAttrs.reference_number);
+      if (refPlan) {
+        shopId = shopId || refPlan.shopId;
+        planId = planId || refPlan.planId;
+      }
+      if (!parsed.attrs?.payments?.length && csAttrs.payments) {
+        parsed.attrs = { ...parsed.attrs, payments: csAttrs.payments };
       }
     } catch (err) {
-      logger.error("Verify session error", err);
-      return res.status(500).json({ error: err.message || "Failed to verify payment." });
+      logger.warn("resolveWebhookActivation checkout fetch failed", err.message);
     }
+  }
+
+  // Firestore pending session (written at createCheckoutSession)
+  if (sessionId && (!shopId || !planId)) {
+    const pending = await db.collection("checkoutSessions").doc(sessionId).get();
+    if (pending.exists) {
+      shopId = shopId || pending.data().shopId;
+      planId = planId || pending.data().planId;
+    }
+  }
+
+  // payment.paid often has no session id — match pending row by payment_intent / email / amount
+  if ((!shopId || !planId || !sessionId) && parsed.paymentIntentId) {
+    const byPi = await db
+      .collection("checkoutSessions")
+      .where("paymentIntentId", "==", parsed.paymentIntentId)
+      .limit(1)
+      .get()
+      .catch(() => null);
+    if (byPi && !byPi.empty) {
+      const d = byPi.docs[0].data();
+      shopId = shopId || d.shopId;
+      planId = planId || d.planId;
+      sessionId = sessionId || byPi.docs[0].id;
+    }
+  }
+
+  // Last resort: most recent pending session for shop from payment email
+  if ((!shopId || !planId) && parsed.attrs?.billing?.email) {
+    const email = String(parsed.attrs.billing.email).toLowerCase();
+    const q = await db
+      .collection("checkoutSessions")
+      .where("email", "==", email)
+      .where("status", "==", "pending")
+      .limit(5)
+      .get()
+      .catch(() => null);
+    if (q && !q.empty) {
+      // Prefer matching amount
+      const amount = extractPaidAmount(parsed.attrs);
+      let chosen = q.docs[0];
+      if (amount != null) {
+        const match = q.docs.find((d) => d.data().amount === amount);
+        if (match) chosen = match;
+      }
+      const d = chosen.data();
+      shopId = shopId || d.shopId;
+      planId = planId || d.planId;
+      sessionId = sessionId || chosen.id;
+    }
+  }
+
+  return { shopId, planId, sessionId };
+}
+
+// ── Email OTP (server-side only — clients never read otp codes) ────────────
+
+function otpPepper() {
+  return (
+    process.env.OTP_PEPPER ||
+    process.env.PAYMONGO_SECRET_KEY ||
+    "iconstruct-otp-pepper"
+  );
+}
+
+function hashOtp(code) {
+  return crypto
+    .createHash("sha256")
+    .update(`${String(code).trim()}:${otpPepper()}`)
+    .digest("hex");
+}
+
+function generateOtpCode() {
+  const n = crypto.randomInt(100000, 1000000);
+  return String(n);
+}
+
+async function sendOtpViaEmailJs({ toEmail, toName, otpCode }) {
+  const serviceId = process.env.EMAILJS_SERVICE_ID || "service_ekwltb2";
+  const templateId = process.env.EMAILJS_TEMPLATE_OTP || "template_i4tvz8h";
+  const publicKey = process.env.EMAILJS_PUBLIC_KEY || "8CRqLBqTGPfDxdwl-";
+  const privateKey = process.env.EMAILJS_PRIVATE_KEY || "";
+
+  const body = {
+    service_id: serviceId,
+    template_id: templateId,
+    user_id: publicKey,
+    template_params: {
+      to_email: toEmail,
+      to_name: toName || "Shop Owner",
+      otp_code: otpCode,
+    },
+  };
+  if (privateKey) body.accessToken = privateKey;
+
+  const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`OTP email failed (${res.status}): ${text || res.statusText}`);
+  }
+}
+
+function normalizeEmailServer(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+/**
+ * Find paid shops past subscriptionExpiry and reset them to basic in the DB.
+ * @returns {{ checked: number, expired: number, shopIds: string[] }}
+ */
+async function enforceExpiredSubscriptions() {
+  const now = admin.firestore.Timestamp.now();
+  const shopIds = [];
+  let checked = 0;
+
+  // Query by expiry (avoids scanning every shop). Single-field inequality is fine.
+  const snap = await db
+    .collection("shops")
+    .where("subscriptionExpiry", "<=", now)
+    .limit(400)
+    .get();
+
+  const batch = db.batch();
+  let batchCount = 0;
+
+  for (const docSnap of snap.docs) {
+    checked += 1;
+    const data = docSnap.data() || {};
+    const plan = String(data.subscriptionPlan || "basic").toLowerCase();
+    const status = String(data.subscriptionStatus || "").toLowerCase();
+
+    // Only rewrite shops still stored as paid / active paid
+    if (plan !== "pro" && plan !== "business") continue;
+    if (status === "expired") continue;
+
+    batch.set(
+      docSnap.ref,
+      {
+        subscriptionPlan: "basic",
+        subscriptionStatus: "expired",
+        lastExpiredPlan: plan,
+        lastExpiredAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+    batchCount += 1;
+    shopIds.push(docSnap.id);
+  }
+
+  if (batchCount > 0) {
+    await batch.commit();
+  }
+
+  logger.info("Subscription expiry pass", {
+    checked,
+    expired: shopIds.length,
+    shopIds,
+  });
+
+  return { checked, expired: shopIds.length, shopIds };
+}
+
+// Daily 16:00 UTC ≈ 00:00 Asia/Manila — rewrite expired paid plans to basic in Firestore
+exports.enforceSubscriptionExpiry = onSchedule(
+  {
+    schedule: "every day 16:00",
+    timeZone: "UTC",
+    region: "us-central1",
+  },
+  async () => {
+    try {
+      await enforceExpiredSubscriptions();
+    } catch (err) {
+      logger.error("enforceSubscriptionExpiry failed", err);
+      throw err;
+    }
+  }
+);
+
+/** Manual/admin trigger (needs Firebase Auth admin token) for testing expiry now. */
+exports.runSubscriptionExpiryNow = onRequest(
+  { cors: true },
+  async (req, res) => {
+    if (req.method === "OPTIONS") return res.status(204).send("");
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+
+    const decoded = await requireAuth(req, res);
+    if (!decoded) return;
+
+    const adminSnap = await db.collection("admins").doc(decoded.uid).get();
+    if (!adminSnap.exists) {
+      return res.status(403).json({ error: "Admins only." });
+    }
+
+    try {
+      const result = await enforceExpiredSubscriptions();
+      return res.status(200).json({ success: true, ...result });
+    } catch (err) {
+      logger.error("runSubscriptionExpiryNow", err);
+      return res.status(500).json({ error: err.message || "Failed" });
+    }
+  }
+);
+
+// CORS helpers + auth so SPA (localhost) can call these
+exports.createCheckoutSession = onRequest(
+  { cors: [/^http:\/\/localhost:\d+$/, /^https:\/\/.*\.web\.app$/, /^https:\/\/.*\.firebaseapp\.com$/, true], secrets: [paymongoSecret] },
+  async (req, res) => {
+    if (handlePreflight(req, res)) return;
+    applyCors(req, res);
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+
+    const decoded = await requireAuth(req, res);
+    if (!decoded) return;
+
+    const ipLimit = rateLimit(`checkout-ip:${clientIp(req)}`, {
+      max: 20,
+      windowMs: 15 * 60 * 1000,
+    });
+    const uidLimit = rateLimit(`checkout-uid:${decoded.uid}`, {
+      max: 5,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!ipLimit.ok || !uidLimit.ok) {
+      return res.status(429).json({
+        error: `Too many checkout attempts. Retry in ${Math.max(ipLimit.retryAfterSec, uidLimit.retryAfterSec)}s.`,
+      });
+    }
+
+    try {
+      const { planId, shopEmail, successUrl, cancelUrl } = req.body || {};
+      if (!planId || !PLAN_PRICES[planId]) {
+        return res.status(400).json({ error: "Invalid plan selected." });
+      }
+
+      // Always bind to authenticated user — never trust client shopId
+      const shopId = decoded.uid;
+      const plan = PLAN_PRICES[planId];
+      const origin = req.headers.origin || "http://localhost:5173";
+      const success = safeAppUrl(
+        successUrl,
+        `${origin}/shop/payment-success`
+      );
+      const cancel = safeAppUrl(cancelUrl, `${origin}/shop/dashboard`);
+      const payload = {
+        data: {
+          attributes: {
+            send_email_receipt: true,
+            show_description: true,
+            show_line_items: true,
+            description: `iConstruct ${planId} plan`,
+            line_items: [
+              {
+                name: plan.name,
+                amount: plan.amount,
+                currency: plan.currency,
+                quantity: 1,
+                description: `${plan.interval}ly subscription`,
+              },
+            ],
+            payment_method_types: ["card", "gcash", "paymaya", "qrph"],
+            success_url: success,
+            cancel_url: cancel,
+            // reference_number is always returned on webhooks even if metadata is thin
+            reference_number: `ic|${shopId}|${planId}`,
+            metadata: {
+              shopId,
+              planId,
+              source: "iconstruct-web",
+            },
+          },
+        },
+      };
+
+      if (shopEmail || decoded.email) {
+        payload.data.attributes.billing = {
+          email: shopEmail || decoded.email,
+        };
+      }
+
+      const json = await paymongoFetch("/v1/checkout_sessions", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      const sessionId = json?.data?.id;
+      const checkoutUrl = json?.data?.attributes?.checkout_url;
+      const paymentIntentId =
+        json?.data?.attributes?.payment_intent?.id ||
+        json?.data?.attributes?.payment_intent_id ||
+        null;
+
+      if (!checkoutUrl || !sessionId) {
+        throw new Error("PayMongo did not return a checkout URL.");
+      }
+
+      // Persist pending checkout for webhook / renew audit trail
+      await db.collection("checkoutSessions").doc(sessionId).set(
+        {
+          shopId,
+          planId,
+          status: "pending",
+          email: String(shopEmail || decoded.email || "").toLowerCase(),
+          amount: plan.amount,
+          paymentIntentId: paymentIntentId || null,
+          referenceNumber: `ic|${shopId}|${planId}`,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      logger.info("PayMongo checkout created", { sessionId, planId, shopId });
+      return res.status(200).json({ url: checkoutUrl, sessionId });
+    } catch (err) {
+      logger.error("PayMongo checkout error", err);
+      return res.status(500).json({
+        error: err.message || "Failed to create checkout session.",
+      });
+    }
+  }
+);
+
+exports.verifyPaymentSession = onRequest(
+  { cors: [/^http:\/\/localhost:\d+$/, true], secrets: [paymongoSecret] },
+  async (req, res) => {
+    if (handlePreflight(req, res)) return;
+    applyCors(req, res);
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+
+    const decoded = await requireAuth(req, res);
+    if (!decoded) return;
+
+    const limit = rateLimit(`verify:${decoded.uid}`, {
+      max: 30,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!limit.ok) {
+      return res.status(429).json({
+        error: `Too many verify attempts. Retry in ${limit.retryAfterSec}s.`,
+      });
+    }
+
+    try {
+      const { sessionId } = req.body || {};
+      if (!sessionId) {
+        return res.status(400).json({ error: "Session ID is required." });
+      }
+
+      // Already activated by webhook?
+      const actSnap = await db.collection("paymongoActivations").doc(sessionId).get();
+      if (actSnap.exists && actSnap.data()?.ok) {
+        const a = actSnap.data();
+        if (a.shopId && a.shopId !== decoded.uid) {
+          return res.status(403).json({ error: "Session does not belong to this account." });
+        }
+        return res.status(200).json({
+          success: true,
+          paid: true,
+          planId: a.planId,
+          shopId: decoded.uid,
+          source: "activation_record",
+          expiry: a.expiryMs
+            ? new Date(a.expiryMs).toISOString()
+            : null,
+        });
+      }
+
+      const json = await paymongoFetch(`/v1/checkout_sessions/${sessionId}`, {
+        method: "GET",
+      });
+
+      const attrs = json?.data?.attributes || {};
+      const paid = await isCheckoutPaid(attrs);
+      const metadata = attrs.metadata || {};
+
+      if (metadata.shopId && metadata.shopId !== decoded.uid) {
+        return res.status(403).json({ error: "Session does not belong to this account." });
+      }
+
+      if (paid) {
+        const planId = metadata.planId;
+        const amountCentavos = extractPaidAmount(attrs);
+        await activateShopSubscription(decoded.uid, planId, {
+          sessionId,
+          source: "verify_redirect",
+          amountCentavos,
+        });
+
+        await db.collection("checkoutSessions").doc(sessionId).set(
+          {
+            status: "paid",
+            paidAt: admin.firestore.FieldValue.serverTimestamp(),
+            activatedBy: "verify_redirect",
+          },
+          { merge: true }
+        );
+
+        return res.status(200).json({
+          success: true,
+          paid: true,
+          planId,
+          shopId: decoded.uid,
+          email: attrs.billing?.email,
+          amountPaid:
+            amountCentavos ?? PLAN_PRICES[planId]?.amount,
+          source: "verify_redirect",
+        });
+      }
+
+      return res.status(200).json({ success: true, paid: false });
+    } catch (err) {
+      logger.error("PayMongo verify error", err);
+      return res.status(500).json({
+        error: err.message || "Failed to verify payment.",
+      });
+    }
+  }
+);
+
+/**
+ * PayMongo webhook — primary activation path (does not depend on browser return).
+ * URL: https://us-central1-iconstruct-58a87.cloudfunctions.net/paymongoWebhook
+ * Events: checkout_session.payment.paid (required), payment.paid (backup)
+ * Create the webhook in the SAME mode as payments (Test vs Live).
+ */
+exports.paymongoWebhook = onRequest(
+  { cors: false, secrets: [paymongoSecret], invoker: "public", timeoutSeconds: 60 },
+  async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    if (req.method === "OPTIONS") return res.status(204).send("");
+    if (req.method === "GET" || req.method === "HEAD") {
+      return res.status(200).send("paymongoWebhook ok");
+    }
+    if (req.method !== "POST") {
+      return res.status(405).send("Method not allowed");
+    }
+
+    try {
+      const rawBody =
+        typeof req.rawBody === "string"
+          ? req.rawBody
+          : Buffer.isBuffer(req.rawBody)
+            ? req.rawBody.toString("utf8")
+            : JSON.stringify(req.body || {});
+
+      logger.info("paymongoWebhook POST", {
+        contentType: req.headers["content-type"],
+        bodyPreview: rawBody.slice(0, 500),
+      });
+
+      const parsed = normalizePaymongoWebhook(req.body || {});
+      const eventType = parsed.eventType || String(req.body?.data?.type || "");
+      const typeLower = eventType.toLowerCase();
+      const outerType = String(req.body?.data?.type || req.body?.data?.attributes?.type || "").toLowerCase();
+
+      const eventId =
+        parsed.eventId ||
+        `evt_${crypto.createHash("sha256").update(rawBody).digest("hex").slice(0, 28)}`;
+
+      const eventRef = db.collection("paymongoEvents").doc(String(eventId).slice(0, 700));
+      const existing = await eventRef.get();
+      if (existing.exists && existing.data()?.processed && existing.data()?.ok) {
+        return res.status(200).json({ ok: true, duplicate: true });
+      }
+
+      const looksPaid =
+        typeLower.includes("paid") ||
+        outerType.includes("paid") ||
+        typeLower === "send.webhook" ||
+        parsed.attrs?.status === "paid" ||
+        (await isCheckoutPaid(parsed.attrs || {}));
+
+      logger.info("PayMongo webhook parsed", {
+        eventId,
+        eventType,
+        outerType,
+        sessionId: parsed.sessionId,
+        looksPaid,
+        metadata: parsed.metadata,
+        referenceNumber: parsed.referenceNumber,
+      });
+
+      if (!looksPaid) {
+        await eventRef.set(
+          {
+            processed: true,
+            ignored: true,
+            reason: "event_not_paid",
+            type: eventType || outerType,
+            rawSnippet: rawBody.slice(0, 600),
+            at: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+        return res.status(200).json({ ok: true, paid: false });
+      }
+
+      const resolved = await resolveWebhookActivation(parsed);
+      let { shopId, planId, sessionId } = resolved;
+
+      // Deep-scan body for cs_ id if metadata still missing
+      if ((!shopId || !planId) && rawBody.includes("cs_")) {
+        const m = rawBody.match(/cs_[A-Za-z0-9]+/);
+        if (m) {
+          sessionId = sessionId || m[0];
+          try {
+            const cs = await paymongoFetch(`/v1/checkout_sessions/${m[0]}`, {
+              method: "GET",
+            });
+            const meta = cs?.data?.attributes?.metadata || {};
+            shopId = shopId || meta.shopId || meta.shop_id;
+            planId = planId || meta.planId || meta.plan_id;
+            const refPlan = parseReferenceShopPlan(
+              cs?.data?.attributes?.reference_number
+            );
+            if (refPlan) {
+              shopId = shopId || refPlan.shopId;
+              planId = planId || refPlan.planId;
+            }
+          } catch (e) {
+            logger.warn("deep cs_ fetch failed", e.message);
+          }
+        }
+      }
+
+      if ((!shopId || !planId) && sessionId) {
+        const pending = await db.collection("checkoutSessions").doc(sessionId).get();
+        if (pending.exists) {
+          shopId = shopId || pending.data().shopId;
+          planId = planId || pending.data().planId;
+        }
+      }
+
+      if (!shopId || !PLAN_PRICES[planId]) {
+        logger.error("Webhook missing shopId/planId after resolve", {
+          eventType,
+          sessionId,
+          metadata: parsed.metadata,
+          referenceNumber: parsed.referenceNumber,
+        });
+        await eventRef.set(
+          {
+            processed: true,
+            ok: false,
+            error: "missing_metadata",
+            type: eventType,
+            sessionId: sessionId || null,
+            metadata: parsed.metadata || {},
+            referenceNumber: parsed.referenceNumber || null,
+            rawSnippet: rawBody.slice(0, 1200),
+            at: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+        return res.status(200).json({ ok: false, error: "missing_metadata" });
+      }
+
+      const amountCentavos = extractPaidAmount(parsed.attrs || {});
+      const activationKey =
+        (sessionId && String(sessionId).startsWith("cs_") && sessionId) ||
+        parsed.paymentId ||
+        eventId;
+
+      await activateShopSubscription(shopId, planId, {
+        sessionId: activationKey,
+        source: "webhook",
+        amountCentavos,
+      });
+
+      if (sessionId && String(sessionId).startsWith("cs_")) {
+        await db.collection("checkoutSessions").doc(sessionId).set(
+          {
+            status: "paid",
+            paidAt: admin.firestore.FieldValue.serverTimestamp(),
+            activatedBy: "webhook",
+            paymentIntentId: parsed.paymentIntentId || null,
+          },
+          { merge: true }
+        );
+      }
+
+      await eventRef.set(
+        {
+          processed: true,
+          ok: true,
+          shopId,
+          planId,
+          sessionId: sessionId || null,
+          type: eventType,
+          at: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      logger.info("Webhook activated plan", { shopId, planId, sessionId, eventType });
+      return res.status(200).json({ ok: true, paid: true, shopId, planId });
+    } catch (err) {
+      logger.error("paymongoWebhook error", err);
+      return res.status(500).json({ error: err.message || "Webhook failed" });
+    }
+  }
+);
+
+/**
+ * Shop self-heal when webhook/redirect was missed.
+ * POST { sessionId? } with Bearer token — re-check PayMongo sessions for this shop.
+ */
+exports.syncMyLatestPayment = onRequest(
+  {
+    cors: [/^http:\/\/localhost:\d+$/, /^https:\/\/.*$/, true],
+    secrets: [paymongoSecret],
+    invoker: "public",
+  },
+  async (req, res) => {
+    if (handlePreflight(req, res)) return;
+    applyCors(req, res);
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+
+    const decoded = await requireAuth(req, res);
+    if (!decoded) return;
+
+    try {
+      const shopId = decoded.uid;
+      let activated = null;
+
+      const bodySession = req.body?.sessionId;
+      if (bodySession && String(bodySession).startsWith("cs_")) {
+        const json = await paymongoFetch(`/v1/checkout_sessions/${bodySession}`, {
+          method: "GET",
+        });
+        const attrs = json?.data?.attributes || {};
+        const meta = attrs.metadata || {};
+        if (meta.shopId && meta.shopId !== shopId) {
+          return res.status(403).json({ error: "Session is not for this shop." });
+        }
+        if (await isCheckoutPaid(attrs)) {
+          const planId =
+            meta.planId ||
+            parseReferenceShopPlan(attrs.reference_number)?.planId;
+          if (PLAN_PRICES[planId]) {
+            activated = await activateShopSubscription(shopId, planId, {
+              sessionId: bodySession,
+              source: "sync_explicit",
+              amountCentavos: extractPaidAmount(attrs),
+            });
+          }
+        }
+      }
+
+      if (!activated?.ok) {
+        const snap = await db
+          .collection("checkoutSessions")
+          .where("shopId", "==", shopId)
+          .limit(15)
+          .get();
+
+        for (const docSnap of snap.docs) {
+          const sid = docSnap.id;
+          if (!String(sid).startsWith("cs_")) continue;
+          try {
+            const json = await paymongoFetch(`/v1/checkout_sessions/${sid}`, {
+              method: "GET",
+            });
+            const attrs = json?.data?.attributes || {};
+            if (!(await isCheckoutPaid(attrs))) continue;
+
+            const meta = attrs.metadata || {};
+            const planId =
+              meta.planId ||
+              docSnap.data().planId ||
+              parseReferenceShopPlan(attrs.reference_number)?.planId;
+
+            if (!PLAN_PRICES[planId]) continue;
+
+            activated = await activateShopSubscription(shopId, planId, {
+              sessionId: sid,
+              source: "sync_pending",
+              amountCentavos: extractPaidAmount(attrs),
+            });
+
+            await docSnap.ref.set(
+              {
+                status: "paid",
+                activatedBy: "sync_pending",
+                paidAt: admin.firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+
+            if (activated?.ok) break;
+          } catch (e) {
+            logger.warn("sync session failed", sid, e.message);
+          }
+        }
+      }
+
+      if (activated?.ok) {
+        return res.status(200).json({
+          success: true,
+          paid: true,
+          planId: activated.planId,
+          shopId,
+          source: activated.source || "sync",
+        });
+      }
+
+      const shop = await db.collection("shops").doc(shopId).get();
+      const plan = String(shop.data()?.subscriptionPlan || "basic").toLowerCase();
+      const status = String(shop.data()?.subscriptionStatus || "").toLowerCase();
+      if ((plan === "pro" || plan === "business") && status === "active") {
+        return res.status(200).json({
+          success: true,
+          paid: true,
+          planId: plan,
+          shopId,
+          source: "already_active",
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        paid: false,
+        message:
+          "No paid session found. Use Test-mode webhook + event checkout_session.payment.paid, pay again, then click Confirm payment.",
+      });
+    } catch (err) {
+      logger.error("syncMyLatestPayment", err);
+      return res.status(500).json({ error: err.message || "Sync failed." });
+    }
+  }
+);
+
+// ── Server OTP ──────────────────────────────────────────────────────────────
+
+exports.requestEmailOtp = onRequest(
+  { cors: [/^http:\/\/localhost:\d+$/, true], invoker: "public" },
+  async (req, res) => {
+  if (handlePreflight(req, res)) return;
+  applyCors(req, res);
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  try {
+    const email = normalizeEmailServer(req.body?.email);
+    const ownerName = String(req.body?.ownerName || "Shop Owner").slice(0, 80);
+    const purpose = String(req.body?.purpose || "register").slice(0, 32);
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: "Valid email is required." });
+    }
+
+    const ipLim = rateLimit(`otp-ip:${clientIp(req)}`, {
+      max: 12,
+      windowMs: 15 * 60 * 1000,
+    });
+    const mailLim = rateLimit(`otp-mail:${email}`, {
+      max: 3,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (!ipLim.ok || !mailLim.ok) {
+      return res.status(429).json({
+        error: `Too many OTP requests. Retry in ${Math.max(ipLim.retryAfterSec, mailLim.retryAfterSec)}s.`,
+      });
+    }
+
+    const otp = generateOtpCode();
+    const expires = Date.now() + 10 * 60 * 1000;
+    const docId = email.replace(/\//g, "_");
+
+    await db.collection("otps").doc(docId).set({
+      email,
+      otpHash: hashOtp(otp),
+      // plaintext never stored after transition; keep null for safety
+      otp: null,
+      expires,
+      verified: false,
+      purpose,
+      attempts: 0,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await sendOtpViaEmailJs({ toEmail: email, toName: ownerName, otpCode: otp });
+
+    logger.info("OTP issued", { email, purpose });
+    return res.status(200).json({
+      success: true,
+      expiresInSec: 600,
+      message: "If the address is valid, a code was sent.",
+    });
+  } catch (err) {
+    logger.error("requestEmailOtp", err);
+    return res.status(500).json({
+      error: err.message || "Failed to send verification code.",
+    });
+  }
+});
+
+exports.verifyEmailOtp = onRequest(
+  { cors: [/^http:\/\/localhost:\d+$/, true], invoker: "public" },
+  async (req, res) => {
+  if (handlePreflight(req, res)) return;
+  applyCors(req, res);
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  try {
+    const email = normalizeEmailServer(req.body?.email);
+    const code = String(req.body?.otp || req.body?.code || "").trim();
+
+    if (!email || code.length < 6) {
+      return res.status(400).json({ error: "Email and 6-digit code are required." });
+    }
+
+    const lim = rateLimit(`otp-verify:${email}`, {
+      max: 10,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!lim.ok) {
+      return res.status(429).json({
+        error: `Too many OTP checks. Retry in ${lim.retryAfterSec}s.`,
+      });
+    }
+
+    const docId = email.replace(/\//g, "_");
+    const ref = db.collection("otps").doc(docId);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      return res.status(400).json({ error: "OTP not found. Please request a new one." });
+    }
+
+    const data = snap.data() || {};
+    if (data.verified === true && Date.now() <= (data.expires || 0)) {
+      return res.status(200).json({ success: true, verified: true });
+    }
+
+    if (Date.now() > (data.expires || 0)) {
+      return res.status(400).json({ error: "OTP has expired. Please request a new one." });
+    }
+
+    const attempts = Number(data.attempts || 0);
+    if (attempts >= 8) {
+      return res.status(429).json({ error: "Too many incorrect attempts. Request a new code." });
+    }
+
+    const okHash = data.otpHash && data.otpHash === hashOtp(code);
+    // Legacy client-written plaintext support during transition
+    const okLegacy = data.otp && String(data.otp) === code;
+
+    if (!okHash && !okLegacy) {
+      await ref.set(
+        { attempts: attempts + 1, updatedAt: admin.firestore.FieldValue.serverTimestamp() },
+        { merge: true }
+      );
+      return res.status(400).json({ error: "Incorrect OTP. Please check your email and try again." });
+    }
+
+    // Single-use: clear hashes/codes, mark verified until original expiry
+    await ref.set(
+      {
+        verified: true,
+        verifiedAt: Date.now(),
+        otp: null,
+        otpHash: null,
+        expires: data.expires,
+        attempts: 0,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    return res.status(200).json({ success: true, verified: true });
+  } catch (err) {
+    logger.error("verifyEmailOtp", err);
+    return res.status(500).json({ error: err.message || "Verification failed." });
+  }
+});
+
+/** Server-side register gate — optionally consume verification after success. */
+exports.assertEmailOtpVerified = onRequest(
+  { cors: [/^http:\/\/localhost:\d+$/, true], invoker: "public" },
+  async (req, res) => {
+  if (handlePreflight(req, res)) return;
+  applyCors(req, res);
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+  try {
+    const email = normalizeEmailServer(req.body?.email);
+    const consume = req.body?.consume === true;
+    if (!email) return res.status(400).json({ error: "Email is required." });
+    const ref = db.collection("otps").doc(email.replace(/\//g, "_"));
+    const snap = await ref.get();
+    const data = snap.exists ? snap.data() : null;
+    const ok =
+      data &&
+      data.verified === true &&
+      Date.now() <= (data.expires || 0);
+    if (!ok) {
+      return res.status(403).json({
+        verified: false,
+        error: "Please verify your email with the OTP before submitting.",
+      });
+    }
+    if (consume) {
+      await ref.set(
+        {
+          verified: false,
+          otp: null,
+          otpHash: null,
+          expires: 0,
+          consumedAt: Date.now(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    }
+    return res.status(200).json({ verified: true, success: true });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || "Check failed." });
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
