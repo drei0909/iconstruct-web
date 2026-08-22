@@ -33,7 +33,6 @@
 
   import SystemSettingsTab from "./SystemSettingsTab";
   import { auth } from "../../services/firebase";
-  import MobileNav from "../../components/ui/MobileNav";
 
   const STATUS_COLOR = {
     pending:   { bg: "#FEF3C7", border: "#FCD34D", text: "#92400E", dot: "#F59E0B" },
@@ -76,7 +75,7 @@
     const colors = ["#3B5998","#E8643A","#6366F1","#0891B2","#7C3AED","#B45309"];
     const color = colors[(name.charCodeAt(0) || 0) % colors.length];
     return (
-      <span style={{ width:size, height:size, borderRadius:"50%", background:color, color:"#fff", display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:size*0.36, fontWeight:700, flexShrink:0, letterSpacing:"0.02em" }}>
+      <span style={{ width:size, height:size, borderRadius:"50%", background:color, color:"#fff", display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:size*0.36, fontWeight:700, fontFamily:"'Inter',sans-serif", flexShrink:0, letterSpacing:"0.02em" }}>
         {initials}
       </span>
     );
@@ -95,14 +94,14 @@
     return (
       <div>
         <div style={{ marginBottom:24 }}>
-          <h2 style={{ fontFamily:"var(--font-display)", fontSize:22, fontWeight:900, color:"#0F172A", marginBottom:4 }}>Welcome back, Administrator</h2>
+          <h2 style={{ fontFamily:"'Lora',Georgia,serif", fontSize:22, fontWeight:900, color:"#0F172A", marginBottom:4 }}>Welcome back, Administrator</h2>
           <p style={{ fontSize:13, color:"#64748B" }}>Here's what's happening with iConstruct today.</p>
         </div>
-        <div className="adm-stats" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:28 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:28 }}>
           {cards.map((c, i) => (
             <div key={i} style={{ background:"#fff", borderRadius:14, border:c.urgent?`1px solid ${c.color}40`:"1px solid #E2E8F0", padding:"20px 22px", position:"relative", overflow:"hidden", boxShadow:c.urgent?`0 0 0 3px ${c.color}10`:"none" }}>
               <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:c.color, borderRadius:"14px 14px 0 0" }} />
-              <div style={{ fontFamily:"var(--font-display)", fontSize:32, fontWeight:900, color:c.color, lineHeight:1, marginBottom:4 }}>{c.value}</div>
+              <div style={{ fontFamily:"'Lora',Georgia,serif", fontSize:32, fontWeight:900, color:c.color, lineHeight:1, marginBottom:4 }}>{c.value}</div>
               <div style={{ fontSize:12, fontWeight:600, color:"#0F172A" }}>{c.label}</div>
             </div>
           ))}
@@ -136,7 +135,7 @@
     return (
       <div>
         <div style={{ marginBottom:20 }}>
-          <h2 style={{ fontFamily:"var(--font-display)", fontSize:20, fontWeight:900, color:"#0F172A", marginBottom:2 }}>Shop Applications</h2>
+          <h2 style={{ fontFamily:"'Lora',Georgia,serif", fontSize:20, fontWeight:900, color:"#0F172A", marginBottom:2 }}>Shop Applications</h2>
           <p style={{ fontSize:12, color:"#64748B" }}>Review, approve, or reject hardware shop registration requests.</p>
         </div>
         <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap" }}>
@@ -149,7 +148,7 @@
           />
           <div style={{ display:"flex", gap:6 }}>
             {["all","pending","approved","rejected"].map(f => (
-              <button key={f} onClick={() => setFilter(f)} style={{ padding:"8px 14px", borderRadius:8, fontSize:11.5, fontWeight:500, cursor:"pointer", ...(filter===f?{background:"#0F172A",color:"#fff",border:"1px solid #0F172A"}:{background:"#fff",color:"#64748B",border:"1px solid #E2E8F0"}) }}>
+              <button key={f} onClick={() => setFilter(f)} style={{ padding:"8px 14px", borderRadius:8, fontSize:11.5, fontWeight:500, cursor:"pointer", fontFamily:"'Inter',sans-serif", ...(filter===f?{background:"#0F172A",color:"#fff",border:"1px solid #0F172A"}:{background:"#fff",color:"#64748B",border:"1px solid #E2E8F0"}) }}>
                 {f==="all"?"All":f.charAt(0).toUpperCase()+f.slice(1)}
               </button>
             ))}
@@ -184,7 +183,7 @@
                   </td>
                   <td style={{ padding:"13px 16px" }}><StatusBadge status={shop.status} /></td>
                   <td style={{ padding:"13px 16px" }}>
-                    <button onClick={() => setSelected(shop)} style={{ padding:"6px 13px", borderRadius:7, border:"1px solid #E2E8F0", background:"#fff", fontSize:11.5, fontWeight:600, color:"#334155", cursor:"pointer", display:"inline-flex", alignItems:"center", gap:5 }}
+                    <button onClick={() => setSelected(shop)} style={{ padding:"6px 13px", borderRadius:7, border:"1px solid #E2E8F0", background:"#fff", fontSize:11.5, fontWeight:600, color:"#334155", cursor:"pointer", fontFamily:"'Inter',sans-serif", display:"inline-flex", alignItems:"center", gap:5 }}
                       onMouseEnter={e => { e.currentTarget.style.background="#0F172A"; e.currentTarget.style.color="#fff"; }}
                       onMouseLeave={e => { e.currentTarget.style.background="#fff"; e.currentTarget.style.color="#334155"; }}>
                       Review <ArrowRight size={11} weight="bold" />
@@ -203,10 +202,10 @@
     return (
       <div>
         <div style={{ marginBottom:20 }}>
-          <h2 style={{ fontFamily:"var(--font-display)", fontSize:20, fontWeight:900, color:"#0F172A", marginBottom:2 }}>Subscription Payments</h2>
+          <h2 style={{ fontFamily:"'Lora',Georgia,serif", fontSize:20, fontWeight:900, color:"#0F172A", marginBottom:2 }}>Subscription Payments</h2>
           <p style={{ fontSize:12, color:"#64748B" }}>Review payment requests and activate shop plans.</p>
         </div>
-        <div className="adm-stats" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:20 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:20 }}>
           {[
             { label:"Total",     value:payStats.total,     color:"#3B82F6" },
             { label:"Pending",   value:payStats.pending,   color:"#F59E0B", urgent:payStats.pending>0 },
@@ -215,7 +214,7 @@
           ].map((c, i) => (
             <div key={i} style={{ background:"#fff", borderRadius:12, border:c.urgent?`1px solid ${c.color}40`:"1px solid #E2E8F0", padding:"16px 18px", position:"relative", overflow:"hidden" }}>
               <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:c.color }} />
-              <div style={{ fontFamily:"var(--font-display)", fontSize:26, fontWeight:900, color:c.color }}>{c.value}</div>
+              <div style={{ fontFamily:"'Lora',Georgia,serif", fontSize:26, fontWeight:900, color:c.color }}>{c.value}</div>
               <div style={{ fontSize:11.5, color:"#64748B", marginTop:2 }}>{c.label}</div>
             </div>
           ))}
@@ -230,7 +229,7 @@
         />
         <div style={{ display:"flex", gap:6, marginBottom:14 }}>
           {["all","pending","confirmed","rejected"].map(f => (
-            <button key={f} onClick={() => setPayFilter(f)} style={{ padding:"7px 14px", borderRadius:8, fontSize:11.5, fontWeight:500, cursor:"pointer", ...(payFilter===f?{background:"#0F172A",color:"#fff",border:"1px solid #0F172A"}:{background:"#fff",color:"#64748B",border:"1px solid #E2E8F0"}) }}>
+            <button key={f} onClick={() => setPayFilter(f)} style={{ padding:"7px 14px", borderRadius:8, fontSize:11.5, fontWeight:500, cursor:"pointer", fontFamily:"'Inter',sans-serif", ...(payFilter===f?{background:"#0F172A",color:"#fff",border:"1px solid #0F172A"}:{background:"#fff",color:"#64748B",border:"1px solid #E2E8F0"}) }}>
               {f==="all"?"All":f.charAt(0).toUpperCase()+f.slice(1)}
             </button>
           ))}
@@ -278,7 +277,7 @@
                     </td>
                     <td style={{ padding:"12px 14px" }}><StatusBadge status={p.status} /></td>
                     <td style={{ padding:"12px 14px" }}>
-                      <button onClick={() => setSelectedPayment(p)} style={{ padding:"5px 12px", borderRadius:7, border:"1px solid #E2E8F0", background:"#fff", fontSize:11.5, fontWeight:600, color:"#334155", cursor:"pointer" }}
+                      <button onClick={() => setSelectedPayment(p)} style={{ padding:"5px 12px", borderRadius:7, border:"1px solid #E2E8F0", background:"#fff", fontSize:11.5, fontWeight:600, color:"#334155", cursor:"pointer", fontFamily:"'Inter',sans-serif" }}
                         onMouseEnter={e => { e.currentTarget.style.background="#0F172A"; e.currentTarget.style.color="#fff"; }}
                         onMouseLeave={e => { e.currentTarget.style.background="#fff"; e.currentTarget.style.color="#334155"; }}>
                         Review
@@ -297,7 +296,7 @@
   function ShopsTab({ approvedShops, setSelected }) {
     return (
       <div>
-        <h2 style={{ fontFamily:"var(--font-display)", fontSize:20, fontWeight:900, color:"#0F172A", marginBottom:20 }}>Manage Shops</h2>
+        <h2 style={{ fontFamily:"'Lora',Georgia,serif", fontSize:20, fontWeight:900, color:"#0F172A", marginBottom:20 }}>Manage Shops</h2>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:16 }}>
           {approvedShops.map(shop => (
             <div key={shop.id} style={{ background:"#fff", borderRadius:14, border:"1px solid #E2E8F0", padding:"20px" }}>
@@ -318,7 +317,7 @@
                 <div style={{ fontSize:11.5, color:"#64748B", marginBottom:4 }}>{shop.city}, {shop.province}</div>
                 <div style={{ fontSize:11.5, color:"#64748B" }}>{shop.email}</div>
               </div>
-              <button onClick={() => setSelected(shop)} style={{ width:"100%", marginTop:12, padding:"8px", borderRadius:8, border:"1px solid #E2E8F0", background:"#F8FAFC", cursor:"pointer", fontSize:11.5, fontWeight:600, color:"#334155" }}>View Details</button>
+              <button onClick={() => setSelected(shop)} style={{ width:"100%", marginTop:12, padding:"8px", borderRadius:8, border:"1px solid #E2E8F0", background:"#F8FAFC", cursor:"pointer", fontSize:11.5, fontWeight:600, color:"#334155", fontFamily:"'Inter',sans-serif" }}>View Details</button>
             </div>
           ))}
         </div>
@@ -483,11 +482,11 @@
     };
 
     const Sidebar = () => (
-      <aside className="admin-sidebar" style={{ width:sidebarCollapsed?72:240, minHeight:"100vh", background:"linear-gradient(175deg,#0F172A 0%,#1E2D3D 60%,#162032 100%)", display:"flex", flexDirection:"column", borderRight:"1px solid rgba(255,255,255,0.06)", transition:"width 0.25s cubic-bezier(0.4,0,0.2,1)", overflow:"hidden", flexShrink:0 }}>
+      <aside style={{ width:sidebarCollapsed?72:240, minHeight:"100vh", background:"linear-gradient(175deg,#0F172A 0%,#1E2D3D 60%,#162032 100%)", display:"flex", flexDirection:"column", borderRight:"1px solid rgba(255,255,255,0.06)", transition:"width 0.25s cubic-bezier(0.4,0,0.2,1)", overflow:"hidden", flexShrink:0 }}>
         <div style={{ padding:sidebarCollapsed?"24px 0":"24px 20px", borderBottom:"1px solid rgba(255,255,255,0.06)", display:"flex", alignItems:"center", justifyContent:sidebarCollapsed?"center":"space-between", gap:10 }}>
           {!sidebarCollapsed && (
             <div>
-              <div style={{ fontFamily:"var(--font-display)", fontSize:18, fontWeight:900, color:"#F1F5F9" }}>iConstruct</div>
+              <div style={{ fontFamily:"'Lora',Georgia,serif", fontSize:18, fontWeight:900, color:"#F1F5F9" }}>iConstruct</div>
               <div style={{ fontSize:9, fontWeight:700, letterSpacing:"0.16em", textTransform:"uppercase", color:"rgba(148,163,184,0.6)", marginTop:3 }}>Admin Control Center</div>
             </div>
           )}
@@ -500,7 +499,7 @@
             const isActive = activeTab === tab.key;
             const badge = tab.key === "applications" ? stats.pending : tab.key === "subscriptions" ? payStats.pending : 0;
             return (
-              <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:sidebarCollapsed?"10px 0":"10px 20px", justifyContent:sidebarCollapsed?"center":"flex-start", background:isActive?"linear-gradient(90deg,rgba(59,130,246,0.15),rgba(59,130,246,0.05))":"transparent", borderLeft:isActive?"2px solid #3B82F6":"2px solid transparent", border:"none", borderRight:"none", cursor:"pointer", color:isActive?"#93C5FD":"rgba(148,163,184,0.65)", fontSize:13, fontWeight:isActive?600:400 }}>
+              <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:sidebarCollapsed?"10px 0":"10px 20px", justifyContent:sidebarCollapsed?"center":"flex-start", background:isActive?"linear-gradient(90deg,rgba(59,130,246,0.15),rgba(59,130,246,0.05))":"transparent", borderLeft:isActive?"2px solid #3B82F6":"2px solid transparent", border:"none", borderRight:"none", cursor:"pointer", color:isActive?"#93C5FD":"rgba(148,163,184,0.65)", fontFamily:"'Inter',sans-serif", fontSize:13, fontWeight:isActive?600:400 }}>
                 <span style={{ flexShrink:0, display:"flex", alignItems:"center" }}>{tab.icon}</span>
                 {!sidebarCollapsed && <span>{tab.label}</span>}
                 {!sidebarCollapsed && badge > 0 && (
@@ -528,7 +527,7 @@
     );
 
     const Topbar = () => (
-      <header className="admin-topbar" style={{ height:60, background:"#ffffff", borderBottom:"1px solid #E2E8F0", display:"flex", alignItems:"center", padding:"0 28px", justifyContent:"space-between", position:"sticky", top:0, zIndex:50 }}>
+      <header style={{ height:60, background:"#ffffff", borderBottom:"1px solid #E2E8F0", display:"flex", alignItems:"center", padding:"0 28px", justifyContent:"space-between", position:"sticky", top:0, zIndex:50 }}>
         <div>
           <div style={{ fontSize:16, fontWeight:700, color:"#0F172A" }}>{TABS.find(t=>t.key===activeTab)?.label}</div>
           <div style={{ fontSize:11, color:"#94A3B8" }}>iConstruct · Admin Control Center</div>
@@ -584,13 +583,15 @@
     return (
       <>
         <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&display=swap');
+          *{box-sizing:border-box;margin:0;padding:0;}body{font-family:'Inter',sans-serif;}
           @keyframes spin{to{transform:rotate(360deg)}}
         `}</style>
-        <div className="admin-shell" style={{ display:"flex", minHeight:"100vh", background:"#F1F5F9" }}>
+        <div style={{ display:"flex", minHeight:"100vh", background:"#F1F5F9" }}>
           <Sidebar />
-          <div className="admin-main-col" style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
+          <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
             <Topbar />
-            <main className="admin-content" style={{ flex:1, padding:28, overflowY:"auto" }}>
+            <main style={{ flex:1, padding:28, overflowY:"auto" }}>
               {loading ? (
                 <div style={{ textAlign:"center", padding:80 }}>
                   <div style={{ width:32, height:32, border:"3px solid #E2E8F0", borderTopColor:"#3B82F6", borderRadius:"50%", animation:"spin .8s linear infinite", margin:"0 auto 12px" }} />
@@ -599,25 +600,18 @@
               ) : renderContent()}
             </main>
           </div>
-          <MobileNav
-            items={TABS.map(({ key, label }) => ({ key, label }))}
-            activeTab={activeTab}
-            onSelect={setActiveTab}
-            accentColor="#3B82F6"
-          />
         </div>
 
         {/* Detail Modal */}
         {selected && (
           <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.55)", backdropFilter:"blur(6px)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
-            className="adm-overlay"
             onClick={e => { if(e.target===e.currentTarget) setSelected(null); }}>
-            <div className="adm-modal" style={{ background:"#fff", borderRadius:20, width:"100%", maxWidth:600, maxHeight:"90vh", overflowY:"auto", boxShadow:"0 40px 100px rgba(0,0,0,0.3)" }}>
+            <div style={{ background:"#fff", borderRadius:20, width:"100%", maxWidth:600, maxHeight:"90vh", overflowY:"auto", boxShadow:"0 40px 100px rgba(0,0,0,0.3)" }}>
               <div style={{ padding:"22px 28px 18px", borderBottom:"1px solid #F1F5F9", display:"flex", alignItems:"flex-start", justifyContent:"space-between", position:"sticky", top:0, background:"#fff", zIndex:2 }}>
                 <div style={{ display:"flex", gap:14, alignItems:"flex-start" }}>
                   <Avatar name={selected.shopName||""} size={44} />
                   <div>
-                    <h3 style={{ fontFamily:"var(--font-display)", fontSize:18, fontWeight:900, color:"#0F172A", marginBottom:4 }}>{selected.shopName}</h3>
+                    <h3 style={{ fontFamily:"'Lora',Georgia,serif", fontSize:18, fontWeight:900, color:"#0F172A", marginBottom:4 }}>{selected.shopName}</h3>
                     <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                       <span style={{ fontSize:11, color:"#94A3B8" }}>{selected.email}</span>
                       <StatusBadge status={selected.status} />
@@ -642,59 +636,15 @@
                     </div>
                     <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))", gap:10 }}>
                       {selected.documents.map((docItem, i) => (
-                        <div
-                          key={i}
-                          onClick={() => docItem.url && setPreviewModal(docItem)}
-                          style={{
-                            borderRadius:10,
-                            overflow:"hidden",
-                            border:"1px solid #E2E8F0",
-                            cursor: docItem.url ? "pointer" : "default",
-                            opacity: docItem.url ? 1 : 0.85,
-                          }}
-                        >
-                          {docItem.url && docItem.type?.startsWith("image") ? (
-                            <img
-                              src={docItem.url}
-                              alt={docItem.name}
-                              style={{ width:"100%", height:120, objectFit:"cover", display:"block", background:"#F1F5F9" }}
-                              onError={(e) => {
-                                e.currentTarget.style.display = "none";
-                                const fallback = e.currentTarget.nextElementSibling;
-                                if (fallback) fallback.style.display = "flex";
-                              }}
-                            />
-                          ) : null}
-                          <div
-                            style={{
-                              height:120,
-                              background:"#F8FAFC",
-                              display: docItem.url && docItem.type?.startsWith("image") ? "none" : "flex",
-                              flexDirection:"column",
-                              alignItems:"center",
-                              justifyContent:"center",
-                              gap:6,
-                              padding:"8px",
-                            }}
-                          >
-                            <FileText size={28} weight="thin" color="#94A3B8" />
-                            <span style={{ fontSize:10, color:"#64748B", textAlign:"center" }}>
-                              {docItem.url
-                                ? (docItem.name || "Document")
-                                : "File missing — ask applicant to re-register"}
-                            </span>
-                            {docItem.url && (
-                              <a
-                                href={docItem.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                style={{ fontSize:10, fontWeight:600, color:"#2563EB" }}
-                              >
-                                Open file
-                              </a>
-                            )}
-                          </div>
+                        <div key={i} onClick={() => setPreviewModal(docItem)} style={{ borderRadius:10, overflow:"hidden", border:"1px solid #E2E8F0", cursor:"pointer" }}>
+                          {docItem.type?.startsWith("image") ? (
+                            <img src={docItem.url} alt={docItem.name} style={{ width:"100%", height:120, objectFit:"cover", display:"block" }} />
+                          ) : (
+                            <div style={{ height:120, background:"#F8FAFC", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:6 }}>
+                              <FileText size={28} weight="thin" color="#94A3B8" />
+                              <span style={{ fontSize:10, color:"#64748B", textAlign:"center", padding:"0 8px" }}>{docItem.name}</span>
+                            </div>
+                          )}
                           <div style={{ padding:"6px 8px", background:"#F8FAFC", borderTop:"1px solid #E2E8F0" }}>
                             <div style={{ fontSize:10, fontWeight:600, color:"#334155", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
                               {DOCUMENT_TYPES.find(t => t.value === docItem.docType)?.label || docItem.docType || "Document"}
@@ -729,7 +679,7 @@
                 <div style={{ display:"flex", gap:12, alignItems:"flex-start" }}>
                   <Avatar name={selectedPayment.shopName||""} size={44} />
                   <div>
-                    <h3 style={{ fontFamily:"var(--font-display)", fontSize:17, fontWeight:900, color:"#0F172A", marginBottom:4 }}>{selectedPayment.shopName}</h3>
+                    <h3 style={{ fontFamily:"'Lora',Georgia,serif", fontSize:17, fontWeight:900, color:"#0F172A", marginBottom:4 }}>{selectedPayment.shopName}</h3>
                     <div style={{ display:"flex", gap:8 }}>
                       <span style={{ fontSize:10.5, fontWeight:700, textTransform:"uppercase", padding:"3px 10px", borderRadius:20, background:selectedPayment.planName==="pro"?"#EFF6FF":"#F5F3FF", color:selectedPayment.planName==="pro"?"#1D4ED8":"#6D28D9" }}>{selectedPayment.planName} plan</span>
                       <StatusBadge status={selectedPayment.status} />
@@ -788,9 +738,9 @@
         {rejectModal && (
           <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.6)", backdropFilter:"blur(6px)", zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
             <div style={{ background:"#fff", borderRadius:18, width:"100%", maxWidth:430, padding:"28px" }}>
-              <h4 style={{ fontFamily:"var(--font-display)", fontSize:17, fontWeight:700, color:"#0F172A", marginBottom:6 }}>Reject Application</h4>
+              <h4 style={{ fontFamily:"'Lora',Georgia,serif", fontSize:17, fontWeight:700, color:"#0F172A", marginBottom:6 }}>Reject Application</h4>
               <p style={{ fontSize:12.5, color:"#64748B", lineHeight:1.6, marginBottom:18 }}>Reason for rejecting <strong style={{ color:"#0F172A" }}>{selected?.shopName}</strong>:</p>
-              <textarea placeholder="e.g. Submitted documents are incomplete." value={rejectReason} onChange={e => setRejectReason(e.target.value)} style={{ width:"100%", minHeight:96, padding:"11px 14px", borderRadius:8, border:"1.5px solid #E2E8F0", fontSize:12.5, color:"#0F172A", resize:"none", outline:"none", background:"#F8FAFC", marginBottom:16 }} />
+              <textarea placeholder="e.g. Submitted documents are incomplete." value={rejectReason} onChange={e => setRejectReason(e.target.value)} style={{ width:"100%", minHeight:96, padding:"11px 14px", borderRadius:8, border:"1.5px solid #E2E8F0", fontSize:12.5, fontFamily:"'Inter',sans-serif", color:"#0F172A", resize:"none", outline:"none", background:"#F8FAFC", marginBottom:16 }} />
               <div style={{ display:"flex", gap:10 }}>
                 <button onClick={() => { setRejectModal(false); setRejectReason(""); }} style={{ padding:"11px 20px", borderRadius:8, border:"1px solid #E2E8F0", background:"#F8FAFC", fontSize:12.5, fontWeight:500, color:"#64748B", cursor:"pointer" }}>Cancel</button>
                 <button disabled={!rejectReason.trim()||actionLoading} onClick={handleReject} style={{ flex:1, padding:"11px", borderRadius:8, border:"none", background:rejectReason.trim()?"linear-gradient(135deg,#DC2626,#EF4444)":"#F1F5F9", color:rejectReason.trim()?"#fff":"#94A3B8", fontSize:12.5, fontWeight:600, cursor:rejectReason.trim()?"pointer":"not-allowed" }}>
@@ -805,11 +755,11 @@
         {payRejectModal && (
           <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.6)", backdropFilter:"blur(6px)", zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
             <div style={{ background:"#fff", borderRadius:18, width:"100%", maxWidth:430, padding:"28px" }}>
-              <h4 style={{ fontFamily:"var(--font-display)", fontSize:17, fontWeight:700, color:"#0F172A", marginBottom:6 }}>Reject Payment</h4>
+              <h4 style={{ fontFamily:"'Lora',Georgia,serif", fontSize:17, fontWeight:700, color:"#0F172A", marginBottom:6 }}>Reject Payment</h4>
               <p style={{ fontSize:12.5, color:"#64748B", lineHeight:1.6, marginBottom:18 }}>
                 Reason for rejecting payment from <strong style={{ color:"#0F172A" }}>{selectedPayment?.shopName}</strong>:
               </p>
-              <textarea placeholder="e.g. Reference number could not be verified." value={payRejectReason} onChange={e => setPayRejectReason(e.target.value)} style={{ width:"100%", minHeight:88, padding:"11px 14px", borderRadius:8, border:"1.5px solid #E2E8F0", fontSize:12.5, color:"#0F172A", resize:"none", outline:"none", background:"#F8FAFC", marginBottom:16 }} />
+              <textarea placeholder="e.g. Reference number could not be verified." value={payRejectReason} onChange={e => setPayRejectReason(e.target.value)} style={{ width:"100%", minHeight:88, padding:"11px 14px", borderRadius:8, border:"1.5px solid #E2E8F0", fontSize:12.5, fontFamily:"'Inter',sans-serif", color:"#0F172A", resize:"none", outline:"none", background:"#F8FAFC", marginBottom:16 }} />
               <div style={{ display:"flex", gap:10 }}>
                 <button onClick={() => { setPayRejectModal(false); setPayRejectReason(""); }} style={{ padding:"11px 20px", borderRadius:8, border:"1px solid #E2E8F0", background:"#F8FAFC", fontSize:12.5, fontWeight:500, color:"#64748B", cursor:"pointer" }}>Cancel</button>
                 <button disabled={!payRejectReason.trim()||actionLoading} onClick={handleRejectPayment} style={{ flex:1, padding:"11px", borderRadius:8, border:"none", background:payRejectReason.trim()?"linear-gradient(135deg,#DC2626,#EF4444)":"#F1F5F9", color:payRejectReason.trim()?"#fff":"#94A3B8", fontSize:12.5, fontWeight:600, cursor:payRejectReason.trim()?"pointer":"not-allowed" }}>

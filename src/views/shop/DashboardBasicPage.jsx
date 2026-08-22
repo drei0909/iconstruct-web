@@ -20,9 +20,11 @@ import SettingsTab from "../../components/SettingsTab";
 import MobileNav from "../../components/ui/MobileNav";
 import ShopProjectsPanel from "../../components/shop/ShopProjectsPanel";
 import ShopQuotationsPanel from "../../components/shop/ShopQuotationsPanel";
+import DashboardBrand from "../../components/ui/DashboardBrand";
 
 import {
   TbBolt, TbConfetti, TbAlertTriangle, TbCreditCard, TbBuildingBank,
+  TbMenu2, TbLogout,
 } from "react-icons/tb";
 
 const cfg           = getPlanConfig("basic");
@@ -308,6 +310,7 @@ export default function ShopDashboardBasic() {
   const [existingPayment, setExistingPayment] = useState(undefined);
   const [loading, setLoading]                 = useState(true);
   const [activeTab, setActiveTab]             = useState("overview");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [toast, setToast]                     = useState(null);
   const [quoteModal, setQuoteModal]           = useState(null);
   const [submitting, setSubmitting]           = useState(false);
@@ -400,34 +403,69 @@ export default function ShopDashboardBasic() {
 
   return (
     <div className="db-shell">
-      <aside className="db-sidebar">
-        <div className="db-sidebar-logo">
-          <div className="db-sidebar-brand">iConstruct</div>
-          <div className="db-sidebar-sub">Shop Manager</div>
-          <div className="db-sidebar-plan-wrap"><PlanBadge /></div>
+      <aside className={`db-sidebar${sidebarCollapsed ? " is-collapsed" : ""}`}>
+        <div className="db-sidebar-logo db-sidebar-logo--toggle">
+          {sidebarCollapsed ? (
+            <DashboardBrand collapsed />
+          ) : (
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <DashboardBrand subtitle="Shop Manager" compact>
+                <PlanBadge />
+              </DashboardBrand>
+            </div>
+          )}
+          <button
+            type="button"
+            className="db-sidebar-toggle"
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            title={sidebarCollapsed ? "Expand menu" : "Collapse menu"}
+          >
+            <TbMenu2 size={15} />
+          </button>
         </div>
         <nav className="db-sidebar-nav">
-          <div className="db-nav-section-label">Navigation</div>
+          {!sidebarCollapsed && <div className="db-nav-section-label">Navigation</div>}
           {NAV.map(item => (
             <button key={item.key}
               className={`db-nav-item${activeTab===item.key?" active":""}${item.isUpgrade?" upgrade-item":""}`}
-              onClick={() => setActiveTab(item.key)}>
-              <span>{item.label}</span>
-              {item.isUpgrade && <span className="db-nav-badge-new">UPGRADE</span>}
+              onClick={() => setActiveTab(item.key)}
+              title={item.label}
+            >
+              {sidebarCollapsed ? (
+                <span className="db-nav-abbr">{item.label.slice(0, 1)}</span>
+              ) : (
+                <>
+                  <span>{item.label}</span>
+                  {item.isUpgrade && <span className="db-nav-badge-new">UPGRADE</span>}
+                </>
+              )}
             </button>
           ))}
         </nav>
         <div className="db-sidebar-footer">
           <div className="db-sidebar-user">
             <div className="db-sidebar-avatar">{initials(shop?.shopName)}</div>
-            <div style={{ minWidth:0 }}>
-              <div className="db-sidebar-user-name">{shop?.shopName || "Loading..."}</div>
-              <div className="db-sidebar-user-role">{shop?.ownerName || ""}</div>
-            </div>
+            {!sidebarCollapsed && (
+              <div style={{ minWidth:0 }}>
+                <div className="db-sidebar-user-name">{shop?.shopName || "Loading..."}</div>
+                <div className="db-sidebar-user-role">{shop?.ownerName || ""}</div>
+              </div>
+            )}
           </div>
-          <button className="db-signout-btn" onClick={async () => { await logoutShop(); navigate("/login"); }}>
-            Sign Out
-          </button>
+          {!sidebarCollapsed ? (
+            <button className="db-signout-btn" onClick={async () => { await logoutShop(); navigate("/login"); }}>
+              Sign Out
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="db-signout-btn db-signout-btn--icon"
+              title="Sign Out"
+              onClick={async () => { await logoutShop(); navigate("/login"); }}
+            >
+              <TbLogout size={15} />
+            </button>
+          )}
         </div>
       </aside>
 

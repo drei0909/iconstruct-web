@@ -6,6 +6,7 @@
     "shell": "firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
+    "deploy:otp": "firebase deploy --only functions:requestEmailOtp,functions:verifyEmailOtp,functions:assertEmailOtpVerified",
     "logs": "firebase functions:log"
   },
   "engines": {

@@ -2,20 +2,24 @@
 // iConstruct — Shop Owner Manual Payment Submission Form
 // Submits a payment request to Firestore for admin review
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { submitPaymentRequest } from "../../controllers/shopController";
-import { getPaidPlans } from "../../config/planConfig";
+import { getLivePaidPlans, getPaidPlans } from "../../config/planConfig";
 
-const PLANS = getPaidPlans().map((p) => ({
-  id: p.id,
-  name: p.name,
-  price: p.priceLabel,
-  period: p.period,
-  label: p.label,
-  color: p.color,
-  badge: p.badge,
-  features: p.features,
-}));
+function mapPlans(list) {
+  return list.map((p) => ({
+    id: p.id,
+    name: p.name,
+    price: p.priceLabel,
+    period: p.period,
+    label: p.label,
+    color: p.color,
+    badge: p.badge,
+    features: p.features,
+  }));
+}
+
+const FALLBACK_PLANS = mapPlans(getPaidPlans());
 
 const PAYMENT_METHODS = [
   { id: "GCash", label: "GCash", color: "#007aff", hint: "Send to: 0924-360-0285 (iConstruct)" },
@@ -23,12 +27,21 @@ const PAYMENT_METHODS = [
 
 export default function PaymentForm({ onSuccess, existingRequest }) {
   const [step, setStep]         = useState(1); // 1=plan, 2=method, 3=reference, 4=done
+  const [plans, setPlans]                     = useState(FALLBACK_PLANS);
   const [selectedPlan, setSelectedPlan]     = useState(null);
   const [selectedMethod, setSelectedMethod] = useState(null);
   const [reference, setReference]           = useState("");
   const [screenshot, setScreenshot]         = useState(null); // base64 proof
   const [submitting, setSubmitting]         = useState(false);
   const [error, setError]                   = useState("");
+
+  useEffect(() => {
+    getLivePaidPlans()
+      .then((live) => {
+        if (live?.length) setPlans(mapPlans(live));
+      })
+      .catch(() => {});
+  }, []);
 
   // If there's already a pending/confirmed request, show status instead
   if (existingRequest) {
@@ -159,7 +172,7 @@ export default function PaymentForm({ onSuccess, existingRequest }) {
           <div style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", marginBottom: 4 }}>Select a Plan</div>
           <div style={{ fontSize: 12.5, color: "#64748B", marginBottom: 20 }}>You can upgrade or change plans at any time.</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {PLANS.map(plan => (
+            {plans.map(plan => (
               <div key={plan.id}
                 onClick={() => setSelectedPlan(plan)}
                 style={{

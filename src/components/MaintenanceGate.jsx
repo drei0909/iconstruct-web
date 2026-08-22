@@ -1,63 +1,73 @@
 // src/components/MaintenanceGate.jsx
 import { useState, useEffect } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, getDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
-import { getDoc } from "firebase/firestore";
+import { useLocation } from "react-router-dom";
 import { auth, db } from "../services/firebase";
 
+function isAdminPath(pathname = "") {
+  return pathname === "/admin" || pathname.startsWith("/admin/");
+}
+
 export default function MaintenanceGate({ children }) {
+  const location = useLocation();
   const [status, setStatus] = useState("checking"); // checking | maintenance | ok
+  const [maintenanceOn, setMaintenanceOn] = useState(false);
+  const [isAdminUser, setIsAdminUser] = useState(false);
 
   useEffect(() => {
-    let unsubMaintenance = null;
-
-    // 1. Listen to maintenance doc in real-time
-    unsubMaintenance = onSnapshot(
+    const unsubMaintenance = onSnapshot(
       doc(db, "systemConfig", "maintenance"),
       async (snap) => {
-        const maintenanceMode = snap.exists()
-          ? snap.data().maintenanceMode === true
-          : false;
-
-        if (!maintenanceMode) {
+        const on = snap.exists() ? snap.data().maintenanceMode === true : false;
+        setMaintenanceOn(on);
+        if (!on) {
           setStatus("ok");
           return;
         }
 
-        // 2. Maintenance is ON — check if current user is an admin
         const user = auth.currentUser;
         if (!user) {
-          setStatus("maintenance");
+          // Admins still need /admin login during maintenance
+          setIsAdminUser(false);
+          setStatus(isAdminPath(window.location.pathname) ? "ok" : "maintenance");
           return;
         }
 
         try {
           const adminSnap = await getDoc(doc(db, "admins", user.uid));
-          // Admins bypass maintenance mode
-          setStatus(adminSnap.exists() ? "ok" : "maintenance");
+          const admin = adminSnap.exists();
+          setIsAdminUser(admin);
+          setStatus(admin || isAdminPath(window.location.pathname) ? "ok" : "maintenance");
         } catch {
-          setStatus("maintenance");
+          setIsAdminUser(false);
+          setStatus(isAdminPath(window.location.pathname) ? "ok" : "maintenance");
         }
       },
-      () => {
-        // On error, fail open (show app)
-        setStatus("ok");
-      }
+      () => setStatus("ok")
     );
 
-    // 3. Re-check when auth state changes (e.g. user logs in/out)
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
       const snap = await getDoc(doc(db, "systemConfig", "maintenance")).catch(() => null);
-      const maintenanceMode = snap?.exists() ? snap.data().maintenanceMode === true : false;
+      const on = snap?.exists() ? snap.data().maintenanceMode === true : false;
+      setMaintenanceOn(on);
 
-      if (!maintenanceMode) { setStatus("ok"); return; }
-      if (!user)            { setStatus("maintenance"); return; }
-
+      if (!on) {
+        setStatus("ok");
+        return;
+      }
+      if (!user) {
+        setIsAdminUser(false);
+        setStatus(isAdminPath(window.location.pathname) ? "ok" : "maintenance");
+        return;
+      }
       try {
         const adminSnap = await getDoc(doc(db, "admins", user.uid));
-        setStatus(adminSnap.exists() ? "ok" : "maintenance");
+        const admin = adminSnap.exists();
+        setIsAdminUser(admin);
+        setStatus(admin || isAdminPath(window.location.pathname) ? "ok" : "maintenance");
       } catch {
-        setStatus("maintenance");
+        setStatus(isAdminPath(window.location.pathname) ? "ok" : "maintenance");
       }
     });
 
@@ -67,7 +77,19 @@ export default function MaintenanceGate({ children }) {
     };
   }, []);
 
-  // ── Checking ──────────────────────────────────────────────────────────────
+  // Re-evaluate when route changes (e.g. jump to /admin while maintenance is on)
+  useEffect(() => {
+    if (!maintenanceOn) {
+      setStatus("ok");
+      return;
+    }
+    if (isAdminUser || isAdminPath(location.pathname)) {
+      setStatus("ok");
+    } else {
+      setStatus("maintenance");
+    }
+  }, [location.pathname, maintenanceOn, isAdminUser]);
+
   if (status === "checking") {
     return (
       <div style={{
@@ -88,7 +110,6 @@ export default function MaintenanceGate({ children }) {
     );
   }
 
-  // ── Maintenance Page ──────────────────────────────────────────────────────
   if (status === "maintenance") {
     return (
       <div style={{
@@ -97,13 +118,12 @@ export default function MaintenanceGate({ children }) {
         fontFamily: "var(--font-base)", padding: 24,
       }}>
         <div style={{ textAlign: "center", maxWidth: 480 }}>
-          {/* Animated icon */}
           <div style={{
             width: 80, height: 80, borderRadius: "50%",
-            background: "linear-gradient(135deg, #4F46E5, #7C3AED)",
+            background: "linear-gradient(135deg, #2C3E50, #648DB6)",
             display: "flex", alignItems: "center", justifyContent: "center",
             margin: "0 auto 28px", fontSize: 36,
-            boxShadow: "0 0 40px rgba(79,70,229,0.4)",
+            boxShadow: "0 0 40px rgba(44,62,80,0.4)",
           }}>
             🔧
           </div>
@@ -120,13 +140,12 @@ export default function MaintenanceGate({ children }) {
             marginBottom: 32,
           }}>
             iConstruct is currently undergoing scheduled maintenance.
-            We'll be back online shortly. Thank you for your patience.
+            We&apos;ll be back online shortly. Thank you for your patience.
           </p>
 
-          {/* Status indicator */}
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
-            background: "rgba(79,70,229,0.12)", border: "1px solid rgba(79,70,229,0.3)",
+            background: "rgba(100,141,182,0.12)", border: "1px solid rgba(100,141,182,0.3)",
             borderRadius: 40, padding: "8px 18px",
           }}>
             <span style={{
@@ -141,14 +160,14 @@ export default function MaintenanceGate({ children }) {
                 50%       { opacity: 0.4; transform: scale(0.75); }
               }
             `}</style>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#C4B5FD" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#93C5FD" }}>
               Maintenance in progress
             </span>
           </div>
 
           <p style={{ fontSize: 12, color: "#475569", marginTop: 28 }}>
             Are you an admin?{" "}
-            <a href="/admin" style={{ color: "#818CF8", textDecoration: "none", fontWeight: 600 }}>
+            <a href="/admin" style={{ color: "#93C5FD", textDecoration: "none", fontWeight: 600 }}>
               Sign in here →
             </a>
           </p>
@@ -157,6 +176,5 @@ export default function MaintenanceGate({ children }) {
     );
   }
 
-  // ── Normal — render app ───────────────────────────────────────────────────
   return children;
 }

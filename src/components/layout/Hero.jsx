@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import DemoModal from "../DemoModal";
 
 const slides = [
   {
@@ -31,6 +32,7 @@ export default function Hero() {
   const [prev, setPrev] = useState(null);
   const [animating, setAnimating] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [demoOpen, setDemoOpen] = useState(false);
   const timerRef = useRef(null);
   const progressRef = useRef(null);
   const startTimeRef = useRef(null);
@@ -56,6 +58,12 @@ export default function Hero() {
   }, []);
 
   useEffect(() => {
+    if (demoOpen) {
+      clearTimeout(timerRef.current);
+      cancelAnimationFrame(progressRef.current);
+      return undefined;
+    }
+
     startTimeRef.current = performance.now();
 
     const tick = (now) => {
@@ -76,7 +84,7 @@ export default function Hero() {
       clearTimeout(timerRef.current);
       cancelAnimationFrame(progressRef.current);
     };
-  }, [current]);
+  }, [current, demoOpen]);
 
   const slide = slides[current];
   const prevSlide = prev !== null ? slides[prev] : null;
@@ -125,12 +133,18 @@ export default function Hero() {
                 Get Started Free
                 <span className="hero-btn-arrow">→</span>
               </a>
-              <a href="/demo" className="hero-btn-ghost">
+              <button
+                type="button"
+                className="hero-btn-ghost"
+                onClick={() => setDemoOpen(true)}
+              >
                 ▷ &nbsp;Watch Demo
-              </a>
+              </button>
             </div>
           </div>
         </div>
+
+        <DemoModal open={demoOpen} onClose={() => setDemoOpen(false)} />
 
        {/* Stats bar 
         <div className="hero-stats">

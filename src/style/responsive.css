@@ -29,13 +29,16 @@ img, video, iframe { max-width: 100%; height: auto; }
 /* On very small screens shrink the logo so it doesn't overflow */
 @media (max-width: 380px) {
   .nb-nav { padding: 0 4vw; }
-  .nb-logo img { height: 60px !important; }
+  .nb-logo img { height: 52px !important; }
   .nb-nav.scrolled .nb-logo img { height: 36px !important; }
 }
 
 /* Collapse height tweak when the hamburger menu is open */
 @media (max-width: 991px) {
-  :root { --nb-h: 64px; }
+  :root { --nb-h: 72px; }
+
+  .nb-logo img { height: 56px; }
+  .nb-nav.scrolled .nb-logo img { height: 40px; }
 
   .nb-collapse {
     top: var(--nb-h);

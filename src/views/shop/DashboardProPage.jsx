@@ -22,11 +22,14 @@ import ShopProjectsPanel from "../../components/shop/ShopProjectsPanel";
 import ShopQuotationsPanel from "../../components/shop/ShopQuotationsPanel";
 import PaidPlanAnalytics from "../../components/shop/PaidPlanAnalytics";
 import { getQuoteMoneyStats } from "../../utils/quoteAnalytics";
+import DashboardBrand from "../../components/ui/DashboardBrand";
 
 import {
   ArrowRight,
   CheckCircle,
   Lightning,
+  List,
+  SignOut,
 } from "@phosphor-icons/react";
 
 const NAV = [
@@ -237,6 +240,7 @@ export default function ShopDashboardPro() {
   const [quotations, setQuotations] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [activeTab, setActiveTab]   = useState("overview");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [toast, setToast]           = useState(null);
   const [quoteModal, setQuoteModal] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -294,34 +298,140 @@ export default function ShopDashboardPro() {
   });
 
   const Sidebar = () => (
-    <aside className="db-sidebar" style={{ width:228, minHeight:"100vh", flexShrink:0, background:"#0F172A", display:"flex", flexDirection:"column" }}>
-      <div style={{ padding:"22px 20px 18px", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
-        <div style={{ fontFamily:"var(--font-display)", fontSize:17, fontWeight:900, color:"#F1F5F9", marginBottom:3 }}>iConstruct</div>
-        <div style={{ fontSize:10, color:"rgba(148,163,184,0.6)", fontWeight:500, letterSpacing:"0.08em", textTransform:"uppercase" }}>Shop Manager</div>
-        <div style={{ marginTop:10 }}><PlanBadge /></div>
+    <aside
+      className="db-sidebar"
+      style={{
+        width: sidebarCollapsed ? 72 : 228,
+        minHeight: "100vh",
+        flexShrink: 0,
+        background: "#0F172A",
+        display: "flex",
+        flexDirection: "column",
+        transition: "width 0.25s cubic-bezier(0.4,0,0.2,1)",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          padding: sidebarCollapsed ? "16px 0 14px" : "20px 18px 16px",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          display: "flex",
+          flexDirection: sidebarCollapsed ? "column" : "row",
+          alignItems: "center",
+          justifyContent: sidebarCollapsed ? "center" : "space-between",
+          gap: 10,
+        }}
+      >
+        {sidebarCollapsed ? (
+          <DashboardBrand collapsed />
+        ) : (
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <DashboardBrand subtitle="Shop Manager · Pro" compact>
+              <PlanBadge />
+            </DashboardBrand>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          title={sidebarCollapsed ? "Expand menu" : "Collapse menu"}
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 6,
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            color: "rgba(148,163,184,0.7)",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          <List size={15} />
+        </button>
       </div>
-      <div style={{ margin:"12px 14px", padding:"10px 14px", background:"rgba(59,130,246,0.12)", borderRadius:10, border:"1px solid rgba(59,130,246,0.2)" }}>
-        <div style={{ fontSize:10, fontWeight:700, color:"#93C5FD", marginBottom:2 }}>PRO TOOLS ACTIVE</div>
-        <div style={{ fontSize:10, color:"rgba(148,163,184,0.7)" }}>Analytics · export · bid templates</div>
-      </div>
-      <nav style={{ flex:1, padding:"4px 0" }}>
+      {!sidebarCollapsed && (
+        <div style={{ margin: "12px 14px", padding: "10px 14px", background: "rgba(59,130,246,0.12)", borderRadius: 10, border: "1px solid rgba(59,130,246,0.2)" }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#93C5FD", marginBottom: 2 }}>PRO TOOLS ACTIVE</div>
+          <div style={{ fontSize: 10, color: "rgba(148,163,184,0.7)" }}>Analytics · export · bid templates</div>
+        </div>
+      )}
+      <nav style={{ flex: 1, padding: "4px 0" }}>
         {NAV.map(item => {
           const isActive = activeTab === item.key;
           return (
-            <button key={item.key} onClick={() => setActiveTab(item.key)} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 20px", border:"none", cursor:"pointer", fontSize:13, fontWeight:isActive?600:400, background:isActive?"rgba(59,130,246,0.15)":"transparent", color:isActive?"#93C5FD":"rgba(148,163,184,0.65)", borderLeft:isActive?"2px solid #3B82F6":"2px solid transparent", textAlign:"left", transition:"all 0.15s" }}>
-              <span>{item.label}</span>
+            <button
+              key={item.key}
+              onClick={() => setActiveTab(item.key)}
+              title={item.label}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: sidebarCollapsed ? "10px 0" : "10px 20px",
+                justifyContent: sidebarCollapsed ? "center" : "flex-start",
+                border: "none",
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: isActive ? 600 : 400,
+                background: isActive ? "rgba(59,130,246,0.15)" : "transparent",
+                color: isActive ? "#93C5FD" : "rgba(148,163,184,0.65)",
+                borderLeft: isActive ? "2px solid #3B82F6" : "2px solid transparent",
+                textAlign: "left",
+                transition: "all 0.15s",
+              }}
+            >
+              {sidebarCollapsed ? (
+                <span style={{ fontSize: 12, fontWeight: 700 }}>{item.label.slice(0, 1)}</span>
+              ) : (
+                <span>{item.label}</span>
+              )}
             </button>
           );
         })}
       </nav>
-      <div style={{ padding:"14px 20px", borderTop:"1px solid rgba(255,255,255,0.06)" }}>
-        {shop && (
-          <div style={{ marginBottom:12 }}>
-            <div style={{ fontSize:12, fontWeight:600, color:"#F1F5F9", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{shop.shopName}</div>
-            <div style={{ fontSize:10, color:"rgba(148,163,184,0.5)" }}>{shop.ownerName}</div>
+      <div
+        style={{
+          padding: sidebarCollapsed ? "14px 0" : "14px 20px",
+          borderTop: "1px solid rgba(255,255,255,0.06)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: sidebarCollapsed ? "center" : "stretch",
+          gap: 10,
+        }}
+      >
+        {shop && !sidebarCollapsed && (
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#F1F5F9", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{shop.shopName}</div>
+            <div style={{ fontSize: 10, color: "rgba(148,163,184,0.5)" }}>{shop.ownerName}</div>
           </div>
         )}
-        <button onClick={async () => { await logoutShop(); navigate("/login"); }} style={{ width:"100%", padding:"8px", borderRadius:8, border:"1px solid rgba(239,68,68,0.3)", background:"rgba(239,68,68,0.1)", color:"#F87171", fontSize:11.5, fontWeight:600, cursor:"pointer" }}>Sign Out</button>
+        {sidebarCollapsed ? (
+          <button
+            type="button"
+            title="Sign Out"
+            onClick={async () => { await logoutShop(); navigate("/login"); }}
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 6,
+              border: "1px solid rgba(239,68,68,0.2)",
+              background: "rgba(239,68,68,0.1)",
+              color: "#F87171",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <SignOut size={14} />
+          </button>
+        ) : (
+          <button onClick={async () => { await logoutShop(); navigate("/login"); }} style={{ width: "100%", padding: "8px", borderRadius: 8, border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.1)", color: "#F87171", fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}>Sign Out</button>
+        )}
       </div>
     </aside>
   );

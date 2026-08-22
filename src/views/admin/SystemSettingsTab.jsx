@@ -37,6 +37,15 @@ import {
   orderBy,
   limit,
 } from "firebase/firestore";
+import {
+  getRecommendationConfig,
+  updateRecommendationEngine,
+} from "../../controllers/recommendationController";
+import {
+  DEFAULT_FORMULA,
+  DEFAULT_PRICING,
+} from "../../utils/recommendationEngine";
+import RecommendationEstimatePreview from "../../components/RecommendationEstimatePreview";
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const T = {
@@ -286,27 +295,9 @@ function AdminFormModal({ open, onClose, onSave, editTarget, loading }) {
   );
 }
 
-// ─── Section 3 — Recommendation Engine Editor ────────────────────────────────
+// Defaults live in utils/recommendationEngine.js (web-only estimator)
 
-const DEFAULT_FORMULA = {
-  cementBagsPerSqm: 0.5,
-  sandBagsPerSqm: 0.6,
-  gravelBagsPerSqm: 0.4,
-  steelBarsPerSqm: 1.2,
-  hollowBlocksPerSqm: 12,
-  wasteFactor: 0.1,
-};
-
-const DEFAULT_PRICING = {
-  cementPerBag: 280,
-  sandPerBag: 120,
-  gravelPerBag: 130,
-  steelBarPer: 380,
-  hollowBlockPer: 18,
-  laborPerSqm: 650,
-};
-
-// ─── Section 6 — System Log ───────────────────────────────────────────────────
+// ─── System Log row ───────────────────────────────────────────────────────────
 
 function LogEntry({ entry }) {
   const levelColors = { info: T.info, warn: T.warning, error: T.danger, success: T.success };
@@ -453,18 +444,17 @@ export default function SystemSettingsTab({ currentUser }) {
     (async () => {
       setEngineLoading(true);
       try {
-        const snap = await getDoc(doc(db, "systemConfig", "recommendationEngine"));
-        if (snap.exists()) {
-          const d = snap.data();
-          if (d.formula) setFormula(d.formula);
-          if (d.pricing) setPricing(d.pricing);
-        }
-      } catch { /* use defaults */ }
+        const cfg = await getRecommendationConfig();
+        setFormula(cfg.formula);
+        setPricing(cfg.pricing);
+      } catch {
+        /* use defaults */
+      }
       setEngineLoading(false);
     })();
   }, []);
 
-  // ── Load subscription plans ──
+  // ── Load subscription plans (preserve admin prices — do NOT overwrite from static code)
   useEffect(() => {
     (async () => {
       setPlansLoading(true);
@@ -472,13 +462,41 @@ export default function SystemSettingsTab({ currentUser }) {
         const snap = await getDoc(doc(db, "systemConfig", "subscriptionPlans"));
         if (snap.exists()) {
           const loaded = snap.data().plans || {};
-          // Keep Firestore limits/features; sync prices from planConfig
           const synced = {};
           Object.keys(PLAN_CONFIG).forEach((key) => {
+            const cfg = PLAN_CONFIG[key];
+            const live = loaded[key] || {};
             synced[key] = {
-              ...(loaded[key] || {}),
-              price: PLAN_CONFIG[key].price,
-              billingCycle: loaded[key]?.billingCycle || "monthly",
+              key,
+              label: live.label ?? cfg.label,
+              price:
+                live.price !== undefined && live.price !== null
+                  ? Number(live.price)
+                  : cfg.price,
+              billingCycle: live.billingCycle || "monthly",
+              productLimit:
+                live.productLimit !== undefined
+                  ? live.productLimit
+                  : cfg.productLimit === Infinity
+                    ? -1
+                    : cfg.productLimit,
+              quotaLimit:
+                live.quotaLimit !== undefined
+                  ? live.quotaLimit
+                  : cfg.quotaLimit === Infinity
+                    ? -1
+                    : cfg.quotaLimit,
+              projectLimit:
+                live.projectLimit !== undefined
+                  ? live.projectLimit
+                  : cfg.projectLimit === Infinity
+                    ? -1
+                    : cfg.projectLimit,
+              isPublic: live.isPublic !== false,
+              features:
+                Array.isArray(live.features) && live.features.length
+                  ? live.features
+                  : cfg.features,
             };
           });
           setPlans(synced);
@@ -486,22 +504,24 @@ export default function SystemSettingsTab({ currentUser }) {
           const defaultPlans = {};
           Object.entries(PLAN_CONFIG).forEach(([key, cfg]) => {
             defaultPlans[key] = {
-              key, label: cfg.label,
-              price: key === "basic" ? 0 : key === "pro" ? 999 : 4999,
+              key,
+              label: cfg.label,
+              price: cfg.price,
               billingCycle: "monthly",
-              productLimit: cfg.productLimit === Infinity ? -1 : cfg.productLimit,
+              productLimit:
+                cfg.productLimit === Infinity ? -1 : cfg.productLimit,
               quotaLimit: cfg.quotaLimit === Infinity ? -1 : cfg.quotaLimit,
+              projectLimit:
+                cfg.projectLimit === Infinity ? -1 : cfg.projectLimit,
               isPublic: true,
-              features: key === "basic"
-                ? ["Up to 20 products", "3 quotations/month", "Limited project board"]
-                : key === "pro"
-                ? ["Up to 150 products", "Unlimited quotations", "Revenue analytics", "CSV export", "Quote templates"]
-                : ["Unlimited products", "Business insights", "Revenue & lost-value tracking", "Bid toolkit", "Smart pricing tips"],
+              features: cfg.features,
             };
           });
           setPlans(defaultPlans);
         }
-      } catch { /* use defaults */ }
+      } catch {
+        /* use defaults */
+      }
       setPlansLoading(false);
     })();
   }, []);
@@ -595,29 +615,64 @@ export default function SystemSettingsTab({ currentUser }) {
   };
 
   // ── Save recommendation engine ──
- const handleSaveEngine = async () => {
-  setSavingEngine(true);
-  try {
-    await setDoc(doc(db, "systemConfig", "recommendationEngine"),
-      { formula, pricing, updatedAt: serverTimestamp() }, { merge: true });
-    await writeLog("info", "Recommendation engine formulas and pricing updated.");
-    showToast("Recommendation engine updated.");
-  } catch { showToast("Failed to save engine config.", "error"); }
-  finally { setSavingEngine(false); }
-};
+  const handleSaveEngine = async () => {
+    setSavingEngine(true);
+    try {
+      const saved = await updateRecommendationEngine({ formula, pricing });
+      setFormula(saved.formula);
+      setPricing(saved.pricing);
+      showToast("Recommendation engine updated. Builder app will use these values.");
+    } catch {
+      showToast("Failed to save engine config.", "error");
+    } finally {
+      setSavingEngine(false);
+    }
+  };
 
-  // ── Save subscription plans ──
+  // ── Save subscription plans (writes to systemConfig → landing + shop UIs + checkout)
 const handleSavePlan = async () => {
   setSavingPlans(true);
   try {
-    const updated = { ...plans, [editingPlan]: { ...plans[editingPlan], ...planForm } };
-    await setDoc(doc(db, "systemConfig", "subscriptionPlans"),
-      { plans: updated, updatedAt: serverTimestamp() }, { merge: true });
-    setPlans(updated); setEditingPlan(null);
-    await writeLog("info", `Subscription plan updated: ${editingPlan.toUpperCase()} — price ₱${planForm.price}, limit: ${planForm.productLimit === -1 ? "unlimited" : planForm.productLimit} products`);
-    showToast("Subscription plan updated.");
-  } catch { showToast("Failed to save plan.", "error"); }
-  finally { setSavingPlans(false); }
+    const cleaned = {
+      ...plans[editingPlan],
+      ...planForm,
+      key: editingPlan,
+      price: Number(planForm.price) || 0,
+      productLimit:
+        planForm.productLimit === "" || planForm.productLimit === undefined
+          ? -1
+          : Number(planForm.productLimit),
+      quotaLimit:
+        planForm.quotaLimit === "" || planForm.quotaLimit === undefined
+          ? -1
+          : Number(planForm.quotaLimit),
+      features: Array.isArray(planForm.features)
+        ? planForm.features.map((f) => String(f).trim()).filter(Boolean)
+        : [],
+      isPublic: planForm.isPublic !== false,
+      billingCycle: planForm.billingCycle || "monthly",
+      label: planForm.label || editingPlan,
+    };
+    const updated = { ...plans, [editingPlan]: cleaned };
+    await setDoc(
+      doc(db, "systemConfig", "subscriptionPlans"),
+      { plans: updated, updatedAt: serverTimestamp() },
+      { merge: true }
+    );
+    setPlans(updated);
+    setEditingPlan(null);
+    await writeLog(
+      "info",
+      `Subscription plan updated: ${editingPlan.toUpperCase()} — ₱${cleaned.price}, products: ${cleaned.productLimit === -1 ? "∞" : cleaned.productLimit}, public: ${cleaned.isPublic}`
+    );
+    showToast(
+      "Plan saved. Landing page, shop upgrade screens, and checkout will use the new price & features."
+    );
+  } catch {
+    showToast("Failed to save plan.", "error");
+  } finally {
+    setSavingPlans(false);
+  }
 };
 
   // ── Save notification settings ──
@@ -851,6 +906,14 @@ const handleSavePlan = async () => {
           )}
         </SectionCard>
 
+        <SectionCard title="Live estimate preview" subtitle="Try an area to verify formulas and pricing on the web." icon={<TbChartBar size={18} />} accent={T.info}>
+          {engineLoading ? (
+            <div style={{ padding: 24, textAlign: "center", color: T.textLight }}>Loading...</div>
+          ) : (
+            <RecommendationEstimatePreview formula={formula} pricing={pricing} defaultArea={100} />
+          )}
+        </SectionCard>
+
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <Btn variant="primary" loading={savingEngine} onClick={handleSaveEngine} size="lg">Save Engine Configuration</Btn>
         </div>
@@ -938,8 +1001,11 @@ const handleSavePlan = async () => {
                         onChange={e => setPlanForm(f => ({ ...f, features: e.target.value.split("\n").filter(Boolean) }))}
                         placeholder={"Up to 150 products\nUnlimited quotations\nPriority listing"} />
                     </Field>
+                    <div style={{ fontSize: 11.5, color: T.textMuted, marginBottom: 12, padding: "10px 12px", background: "#F8FAFC", borderRadius: 8, border: `1px solid ${T.border}`, lineHeight: 1.5 }}>
+                      Saving updates the <strong>landing page prices/features</strong>, shop upgrade screens, product limits, and PayMongo charge amount (after you deploy functions if price changed).
+                    </div>
                     <Toggle checked={planForm.isPublic !== false} onChange={v => setPlanForm(f => ({ ...f, isPublic: v }))}
-                      label="Show in Pricing Page" hint="When disabled, this plan won't be visible to shop owners." />
+                      label="Show in Pricing Page" hint="When disabled, this plan won't be visible on the homepage or upgrade UIs." />
                   </div>
                   <div style={{ padding: "12px 22px 20px", borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "flex-end", gap: 10 }}>
                     <Btn variant="ghost" onClick={() => setEditingPlan(null)}>Cancel</Btn>
@@ -1114,7 +1180,9 @@ const handleSavePlan = async () => {
       <div className="settings-shell">
         <div style={{ marginBottom: 22 }}>
           <h2 style={{ fontSize: 22, fontWeight: 700, color: T.text, marginBottom: 3, fontFamily: "var(--font-display)" }}>System Settings</h2>
-          <p style={{ fontSize: 13, color: T.textMuted }}>Configure and manage all platform-level settings from one place.</p>
+          <p style={{ fontSize: 13, color: T.textMuted, maxWidth: 560, lineHeight: 1.5 }}>
+            Plans, maintenance mode, admins, and notifications — changes apply to the web shop dashboard and builder app.
+          </p>
         </div>
 
         <div className="settings-layout">

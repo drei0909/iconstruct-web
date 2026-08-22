@@ -11,7 +11,7 @@
 import { auth, db } from "../services/firebase";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import {
-  getDoc, doc, addDoc, collection, serverTimestamp,
+  getDoc, doc, addDoc, collection, serverTimestamp, arrayUnion,
 } from "firebase/firestore";
 import {
   fetchAllShops,
@@ -19,14 +19,20 @@ import {
   updateShopApproval,
   updatePaymentStatus,
   updateShopSubscription,
+  fetchPlatformOpsCounts,
 } from "../models/adminModel";
+import {
+  fetchContactMessages,
+  updateContactMessage,
+  deleteContactMessageDoc,
+} from "../models/contactModel";
 
 import {
   sendApprovalEmail,
   sendRejectionEmail,
   sendPaymentConfirmedEmail,
   sendPaymentRejectedEmail,
-  sendQuotationAcceptedToUser,
+  sendContactReplyEmail,
 } from "../services/emailService";
 import { assertRateLimit, RATE } from "../utils/rateLimit";
 
@@ -192,4 +198,142 @@ export async function rejectPayment(paymentId, reason, shopId) {
 
     await writeLog("info", `Payment rejected for "${shop.shopName}". Reason: ${reason}`);
   }
+}
+
+// ── Lifecycle management (Manage Shops) ────────────────────────────────────
+
+/** Block approved shop from logging into the shop dashboard (app still sees products if public rules allow). */
+export async function suspendShop(uid, reason = "Suspended by administrator") {
+  await updateShopApproval(uid, "rejected", reason);
+  const snap = await getDoc(doc(db, "shops", uid));
+  const name = snap.exists() ? snap.data().shopName : uid;
+  await writeLog("warn", `Shop "${name}" suspended. ${reason}`);
+}
+
+/** Re-open a suspended / rejected shop for login again. */
+export async function reopenShop(uid) {
+  await updateShopApproval(uid, "approved", "");
+  const snap = await getDoc(doc(db, "shops", uid));
+  if (snap.exists()) {
+    const shop = snap.data();
+    await sendApprovalEmail({
+      toEmail: shop.email,
+      toName: shop.ownerName,
+      shopName: shop.shopName,
+    }).catch(() => {});
+    await writeLog("success", `Shop "${shop.shopName}" re-opened (approved).`);
+  }
+}
+
+/**
+ * Manually set plan (e.g. grace, demo, downgrade after support call).
+ * plan: "basic" | "pro" | "business"
+ * days: subscription length from now (ignored for basic)
+ */
+export async function setShopPlanManual(uid, plan, days = 30) {
+  const planKey = String(plan || "basic").toLowerCase();
+  let expiry = null;
+  if (planKey === "pro" || planKey === "business") {
+    const d = Number(days) > 0 ? Number(days) : planKey === "business" ? 365 : 30;
+    expiry = new Date();
+    expiry.setDate(expiry.getDate() + d);
+  }
+  await updateShopSubscription(uid, planKey, expiry);
+  const snap = await getDoc(doc(db, "shops", uid));
+  const name = snap.exists() ? snap.data().shopName : uid;
+  await writeLog(
+    "success",
+    `Manual plan set for "${name}": ${planKey.toUpperCase()}${expiry ? ` until ${expiry.toLocaleDateString("en-PH")}` : ""}.`
+  );
+  return { plan: planKey, expiry };
+}
+
+/** Lightweight counts for admin dashboard ↔ app data. */
+export async function getPlatformOps() {
+  return fetchPlatformOpsCounts();
+}
+
+// ── Contact Us inbox ───────────────────────────────────────────────────────
+export async function getContactMessages() {
+  return fetchContactMessages();
+}
+
+export async function getContactMessageStats(list) {
+  const messages = list || (await fetchContactMessages());
+  return {
+    total: messages.length,
+    new: messages.filter((m) => m.status === "new").length,
+    read: messages.filter((m) => m.status === "read").length,
+    archived: messages.filter((m) => m.status === "archived").length,
+  };
+}
+
+export async function markContactMessageRead(id) {
+  await updateContactMessage(id, { status: "read", readAt: serverTimestamp() });
+  await writeLog("info", `Contact message ${id} marked as read.`);
+}
+
+export async function archiveContactMessage(id) {
+  await updateContactMessage(id, { status: "archived", archivedAt: serverTimestamp() });
+  await writeLog("info", `Contact message ${id} archived.`);
+}
+
+export async function reopenContactMessage(id) {
+  await updateContactMessage(id, { status: "new" });
+  await writeLog("info", `Contact message ${id} reopened as new.`);
+}
+
+/** Permanently remove a contact message (manual admin action only). */
+export async function deleteContactMessage(id) {
+  await deleteContactMessageDoc(id);
+  await writeLog("warn", `Contact message ${id} deleted permanently.`);
+}
+
+/**
+ * Reply to a Contact Us sender via EmailJS/Gmail.
+ * Email goes TO their address; FROM is your connected Gmail in EmailJS.
+ */
+export async function replyToContactMessage(id, replyText, messageSnapshot = {}) {
+  const body = String(replyText || "").trim();
+  if (body.length < 5) throw new Error("Please write a longer reply (at least 5 characters).");
+  if (body.length > 5000) throw new Error("Reply is too long (max 5000 characters).");
+
+  const toEmail = String(messageSnapshot.email || "").trim().toLowerCase();
+  const toName = String(messageSnapshot.name || "there").trim();
+  if (!toEmail) throw new Error("This message has no email address to reply to.");
+
+  assertRateLimit(
+    `contact-reply:${auth.currentUser?.uid || "admin"}`,
+    RATE.contactReply || { max: 20, windowMs: 60 * 60 * 1000 },
+    "Too many replies sent"
+  );
+
+  const result = await sendContactReplyEmail({
+    toEmail,
+    toName,
+    subject: messageSnapshot.subject || "your inquiry",
+    replyBody: body,
+    originalMessage: messageSnapshot.message || "",
+  });
+
+  if (result?.suppressed && result.reason === "duplicate") {
+    throw new Error("Please wait a few seconds before sending the same reply again.");
+  }
+
+  const actor = auth.currentUser?.email || "admin";
+  await updateContactMessage(id, {
+    status: "read",
+    lastReplyAt: serverTimestamp(),
+    lastReplyBy: actor,
+    lastReplyText: body.slice(0, 2000),
+    replies: arrayUnion({
+      body: body.slice(0, 2000),
+      by: actor,
+      at: new Date().toISOString(),
+      channel: "gmail",
+    }),
+  });
+
+  await writeLog("success", `Contact reply emailed to ${toEmail} (message ${id}).`);
+  return { ok: true, toEmail };
 }

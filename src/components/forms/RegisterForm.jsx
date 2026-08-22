@@ -187,8 +187,11 @@ export default function RegisterForm() {
       await sendOTP(form.email, form.ownerName);
       setStep(1);
       startResendTimer();
-    } catch {
-      setGlobalError("Failed to send OTP. Please check your email and try again.");
+    } catch (err) {
+      setGlobalError(
+        err?.message ||
+          "Failed to send OTP. Please check your email and try again."
+      );
     } finally { setLoading(false); }
   };
 
@@ -231,8 +234,9 @@ export default function RegisterForm() {
       setOtp(["","","","","",""]);
       setOtpError("");
       startResendTimer();
-    } catch { setOtpError("Failed to resend. Please try again."); }
-    finally { setLoading(false); }
+    } catch (err) {
+      setOtpError(err?.message || "Failed to resend. Please try again.");
+    } finally { setLoading(false); }
   };
 
   // ── Document upload ──

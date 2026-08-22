@@ -27,6 +27,34 @@ const PLAN_PRICES = {
   business: { amount: 499900, currency: "PHP", name: "iConstruct Business Plan", interval: "month" },
 };
 
+/** Admin-editable amounts from systemConfig/subscriptionPlans (PHP → centavos). */
+async function resolvePlanPrice(planId) {
+  const fallback = PLAN_PRICES[planId];
+  if (!fallback) return null;
+  try {
+    const snap = await db.collection("systemConfig").doc("subscriptionPlans").get();
+    const p = snap.data()?.plans?.[planId];
+    if (p && p.price !== undefined && p.price !== null) {
+      const php = Number(p.price);
+      if (Number.isFinite(php) && php >= 0) {
+        return {
+          amount: Math.round(php * 100),
+          currency: "PHP",
+          name: p.label
+            ? `iConstruct ${p.label}`
+            : fallback.name,
+          interval: String(p.billingCycle || "month")
+            .replace(/ly$/i, "")
+            .toLowerCase() || "month",
+        };
+      }
+    }
+  } catch (e) {
+    logger.warn("resolvePlanPrice fallback", planId, e.message);
+  }
+  return { ...fallback };
+}
+
 // In-memory rate limit (per Cloud Function instance)
 const rateBuckets = new Map();
 
@@ -104,17 +132,14 @@ async function requireAuth(req, res) {
 /** Browser CORS for SPA (localhost:5173 + Firebase Hosting). */
 function applyCors(req, res) {
   const origin = req.headers.origin || "*";
-  res.set("Access-Control-Allow-Origin", origin);
+  // Echo origin when present so local dev + Hosting both work
+  res.set("Access-Control-Allow-Origin", origin === "null" ? "*" : origin);
   res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.set(
     "Access-Control-Allow-Headers",
     "Content-Type, Authorization, X-Requested-With"
   );
   res.set("Access-Control-Max-Age", "3600");
-  // Needed when Authorization header is used with non-* origin
-  if (origin !== "*") {
-    res.set("Access-Control-Allow-Credentials", "true");
-  }
   res.set("Vary", "Origin");
 }
 
@@ -506,6 +531,7 @@ async function sendOtpViaEmailJs({ toEmail, toName, otpCode }) {
   const serviceId = process.env.EMAILJS_SERVICE_ID || "service_ekwltb2";
   const templateId = process.env.EMAILJS_TEMPLATE_OTP || "template_i4tvz8h";
   const publicKey = process.env.EMAILJS_PUBLIC_KEY || "8CRqLBqTGPfDxdwl-";
+  // Private key recommended for server; set as Firebase secret / functions config
   const privateKey = process.env.EMAILJS_PRIVATE_KEY || "";
 
   const body = {
@@ -516,8 +542,14 @@ async function sendOtpViaEmailJs({ toEmail, toName, otpCode }) {
       to_email: toEmail,
       to_name: toName || "Shop Owner",
       otp_code: otpCode,
+      // Aliases some templates use
+      email: toEmail,
+      name: toName || "Shop Owner",
+      otp: otpCode,
+      message: `Your iConstruct verification code is ${otpCode}`,
     },
   };
+  // EmailJS REST API: accessToken = private key for non-browser
   if (privateKey) body.accessToken = privateKey;
 
   const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
@@ -527,6 +559,16 @@ async function sendOtpViaEmailJs({ toEmail, toName, otpCode }) {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+    const lower = String(text || "").toLowerCase();
+    // Default EmailJS blocks Cloud Functions until this checkbox is on
+    if (
+      res.status === 403 &&
+      (lower.includes("non-browser") || lower.includes("non browser"))
+    ) {
+      throw new Error(
+        "EmailJS blocks server OTP until enabled. Open https://dashboard.emailjs.com/admin/account/security → enable “Allow EmailJS API for non-browser applications”, then try again. (Optional: set Firebase secret EMAILJS_PRIVATE_KEY.)"
+      );
+    }
     throw new Error(`OTP email failed (${res.status}): ${text || res.statusText}`);
   }
 }
@@ -671,7 +713,10 @@ exports.createCheckoutSession = onRequest(
 
       // Always bind to authenticated user — never trust client shopId
       const shopId = decoded.uid;
-      const plan = PLAN_PRICES[planId];
+      const plan = await resolvePlanPrice(planId);
+      if (!plan || !plan.amount) {
+        return res.status(400).json({ error: "Invalid plan selected." });
+      }
       const origin = req.headers.origin || "http://localhost:5173";
       const success = safeAppUrl(
         successUrl,
@@ -1173,7 +1218,8 @@ exports.syncMyLatestPayment = onRequest(
 // ── Server OTP ──────────────────────────────────────────────────────────────
 
 exports.requestEmailOtp = onRequest(
-  { cors: [/^http:\/\/localhost:\d+$/, true], invoker: "public" },
+  // cors: true → Firebase sets preflight headers (localhost SPA included)
+  { cors: true, invoker: "public", timeoutSeconds: 60 },
   async (req, res) => {
   if (handlePreflight(req, res)) return;
   applyCors(req, res);
@@ -1238,7 +1284,7 @@ exports.requestEmailOtp = onRequest(
 });
 
 exports.verifyEmailOtp = onRequest(
-  { cors: [/^http:\/\/localhost:\d+$/, true], invoker: "public" },
+  { cors: true, invoker: "public", timeoutSeconds: 60 },
   async (req, res) => {
   if (handlePreflight(req, res)) return;
   applyCors(req, res);
@@ -1320,7 +1366,7 @@ exports.verifyEmailOtp = onRequest(
 
 /** Server-side register gate — optionally consume verification after success. */
 exports.assertEmailOtpVerified = onRequest(
-  { cors: [/^http:\/\/localhost:\d+$/, true], invoker: "public" },
+  { cors: true, invoker: "public", timeoutSeconds: 60 },
   async (req, res) => {
   if (handlePreflight(req, res)) return;
   applyCors(req, res);

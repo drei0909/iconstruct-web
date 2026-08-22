@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+import { submitContactMessage } from "../../controllers/contactController";
 
 const contactInfo = [
   {
@@ -29,17 +30,24 @@ export default function ContactUs() {
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleChange = (e) =>
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await submitContactMessage(form);
       setSent(true);
-    }, 1400);
+      setForm({ name: "", email: "", subject: "", message: "" });
+    } catch (err) {
+      setError(err.message || "Could not send your message. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -107,12 +115,14 @@ export default function ContactUs() {
                 </div>
                 <h3 className="ct-success-title">Message Sent!</h3>
                 <p className="ct-success-text">
-                  Thank you for reaching out. We'll get back to you within 24 hours.
+                  Thank you for reaching out. Our team will see your message
+                  in the admin inbox and get back to you within 24 hours.
                 </p>
                 <button
                   className="ct-success-btn"
                   onClick={() => {
                     setSent(false);
+                    setError("");
                     setForm({ name: "", email: "", subject: "", message: "" });
                   }}
                 >
@@ -144,6 +154,7 @@ export default function ContactUs() {
                         value={form.name}
                         onChange={handleChange}
                         required
+                        maxLength={120}
                       />
                     </div>
                     <div className="ct-field">
@@ -156,6 +167,7 @@ export default function ContactUs() {
                         value={form.email}
                         onChange={handleChange}
                         required
+                        maxLength={200}
                       />
                     </div>
                   </div>
@@ -170,6 +182,7 @@ export default function ContactUs() {
                       value={form.subject}
                       onChange={handleChange}
                       required
+                      maxLength={200}
                     />
                   </div>
 
@@ -182,8 +195,26 @@ export default function ContactUs() {
                       value={form.message}
                       onChange={handleChange}
                       required
+                      maxLength={5000}
                     />
                   </div>
+
+                  {error ? (
+                    <p
+                      style={{
+                        color: "#B91C1C",
+                        background: "#FEF2F2",
+                        border: "1px solid #FECACA",
+                        borderRadius: 10,
+                        padding: "10px 12px",
+                        fontSize: 13,
+                        marginBottom: 14,
+                      }}
+                      role="alert"
+                    >
+                      {error}
+                    </p>
+                  ) : null}
 
                   <button className="ct-submit" type="submit" disabled={loading}>
                     {loading ? (

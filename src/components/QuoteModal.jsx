@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { Package } from "@phosphor-icons/react";
 import { db } from "../services/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
-import { loadQuoteTemplates, addQuoteTemplate } from "../utils/quoteTemplates";
 
 const peso = (n) =>
   new Intl.NumberFormat("en-PH", {
@@ -83,11 +82,6 @@ export default function QuoteModal({
   submitting,
   accentColor = "#2C3E50",
   accentGradient = "linear-gradient(180deg, #2C3E50 30%, #648DB6 100%)",
-  /** Pro/Business: show average accepted bid as a pricing guide */
-  pricingGuide = null,
-  /** Pro/Business: enable saved note templates */
-  enableTemplates = false,
-  shopId = null,
 }) {
   const materials = Array.isArray(project.materials) ? project.materials : [];
 
@@ -97,18 +91,10 @@ export default function QuoteModal({
     return init;
   });
   const [note, setNote] = useState("");
-  const [templates, setTemplates] = useState([]);
-  const [templateSaved, setTemplateSaved] = useState(false);
 
   // Image map: { materialName -> imageUrl }
   const [imageMap, setImageMap] = useState({});
   const [imagesLoading, setImagesLoading] = useState(true);
-
-  useEffect(() => {
-    if (enableTemplates && shopId) {
-      setTemplates(loadQuoteTemplates(shopId));
-    }
-  }, [enableTemplates, shopId]);
 
   // Fetch product images on mount by matching material name to products collection
   useEffect(() => {
@@ -161,7 +147,6 @@ export default function QuoteModal({
 
   return (
     <div
-      className="quote-modal-overlay"
       style={{
         position: "fixed", inset: 0,
         background: "rgba(15,23,42,0.55)",
@@ -172,9 +157,7 @@ export default function QuoteModal({
       }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div
-        className="quote-modal-card"
-        style={{
+      <div style={{
         background: "#fff", borderRadius: 18,
         width: "100%", maxWidth: 640,
         maxHeight: "90vh", display: "flex", flexDirection: "column",
@@ -326,65 +309,17 @@ export default function QuoteModal({
                 <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>Total</span>
                 <span style={{ fontSize: 18, fontWeight: 900, color: accentColor, fontFamily: "var(--font-base)" }}>{peso(total)}</span>
               </div>
-              {pricingGuide?.avgAccepted > 0 && (
-                <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed #E4E9F0", fontSize: 11.5, color: "#64748B", lineHeight: 1.5 }}>
-                  Your accepted bids average <strong style={{ color: accentColor }}>{pricingGuide.format?.avgAccepted || peso(pricingGuide.avgAccepted)}</strong>
-                  {pricingGuide.winRate != null && <> · win rate {pricingGuide.winRate}%</>}.
-                  {total > 0 && pricingGuide.avgAccepted > 0 && total > pricingGuide.avgAccepted * 1.25 && (
-                    <span style={{ display: "block", marginTop: 4, color: "#B45309" }}>
-                      This total is notably higher than your wins — tighten if competing hard.
-                    </span>
-                  )}
-                </div>
-              )}
             </div>
           )}
 
-          {/* Notes + Pro/Business templates */}
+          {/* Notes */}
           <div style={{ marginBottom: 4 }}>
             <label style={{ fontSize: 11.5, fontWeight: 600, color: "#334155", display: "block", marginBottom: 5 }}>Notes (optional)</label>
-            {enableTemplates && templates.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-                {templates.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setNote(t.note)}
-                    style={{
-                      fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 20,
-                      border: `1px solid ${accentColor}40`, background: `${accentColor}10`,
-                      color: accentColor, cursor: "pointer",
-                    }}
-                  >
-                    {t.name}
-                  </button>
-                ))}
-              </div>
-            )}
             <textarea
-              rows={2} value={note} onChange={e => { setNote(e.target.value); setTemplateSaved(false); }}
+              rows={2} value={note} onChange={e => setNote(e.target.value)}
               placeholder="Delivery terms, availability, conditions..."
               style={{ width: "100%", padding: "10px 14px", border: "1.5px solid #E4E9F0", borderRadius: 8, fontSize: 13, fontFamily: "var(--font-base)", resize: "none", outline: "none", color: "#0F172A", boxSizing: "border-box" }}
             />
-            {enableTemplates && note.trim().length > 8 && shopId && (
-              <button
-                type="button"
-                onClick={() => {
-                  const next = addQuoteTemplate(shopId, {
-                    name: note.trim().slice(0, 28) + (note.length > 28 ? "…" : ""),
-                    note: note.trim(),
-                  });
-                  setTemplates(next);
-                  setTemplateSaved(true);
-                }}
-                style={{
-                  marginTop: 6, fontSize: 11, fontWeight: 600, background: "none", border: "none",
-                  color: templateSaved ? "#059669" : accentColor, cursor: "pointer", padding: 0,
-                }}
-              >
-                {templateSaved ? "Saved to templates ✓" : "Save note as template"}
-              </button>
-            )}
           </div>
         </div>
 

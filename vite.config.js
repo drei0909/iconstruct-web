@@ -10,6 +10,40 @@ const PLAN_PRICES = {
   business: { amount: 499900, currency: "PHP", name: "iConstruct Business Plan", interval: "month" },
 };
 
+/** Load admin price from Firestore REST (systemConfig is public-readable). */
+async function resolvePlanPriceLocal(planId) {
+  const fallback = PLAN_PRICES[planId];
+  if (!fallback) return null;
+  try {
+    const url =
+      "https://firestore.googleapis.com/v1/projects/iconstruct-58a87/databases/(default)/documents/systemConfig/subscriptionPlans";
+    const res = await fetch(url);
+    if (!res.ok) return { ...fallback };
+    const json = await res.json();
+    const plansMap = json?.fields?.plans?.mapValue?.fields || {};
+    const planFields = plansMap[planId]?.mapValue?.fields || {};
+    const priceField = planFields.price;
+    let php = null;
+    if (priceField?.integerValue != null) php = Number(priceField.integerValue);
+    else if (priceField?.doubleValue != null) php = Number(priceField.doubleValue);
+    else if (priceField?.stringValue != null) php = Number(priceField.stringValue);
+    if (php != null && Number.isFinite(php) && php >= 0) {
+      const label =
+        planFields.label?.stringValue ||
+        (planId === "pro" ? "Pro" : "Business");
+      return {
+        amount: Math.round(php * 100),
+        currency: "PHP",
+        name: `iConstruct ${label}`,
+        interval: "month",
+      };
+    }
+  } catch (e) {
+    console.warn("[PayMongo] plan price from Firestore failed:", e.message);
+  }
+  return { ...fallback };
+}
+
 function readJsonBody(req) {
   return new Promise((resolve, reject) => {
     let raw = "";
@@ -269,6 +303,74 @@ async function localSyncPayment(secretKey, authHeader, body) {
   };
 }
 
+const OTP_CF = {
+  "/api/otp/request": "https://us-central1-iconstruct-58a87.cloudfunctions.net/requestEmailOtp",
+  "/api/otp/verify": "https://us-central1-iconstruct-58a87.cloudfunctions.net/verifyEmailOtp",
+  "/api/otp/assert": "https://us-central1-iconstruct-58a87.cloudfunctions.net/assertEmailOtpVerified",
+};
+
+/** Same-origin OTP proxy — avoids browser CORS on localhost register. */
+function otpDevApiPlugin() {
+  return {
+    name: "otp-dev-api",
+    configureServer(server) {
+      const otpHandler = async function otpProxyMiddleware(req, res, next) {
+        const raw = String(req.url || "");
+        const url = raw.split("?")[0];
+        const target = OTP_CF[url];
+        if (!target) return next();
+
+        if (req.method === "OPTIONS") {
+          res.statusCode = 204;
+          res.setHeader("Access-Control-Allow-Origin", "*");
+          res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+          res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+          return res.end();
+        }
+
+        if (req.method !== "POST") {
+          return sendJson(res, 405, { error: "Method not allowed" });
+        }
+
+        try {
+          const body = await readJsonBody(req);
+          console.log("[OTP] proxy →", target);
+          const cfRes = await fetch(target, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body || {}),
+          });
+          let data = {};
+          try {
+            data = await cfRes.json();
+          } catch {
+            /* ignore */
+          }
+          if (!cfRes.ok) {
+            return sendJson(res, cfRes.status, {
+              error:
+                data.error ||
+                `OTP function error (${cfRes.status}). Deploy: firebase deploy --only functions:requestEmailOtp,functions:verifyEmailOtp,functions:assertEmailOtpVerified`,
+            });
+          }
+          return sendJson(res, 200, data);
+        } catch (err) {
+          console.warn("[OTP] proxy error:", err.message);
+          return sendJson(res, 502, {
+            error:
+              err.message ||
+              "Cannot reach OTP Cloud Function. Check deploy and network.",
+          });
+        }
+      };
+
+      // Register early (before HTML fallback) — Vite default use() is fine if registered
+      // in configureServer without returning a post-hook.
+      server.middlewares.use(otpHandler);
+    },
+  };
+}
+
 function paymongoDevApiPlugin(secretKey) {
   return {
     name: "paymongo-dev-api",
@@ -368,7 +470,7 @@ function paymongoDevApiPlugin(secretKey) {
             if (!planId || !PLAN_PRICES[planId]) {
               return sendJson(res, 400, { error: "Invalid plan selected." });
             }
-            const plan = PLAN_PRICES[planId];
+            const plan = await resolvePlanPriceLocal(planId);
             const origin = "http://localhost:5173";
             const uid = shopId || decodeUidFromBearer(authHeader) || "";
             const payload = {
@@ -492,9 +594,34 @@ export default defineConfig(({ mode }) => {
     console.log("[PayMongo] Test secret loaded for local /api/paymongo/*");
   }
 
+  console.log("[OTP] Local proxies: /api/otp/request|verify|assert → Cloud Functions");
+
+  const otpCfBase = "https://us-central1-iconstruct-58a87.cloudfunctions.net";
+
   return {
-    plugins: [react(), paymongoDevApiPlugin(paymongoKey)],
+    plugins: [react(), otpDevApiPlugin(), paymongoDevApiPlugin(paymongoKey)],
     server: {
+      // Built-in proxy (reliable); custom plugin is a fallback
+      proxy: {
+        "/api/otp/request": {
+          target: otpCfBase,
+          changeOrigin: true,
+          secure: true,
+          rewrite: () => "/requestEmailOtp",
+        },
+        "/api/otp/verify": {
+          target: otpCfBase,
+          changeOrigin: true,
+          secure: true,
+          rewrite: () => "/verifyEmailOtp",
+        },
+        "/api/otp/assert": {
+          target: otpCfBase,
+          changeOrigin: true,
+          secure: true,
+          rewrite: () => "/assertEmailOtpVerified",
+        },
+      },
       headers: {
         "Service-Worker-Allowed": "/",
       },

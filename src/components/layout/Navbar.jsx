@@ -47,7 +47,6 @@ function Navbar({ forceScrolled = false, hideBar = false }) {
             <img
               src={logo}
               alt="iConstruct"
-              style={{ mixBlendMode: "lighten" }}
             />
           </Link>
 

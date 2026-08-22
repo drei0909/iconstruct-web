@@ -1,6 +1,6 @@
 // src/components/layout/Features.jsx
 // Fetches subscription plans live from Firestore (systemConfig/subscriptionPlans)
-// so any edit made in SystemSettingsTab is immediately reflected here.
+// so any edit made in System Settings is reflected on the landing pricing cards.
 
 import { useEffect, useRef, useState } from "react";
 import { db } from "../../services/firebase";
@@ -79,52 +79,74 @@ const DEFAULT_PLANS = ["basic", "pro", "business"].map((key) => {
 });
 
 // ─── Helper: convert Firestore plan doc → display shape ──────────────────────
-// Limits/features come from Firestore; price always from planConfig (PayMongo sync).
+// Price, features, billing, limits all prefer Firestore (admin edits).
 function firestorePlanToDisplay(key, plan) {
   const staticPlan = PLAN_CONFIG[key] ?? {};
   const isBasic    = key === "basic";
   const isPro      = key === "pro";
   const isBusiness = key === "business";
 
-  const priceNum = staticPlan.price ?? plan.price ?? 0;
-  const billingCycle = staticPlan.billingCycle ?? plan.billingCycle ?? "month";
+  const priceNum = Number(
+    plan.price !== undefined && plan.price !== null
+      ? plan.price
+      : staticPlan.price ?? 0
+  );
+  const billingRaw = plan.billingCycle || staticPlan.billingCycle || "month";
+  const billingCycle = String(billingRaw).replace(/ly$/i, "").toLowerCase() || "month";
 
   const price = isBasic
-    ? (priceNum === 0 ? "Free" : `₱${priceNum}`)
+    ? (priceNum === 0 ? "Free" : `₱${Number(priceNum).toLocaleString("en-PH")}`)
     : `₱${Number(priceNum).toLocaleString("en-PH")}`;
 
   const period = isBasic && priceNum === 0 ? "" : `/ ${billingCycle}`;
 
-  const productLimit = plan.productLimit === -1 ? "Unlimited" : String(plan.productLimit ?? staticPlan.productLimit ?? 20);
-  const quotaLimit   = plan.quotaLimit   === -1 ? "Unlimited" : `${plan.quotaLimit ?? 3}/mo`;
+  const productLimit =
+    plan.productLimit === -1
+      ? "Unlimited"
+      : String(
+          plan.productLimit ??
+            (staticPlan.productLimit === Infinity
+              ? "Unlimited"
+              : staticPlan.productLimit ?? 20)
+        );
+  const features =
+    Array.isArray(plan.features) && plan.features.length
+      ? plan.features
+      : staticPlan.features ?? [];
 
-  // limitPct for the visual progress bar
-  const limitPct = plan.productLimit === -1
-    ? 100
-    : isPro
-    ? Math.round(Math.min((plan.productLimit / 150) * 58, 58))
-    : isBasic
-    ? Math.round(Math.min((plan.productLimit / 20) * 15, 15))
-    : 100;
+  const limitPct =
+    plan.productLimit === -1
+      ? 100
+      : isPro
+        ? Math.round(Math.min((Number(plan.productLimit || 150) / 150) * 58, 58))
+        : isBasic
+          ? Math.round(Math.min((Number(plan.productLimit || 20) / 20) * 15, 15))
+          : 100;
 
-  // CTA text
+  const displayName =
+    plan.label ||
+    (isBasic ? "Basic" : isPro ? "Pro" : "Business");
+
   const ctaText = isBasic
     ? "Included on Registration"
-    : `Get ${plan.label ?? key} — ${price}/${billingCycle}`;
+    : `Get ${displayName} — ${price}/${billingCycle}`;
 
   return {
     key,
-    name:      plan.label ?? key,
+    name: displayName,
     price,
     period,
-    badge:     isPro ? "Most Popular" : isBusiness ? "Best Value" : null,
-    color:     isBusiness ? "#648DB6" : isPro ? "#2C3E50" : "#648DB6",
-    features:  plan.features ?? staticPlan.features ?? [],
-    cta:       ctaText,
-    ctaStyle:  isPro ? "filled" : "outline",
-    limitNote: plan.productLimit === -1 ? "No product cap" : `${productLimit} products max`,
+    badge: isPro ? "Most Popular" : isBusiness ? "Best Value" : null,
+    color: isBusiness ? "#648DB6" : isPro ? "#2C3E50" : "#648DB6",
+    features,
+    cta: ctaText,
+    ctaStyle: isPro ? "filled" : "outline",
+    limitNote:
+      plan.productLimit === -1
+        ? "No product cap"
+        : `${productLimit} products max`,
     limitPct,
-    isPublic:  plan.isPublic !== false,
+    isPublic: plan.isPublic !== false,
   };
 }
 
@@ -140,26 +162,37 @@ export default function Features() {
 
   const activeFeature = features[active];
 
-  // Fetch live plans from Firestore on mount
+  // Fetch live plans from Firestore on mount + refresh every 60s while on page
   useEffect(() => {
-    (async () => {
+    let cancelled = false;
+    const load = async () => {
       try {
         const snap = await getDoc(doc(db, "systemConfig", "subscriptionPlans"));
+        if (cancelled) return;
         if (snap.exists()) {
-          const data  = snap.data().plans ?? {};
+          const data = snap.data().plans ?? {};
           const order = ["basic", "pro", "business"];
-          const live  = order
-            .filter(k => data[k] && data[k].isPublic !== false)
-            .map(k => firestorePlanToDisplay(k, data[k]));
+          const live = order
+            .filter((k) => data[k] && data[k].isPublic !== false)
+            .map((k) => firestorePlanToDisplay(k, data[k]));
 
           if (live.length > 0) setPlans(live);
         }
       } catch (err) {
-        console.warn("Features: could not load plans from Firestore, using defaults.", err);
+        console.warn(
+          "Features: could not load plans from Firestore, using defaults.",
+          err
+        );
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
-    })();
+    };
+    load();
+    const t = setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
   }, []);
 
   // Reveal stage when section enters viewport

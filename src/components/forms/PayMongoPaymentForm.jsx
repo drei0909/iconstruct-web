@@ -1,19 +1,38 @@
 // src/components/forms/PayMongoPaymentForm.jsx
-// PayMongo Hosted Checkout — GCash, Maya, card
+// PayMongo Hosted Checkout — GCash, Maya, card (plan prices from admin / Firestore)
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { redirectToPayMongoCheckout } from "../../controllers/paymongoController";
 import { auth } from "../../services/firebase";
-import { getPaidPlans } from "../../config/planConfig";
-
-const PLANS = getPaidPlans();
+import { getLivePaidPlans, getPaidPlans } from "../../config/planConfig";
 
 export default function PayMongoPaymentForm({ defaultPlan = null, onCancel }) {
-  const [selectedPlan, setSelectedPlan] = useState(
-    defaultPlan ? PLANS.find((p) => p.id === defaultPlan) || null : null
-  );
+  const [plans, setPlans] = useState(() => getPaidPlans());
+  const [selectedPlan, setSelectedPlan] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [plansLoading, setPlansLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const live = await getLivePaidPlans();
+        if (cancelled || !live.length) return;
+        setPlans(live);
+        if (defaultPlan) {
+          setSelectedPlan(live.find((p) => p.id === defaultPlan) || null);
+        }
+      } catch {
+        /* static fallback already set */
+      } finally {
+        if (!cancelled) setPlansLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [defaultPlan]);
 
   const handleCheckout = async () => {
     if (!selectedPlan) return;
@@ -38,8 +57,11 @@ export default function PayMongoPaymentForm({ defaultPlan = null, onCancel }) {
         <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", marginBottom: 12, fontFamily: "var(--font-display)" }}>
           Select a Plan
         </div>
+        {plansLoading && (
+          <div style={{ fontSize: 12, color: "#94A3B8", marginBottom: 10 }}>Loading plans…</div>
+        )}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {PLANS.map((plan) => (
+          {plans.map((plan) => (
             <div
               key={plan.id}
               onClick={() => setSelectedPlan(plan)}
@@ -87,67 +109,21 @@ export default function PayMongoPaymentForm({ defaultPlan = null, onCancel }) {
                     borderRadius: "50%",
                     border: `2px solid ${selectedPlan?.id === plan.id ? plan.color : "#CBD5E1"}`,
                     background: selectedPlan?.id === plan.id ? plan.color : "transparent",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
                   }}
-                >
-                  {selectedPlan?.id === plan.id && (
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff" }} />
-                  )}
-                </div>
+                />
               </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                {plan.features.slice(0, 4).map((f) => (
-                  <span
-                    key={f}
-                    style={{
-                      fontSize: 10.5,
-                      color: "#64748B",
-                      background: "#F1F5F9",
-                      borderRadius: 6,
-                      padding: "2px 8px",
-                    }}
-                  >
-                    {f}
-                  </span>
+              <ul style={{ margin: 0, paddingLeft: 16, fontSize: 11.5, color: "#64748B", lineHeight: 1.55 }}>
+                {(plan.features || []).slice(0, 5).map((f, i) => (
+                  <li key={i}>{f}</li>
                 ))}
-              </div>
+              </ul>
             </div>
           ))}
         </div>
       </div>
 
-      <div
-        style={{
-          background: "#F0F7FB",
-          border: "1px solid #B8D4E8",
-          borderRadius: 10,
-          padding: "12px 14px",
-          marginBottom: 16,
-        }}
-      >
-        <div style={{ fontSize: 11.5, fontWeight: 700, color: "#154665", marginBottom: 2 }}>
-          Secure Payment via PayMongo
-        </div>
-        <div style={{ fontSize: 11, color: "#1E5A80", lineHeight: 1.6 }}>
-          You will be redirected to PayMongo&apos;s secure checkout. Accepts GCash, Maya, and cards.
-          Payment details are never stored on iConstruct servers.
-        </div>
-      </div>
-
       {error && (
-        <div
-          style={{
-            background: "#FEF2F2",
-            border: "1px solid #FECACA",
-            borderRadius: 8,
-            padding: "10px 14px",
-            marginBottom: 14,
-            fontSize: 12.5,
-            color: "#DC2626",
-          }}
-        >
+        <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "10px 12px", fontSize: 12, color: "#B91C1C", marginBottom: 12 }}>
           {error}
         </div>
       )}
@@ -158,15 +134,14 @@ export default function PayMongoPaymentForm({ defaultPlan = null, onCancel }) {
             type="button"
             onClick={onCancel}
             style={{
-              padding: "12px 20px",
+              flex: 1,
+              padding: "12px",
               borderRadius: 10,
               border: "1px solid #E2E8F0",
               background: "#F8FAFC",
-              color: "#64748B",
-              fontWeight: 500,
+              fontWeight: 600,
               fontSize: 13,
               cursor: "pointer",
-              fontFamily: "var(--font-ui)",
             }}
           >
             Cancel
@@ -177,26 +152,21 @@ export default function PayMongoPaymentForm({ defaultPlan = null, onCancel }) {
           disabled={!selectedPlan || loading}
           onClick={handleCheckout}
           style={{
-            flex: 1,
-            padding: "13px",
+            flex: 2,
+            padding: "12px",
             borderRadius: 10,
             border: "none",
-            cursor: selectedPlan && !loading ? "pointer" : "not-allowed",
-            background: selectedPlan
-              ? "linear-gradient(135deg,#154665,#2D6A8F)"
-              : "#E2E8F0",
-            color: selectedPlan ? "#fff" : "#94A3B8",
+            background:
+              !selectedPlan || loading
+                ? "#E2E8F0"
+                : "linear-gradient(135deg,#2C5282,#3B82F6)",
+            color: !selectedPlan || loading ? "#94A3B8" : "#fff",
             fontWeight: 700,
             fontSize: 13,
-            fontFamily: "var(--font-ui)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 8,
-            opacity: loading ? 0.75 : 1,
+            cursor: !selectedPlan || loading ? "not-allowed" : "pointer",
           }}
         >
-          {loading ? "Connecting to PayMongo..." : "Pay with PayMongo →"}
+          {loading ? "Connecting to PayMongo…" : "Continue to PayMongo →"}
         </button>
       </div>
     </div>

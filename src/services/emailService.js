@@ -147,3 +147,27 @@ export function sendQuotationAcceptedToShop({ toEmail, toName, shopName, project
     message: `Congratulations! The project owner has accepted your quotation of ₱${Number(amount).toLocaleString()} for the project "${projectTitle}".\n\nLog in to your iConstruct Shop Dashboard to view the details and coordinate with the client.`,
   });
 }
+
+/**
+ * Super Admin reply to a Contact Us message.
+ * Sends via EmailJS → connected Gmail (iconstruct) TO the complainant's email.
+ */
+export function sendContactReplyEmail({ toEmail, toName, subject, replyBody, originalMessage }) {
+  const key = `${NOTIF_TEMPLATE}|${toEmail}|contact-reply|${subject}`;
+  if (isDuplicate(key)) {
+    return Promise.resolve({ suppressed: true, reason: "duplicate" });
+  }
+
+  const safeSubject = subject || "your inquiry";
+  const quoted = originalMessage
+    ? `\n\n———\nYour original message:\n${String(originalMessage).slice(0, 1500)}`
+    : "";
+
+  return sendEmail(NOTIF_TEMPLATE, {
+    to_email: toEmail,
+    to_name: toName || "there",
+    shop_name: "iConstruct Support",
+    status_title: `Re: ${safeSubject}`,
+    message: `${replyBody}${quoted}\n\n— iConstruct Support Team\niconstruct2026@gmail.com`,
+  });
+}

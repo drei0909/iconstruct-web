@@ -76,4 +76,6 @@ export const RATE = {
   register: { max: 3, windowMs: 60 * 60 * 1000 }, // 3 register / hour
   checkout: { max: 4, windowMs: 15 * 60 * 1000 }, // 4 checkouts / 15 min
   passwordReset: { max: 3, windowMs: 30 * 60 * 1000 },
+  contact: { max: 3, windowMs: 30 * 60 * 1000 }, // 3 contact messages / 30 min / email
+  contactReply: { max: 20, windowMs: 60 * 60 * 1000 }, // 20 admin Gmail replies / hour
 };

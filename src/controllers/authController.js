@@ -17,13 +17,29 @@ function normalizeEmail(email) {
 }
 
 /** Cloud Function endpoints for server-side OTP (code never stored client-readable). */
-function otpUrls() {
-  const base = "https://us-central1-iconstruct-58a87.cloudfunctions.net";
+const OTP_CF_BASE = "https://us-central1-iconstruct-58a87.cloudfunctions.net";
+
+function otpEndpoints() {
   return {
-    request: `${base}/requestEmailOtp`,
-    verify: `${base}/verifyEmailOtp`,
-    assert: `${base}/assertEmailOtpVerified`,
+    request: {
+      local: "/api/otp/request",
+      cloud: `${OTP_CF_BASE}/requestEmailOtp`,
+    },
+    verify: {
+      local: "/api/otp/verify",
+      cloud: `${OTP_CF_BASE}/verifyEmailOtp`,
+    },
+    assert: {
+      local: "/api/otp/assert",
+      cloud: `${OTP_CF_BASE}/assertEmailOtpVerified`,
+    },
   };
+}
+
+function isLocalHost() {
+  if (typeof window === "undefined") return false;
+  const host = window.location.hostname;
+  return host === "localhost" || host === "127.0.0.1";
 }
 
 async function postOtpJson(url, body) {
@@ -45,6 +61,47 @@ async function postOtpJson(url, body) {
   } catch {
     /* ignore */
   }
+  return { res, data };
+}
+
+/**
+ * Local: try Vite proxy first (no CORS), then fall back to deployed Cloud Function.
+ * Production: call Cloud Function URL directly.
+ */
+async function callOtpEndpoint(kind, body) {
+  const endpoints = otpEndpoints()[kind];
+  if (!endpoints) throw new Error("Invalid OTP endpoint.");
+
+  if (isLocalHost()) {
+    const proxied = await postOtpJson(endpoints.local, body);
+    if (proxied.res.ok) return proxied.data;
+
+    // Proxy missing (old Vite process) or CF error through proxy — try cloud direct
+    if (proxied.res.status === 404 || proxied.res.status === 502) {
+      try {
+        const direct = await postOtpJson(endpoints.cloud, body);
+        if (direct.res.ok) return direct.data;
+        throw new Error(
+          direct.data.error ||
+            `OTP service error (${direct.res.status}). Deploy: firebase deploy --only functions:requestEmailOtp,functions:verifyEmailOtp,functions:assertEmailOtpVerified`
+        );
+      } catch (err) {
+        const msg = String(err?.message || err);
+        if (/Cannot reach|Failed to fetch|NetworkError|CORS/i.test(msg)) {
+          throw new Error(
+            "OTP service not reachable. 1) Fully restart npm run dev  2) Deploy OTP functions: firebase deploy --only functions:requestEmailOtp,functions:verifyEmailOtp,functions:assertEmailOtpVerified"
+          );
+        }
+        throw err;
+      }
+    }
+
+    throw new Error(
+      proxied.data.error || `Verification server error (${proxied.res.status}).`
+    );
+  }
+
+  const { res, data } = await postOtpJson(endpoints.cloud, body);
   if (!res.ok) {
     throw new Error(data.error || `Verification server error (${res.status}).`);
   }
@@ -92,8 +149,7 @@ async function uploadShopDocument(uid, d, index) {
 export async function sendOTP(email, ownerName, purpose = "register") {
   const normalized = normalizeEmail(email);
   assertRateLimit(`otp:${normalized}`, RATE.otp, "Too many OTP requests");
-  const { request } = otpUrls();
-  await postOtpJson(request, {
+  await callOtpEndpoint("request", {
     email: normalized,
     ownerName: ownerName || "Shop Owner",
     purpose,
@@ -109,8 +165,7 @@ export async function verifyOTP(email, inputOtp) {
     { max: 10, windowMs: 15 * 60 * 1000 },
     "Too many OTP checks"
   );
-  const { verify } = otpUrls();
-  await postOtpJson(verify, {
+  await callOtpEndpoint("verify", {
     email: normalized,
     otp: String(inputOtp || "").trim(),
   });
@@ -118,14 +173,18 @@ export async function verifyOTP(email, inputOtp) {
 }
 
 async function assertEmailVerifiedForRegister(email) {
-  const { assert } = otpUrls();
-  await postOtpJson(assert, { email: normalizeEmail(email), consume: false });
+  await callOtpEndpoint("assert", {
+    email: normalizeEmail(email),
+    consume: false,
+  });
 }
 
 async function consumeEmailVerification(email) {
   try {
-    const { assert } = otpUrls();
-    await postOtpJson(assert, { email: normalizeEmail(email), consume: true });
+    await callOtpEndpoint("assert", {
+      email: normalizeEmail(email),
+      consume: true,
+    });
   } catch {
     /* best-effort */
   }
