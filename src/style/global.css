@@ -3498,6 +3498,22 @@
             line-height: 1.6;
           }
           .adm-field { margin-bottom: 18px; }
+          .adm-forgot {
+            display: block;
+            width: 100%;
+            text-align: right;
+            font-family: var(--font-base);
+            font-size: 12px;
+            font-weight: 500;
+            color: #648DB6;
+            background: none;
+            border: none;
+            padding: 0;
+            margin: -6px 0 20px;
+            cursor: pointer;
+            transition: color 0.2s;
+          }
+          .adm-forgot:hover { color: #2C3E50; }
           .adm-label {
             display: block;
             font-size: 11px;

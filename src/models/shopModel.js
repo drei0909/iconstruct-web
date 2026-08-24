@@ -88,7 +88,16 @@
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   }
 
-  export async function insertQuotation({ projectId, projectTitle, shopId, shopName, amount, note, items }) {
+  export async function insertQuotation({
+    projectId,
+    projectTitle,
+    shopId,
+    shopName,
+    amount,
+    note,
+    items,
+    builderId,
+  }) {
     const quotationRef = collection(db, "projectPosts", projectId, "quotations");
     const payload = {
       projectId: String(projectId),
@@ -102,6 +111,7 @@
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
+    if (builderId) payload.builderId = String(builderId);
 
     try {
       await addDoc(quotationRef, payload);

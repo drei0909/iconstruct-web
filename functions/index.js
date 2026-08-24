@@ -1,4 +1,14 @@
-require("dotenv").config({ path: require("path").join(__dirname, ".env.local") });
+// Load local secrets only when present (emulator / local). Keep init fast for deploy discovery.
+try {
+  const fs = require("fs");
+  const path = require("path");
+  const envPath = path.join(__dirname, ".env.local");
+  if (fs.existsSync(envPath)) {
+    require("dotenv").config({ path: envPath, quiet: true });
+  }
+} catch (_) {
+  /* ignore — Cloud Functions use Secret Manager / env in production */
+}
 // iConstruct — Cloud Functions: PayMongo Checkout + FCM Notifications
 
 const { onRequest } = require("firebase-functions/v2/https");
@@ -14,7 +24,9 @@ const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 
-admin.initializeApp();
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
 const db = admin.firestore();
 
 setGlobalOptions({ maxInstances: 10 });
@@ -1631,3 +1643,323 @@ async function sendBuilderNotification({ userId, postId, projectName, countAfter
     logger.error("[FCM] sendBuilderNotification error:", err);
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// QUOTE ACCEPTED → open shop↔builder chat + notify both sides
+// Trigger: projectPosts/{postId}/quotations/{quotationId} status → accepted
+// ─────────────────────────────────────────────────────────────────────────────
+exports.onQuotationAccepted = onDocumentUpdated(
+  "projectPosts/{postId}/quotations/{quotationId}",
+  async (event) => {
+    const before = event.data.before.data() || {};
+    const after = event.data.after.data() || {};
+    const postId = event.params.postId;
+    const quotationId = event.params.quotationId;
+
+    const wasAccepted = String(before.status || "").toLowerCase() === "accepted";
+    const isAccepted = String(after.status || "").toLowerCase() === "accepted";
+    if (wasAccepted || !isAccepted) return;
+
+    const shopId = after.shopId;
+    if (!shopId) {
+      logger.warn(`[Chat] Accepted quote ${quotationId} missing shopId`);
+      return;
+    }
+
+    try {
+      const postSnap = await db.collection("projectPosts").doc(postId).get();
+      const post = postSnap.exists ? postSnap.data() : {};
+      const builderId =
+        after.builderId ||
+        post.userId ||
+        post.builderId ||
+        post.ownerId ||
+        post.postedBy;
+
+      if (!builderId) {
+        logger.warn(`[Chat] No builderId for post ${postId} — cannot create conversation`);
+        return;
+      }
+
+      const conversationId = `${postId}_${shopId}`;
+      const projectTitle =
+        after.projectTitle || post.projectName || post.title || "Project";
+      const shopName = after.shopName || "";
+      const builderName =
+        post.ownerName || post.builderName || post.userName || "Builder";
+
+      const convRef = db.collection("conversations").doc(conversationId);
+      const convSnap = await convRef.get();
+      const payload = {
+        projectId: postId,
+        quotationId,
+        shopId,
+        shopName,
+        builderId,
+        builderName,
+        projectTitle,
+        status: "open",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      if (!convSnap.exists) {
+        await convRef.set({
+          ...payload,
+          lastMessage: "Quote accepted — you can now message each other.",
+          lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+          lastSenderId: "",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        await convRef.collection("messages").add({
+          senderId: "system",
+          senderRole: "system",
+          text: `Quotation accepted for "${projectTitle}". You can now coordinate in this chat.`,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        await convRef.set(payload, { merge: true });
+      }
+
+      logger.info(`[Chat] Conversation ${conversationId} ready after accept`);
+
+      // Notify shop
+      try {
+        const shopSnap = await db.collection("shops").doc(shopId).get();
+        const shopTokens = [...new Set((shopSnap.data()?.fcmTokens || []).filter(Boolean))];
+        if (shopTokens.length) {
+          await admin.messaging().sendEachForMulticast({
+            notification: {
+              title: "✅ Your quote was accepted!",
+              body: `A builder accepted your quotation for "${projectTitle}". Open Messages to chat.`,
+            },
+            data: {
+              type: "quotation_accepted",
+              conversationId,
+              postId,
+              quotationId,
+            },
+            tokens: shopTokens,
+          });
+        }
+      } catch (err) {
+        logger.warn("[FCM] shop accept notify failed:", err.message);
+      }
+
+      // Notify builder — chat unlocked
+      try {
+        const userSnap = await db.collection("users").doc(builderId).get();
+        const tokens = [...new Set((userSnap.data()?.fcmTokens || []).filter(Boolean))];
+        if (tokens.length) {
+          await admin.messaging().sendEachForMulticast({
+            notification: {
+              title: "💬 Chat unlocked",
+              body: `You accepted ${shopName || "a shop"}'s quote for "${projectTitle}". You can message them now.`,
+            },
+            data: {
+              type: "chat_unlocked",
+              conversationId,
+              postId,
+              quotationId,
+            },
+            tokens,
+          });
+        }
+      } catch (err) {
+        logger.warn("[FCM] builder chat unlock notify failed:", err.message);
+      }
+    } catch (err) {
+      logger.error("[Chat] onQuotationAccepted error:", err);
+    }
+  }
+);
+
+// FCM when a new chat message is sent
+exports.onChatMessageCreated = onDocumentCreated(
+  "conversations/{conversationId}/messages/{messageId}",
+  async (event) => {
+    const msg = event.data.data();
+    const conversationId = event.params.conversationId;
+    if (!msg || msg.senderRole === "system") return;
+
+    try {
+      const convSnap = await db.collection("conversations").doc(conversationId).get();
+      if (!convSnap.exists) return;
+      const conv = convSnap.data();
+      const recipientId =
+        msg.senderRole === "shop" ? conv.builderId : conv.shopId;
+      if (!recipientId || recipientId === msg.senderId) return;
+
+      let tokens = [];
+      if (msg.senderRole === "shop") {
+        const userSnap = await db.collection("users").doc(recipientId).get();
+        tokens = userSnap.data()?.fcmTokens || [];
+      } else {
+        const shopSnap = await db.collection("shops").doc(recipientId).get();
+        tokens = shopSnap.data()?.fcmTokens || [];
+      }
+      tokens = [...new Set(tokens.filter(Boolean))];
+      if (!tokens.length) return;
+
+      const title =
+        msg.senderRole === "shop"
+          ? `${conv.shopName || "Shop"} messaged you`
+          : `Builder messaged you`;
+      const body = String(msg.text || "").slice(0, 120);
+
+      await admin.messaging().sendEachForMulticast({
+        notification: { title, body },
+        data: {
+          type: "chat_message",
+          conversationId,
+          projectId: conv.projectId || "",
+        },
+        tokens,
+      });
+    } catch (err) {
+      logger.error("[FCM] onChatMessageCreated error:", err);
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAINTENANCE: scheduled push notifications
+//
+// 1) On schedule save → initial push ("maintenance planned for …")
+// 2) Every minute → at scheduledStartAt, reminder push + enable maintenanceMode
+// ─────────────────────────────────────────────────────────────────────────────
+
+function formatMaintenanceWhen(ts) {
+  if (!ts?.toDate) return "soon";
+  return ts.toDate().toLocaleString("en-PH", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Manila",
+  });
+}
+
+async function collectAllFcmTokens() {
+  const tokens = [];
+
+  const shopsSnap = await db.collection("shops").get();
+  shopsSnap.forEach((shopDoc) => {
+    const data = shopDoc.data() || {};
+    const status = String(data.status || "").toLowerCase();
+    if (status === "deleted" || status === "rejected") return;
+    tokens.push(...(data.fcmTokens || []));
+  });
+
+  try {
+    const usersSnap = await db.collection("users").get();
+    usersSnap.forEach((userDoc) => {
+      tokens.push(...((userDoc.data() || {}).fcmTokens || []));
+    });
+  } catch (err) {
+    logger.warn("[FCM] users collection read skipped:", err.message);
+  }
+
+  return [...new Set(tokens.filter(Boolean))];
+}
+
+async function sendMaintenanceMulticast({ title, body, type, scheduleId }) {
+  const tokens = await collectAllFcmTokens();
+  if (tokens.length === 0) {
+    logger.info("[FCM] maintenance — no tokens");
+    return { successCount: 0, failureCount: 0 };
+  }
+
+  const message = {
+    notification: { title, body: String(body || "").slice(0, 240) },
+    data: {
+      type: type || "maintenance",
+      scheduleId: scheduleId || "",
+    },
+    tokens,
+  };
+
+  const response = await admin.messaging().sendEachForMulticast(message);
+  logger.info(
+    `[FCM] maintenance ${type}: ${response.successCount} ok, ${response.failureCount} fail`
+  );
+  return response;
+}
+
+exports.onMaintenanceScheduled = onDocumentWritten(
+  "systemConfig/maintenance",
+  async (event) => {
+    const after = event.data?.after?.data();
+    if (!after?.noticeActive || !after?.scheduleId) return;
+    if (after.initialPushSentFor === after.scheduleId) return;
+
+    const when = formatMaintenanceWhen(after.scheduledStartAt);
+    const note = String(after.noticeMessage || "").trim();
+    const body = note
+      ? `Maintenance on ${when}. ${note.slice(0, 120)}`
+      : `Maintenance scheduled for ${when}.`;
+
+    try {
+      await sendMaintenanceMulticast({
+        title: "📅 iConstruct maintenance scheduled",
+        body,
+        type: "maintenance_scheduled",
+        scheduleId: after.scheduleId,
+      });
+
+      await event.data.after.ref.update({
+        initialPushSentFor: after.scheduleId,
+        initialPushSentAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    } catch (err) {
+      logger.error("[FCM] onMaintenanceScheduled error:", err);
+    }
+  }
+);
+
+exports.maintenanceStartScheduler = onSchedule(
+  {
+    schedule: "every 1 minutes",
+    timeZone: "Asia/Manila",
+    region: "us-central1",
+  },
+  async () => {
+    const ref = db.collection("systemConfig").doc("maintenance");
+    const snap = await ref.get();
+    if (!snap.exists) return;
+
+    const data = snap.data();
+    if (!data.noticeActive || data.maintenanceMode) return;
+
+    const startMs = data.scheduledStartAt?.toMillis?.();
+    if (!startMs) return;
+
+    const scheduleId = data.scheduleId || String(startMs);
+    if (Date.now() < startMs) return;
+    if (data.reminderPushSentFor === scheduleId) return;
+
+    const note = String(data.noticeMessage || "").trim();
+
+    try {
+      await sendMaintenanceMulticast({
+        title: "🔧 Maintenance starting now",
+        body:
+          note ||
+          "iConstruct is entering maintenance mode. Please save your work.",
+        type: "maintenance_start",
+        scheduleId,
+      });
+
+      await ref.update({
+        maintenanceMode: true,
+        noticeActive: false,
+        reminderPushSentFor: scheduleId,
+        reminderPushSentAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      logger.info(`[FCM] Maintenance activated at scheduleId ${scheduleId}`);
+    } catch (err) {
+      logger.error("[FCM] maintenanceStartScheduler error:", err);
+      throw err;
+    }
+  }
+);

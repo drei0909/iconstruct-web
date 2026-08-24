@@ -1,7 +1,8 @@
-// src/views/admin/AdminLogin.jsx
+// src/views/admin/AdminLoginPage.jsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { loginAdmin } from "../../controllers/adminController";
+import ForgotPassword from "../../components/forms/ForgotPassword";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -9,6 +10,7 @@ export default function AdminLogin() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
+  const [showForgot, setShowForgot] = useState(false);
 
   const handleChange = (e) =>
     setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
@@ -29,7 +31,9 @@ export default function AdminLogin() {
 
   return (
     <>
-  
+      {showForgot && (
+        <ForgotPassword variant="admin" onClose={() => setShowForgot(false)} />
+      )}
 
       <div className="adm-login-page">
         <div className="adm-login-card">
@@ -76,6 +80,17 @@ export default function AdminLogin() {
                 </button>
               </div>
             </div>
+
+            <button
+              type="button"
+              className="adm-forgot"
+              onClick={() => {
+                setError("");
+                setShowForgot(true);
+              }}
+            >
+              Forgot password?
+            </button>
 
             {error && <div className="adm-error">{error}</div>}
 

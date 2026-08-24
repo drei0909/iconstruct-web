@@ -16,6 +16,7 @@ import SettingsTab from "../../components/SettingsTab";
 import MobileNav from "../../components/ui/MobileNav";
 import ShopProjectsPanel from "../../components/shop/ShopProjectsPanel";
 import ShopQuotationsPanel from "../../components/shop/ShopQuotationsPanel";
+import ShopMessagesPanel from "../../components/shop/ShopMessagesPanel";
 import PaidPlanAnalytics from "../../components/shop/PaidPlanAnalytics";
 import {
   getQuoteMoneyStats,
@@ -24,6 +25,7 @@ import {
 } from "../../utils/quoteAnalytics";
 import { loadQuoteTemplates, saveQuoteTemplates } from "../../utils/quoteTemplates";
 import DashboardBrand from "../../components/ui/DashboardBrand";
+import ShopNotificationBell from "../../components/ui/ShopNotificationBell";
 
 import {
   TbConfetti, TbAlertTriangle, TbMenu2, TbLogout,
@@ -33,6 +35,7 @@ const NAV = [
   { key: "overview",   label: "Overview"           },
   { key: "projects",   label: "All Projects"       },
   { key: "quotations", label: "Quotations"         },
+  { key: "messages",   label: "Messages"           },
   { key: "analytics",  label: "Business Insights"  },
   { key: "tools",      label: "Bid Toolkit"        },
   { key: "products",   label: "My Products"        },
@@ -135,12 +138,13 @@ function AllProjects({ projects, quotations, setQuoteModal }) {
   );
 }
 
-function QuotationsBusiness({ quotations, setActiveTab, accentColor = "#2C5282" }) {
+function QuotationsBusiness({ quotations, setActiveTab, accentColor = "#2C5282", onMessageBuilder }) {
   return (
     <ShopQuotationsPanel
       quotations={quotations}
       accentColor={accentColor}
       onGoProjects={() => setActiveTab("projects")}
+      onMessageBuilder={onMessageBuilder}
     />
   );
 }
@@ -290,6 +294,7 @@ export default function ShopDashboardBusiness() {
   const [toast, setToast]           = useState(null);
   const [quoteModal, setQuoteModal] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [chatQuote, setChatQuote] = useState(null);
   const [showPlanActivatedModal, setShowPlanActivatedModal] = useState(false);
   const prevStatusRef = useRef(null);
 
@@ -480,6 +485,7 @@ export default function ShopDashboardBusiness() {
     <header className="db-topbar" style={{ height:58, background:"#fff", borderBottom:"1px solid #E2E8F0", display:"flex", alignItems:"center", padding:"0 28px", justifyContent:"space-between", position:"sticky", top:0, zIndex:50 }}>
       <div style={{ fontSize:15, fontWeight:700, color:"#0F172A" }}>{NAV.find(n=>n.key===activeTab)?.label}</div>
       <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+        <ShopNotificationBell />
         <PlanBadge />
         <div style={{ width:34, height:34, borderRadius:"50%", background:"linear-gradient(135deg,#0D2E43,#2D6A8F)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, color:"#fff" }}>
           {shop?.shopName?.[0] || "S"}
@@ -492,7 +498,24 @@ export default function ShopDashboardBusiness() {
     switch (activeTab) {
       case "overview":   return <Overview quotations={quotations} projects={projects} money={money} stale={stale} insights={insights} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} />;
       case "projects":   return <AllProjects projects={projects} quotations={quotations} setQuoteModal={setQuoteModal} />;
-      case "quotations": return <QuotationsBusiness quotations={quotations} setActiveTab={setActiveTab} accentColor="#2C5282" />;
+      case "quotations": return (
+        <QuotationsBusiness
+          quotations={quotations}
+          setActiveTab={setActiveTab}
+          accentColor="#2C5282"
+          onMessageBuilder={(q) => {
+            setChatQuote(q);
+            setActiveTab("messages");
+          }}
+        />
+      );
+      case "messages": return (
+        <ShopMessagesPanel
+          accentColor="#0D2E43"
+          bootstrapQuote={chatQuote}
+          onBootstrapped={() => setChatQuote(null)}
+        />
+      );
       case "analytics":  return <PaidPlanAnalytics quotations={quotations} tier="business" />;
       case "tools":      return <BidToolkit shopId={shop?.id || auth.currentUser?.uid} />;
       case "products":   return <ProductsTab plan="business" />;

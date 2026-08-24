@@ -171,3 +171,28 @@ export function sendContactReplyEmail({ toEmail, toName, subject, replyBody, ori
     message: `${replyBody}${quoted}\n\n— iConstruct Support Team\niconstruct2026@gmail.com`,
   });
 }
+
+/** Scheduled maintenance notice to shop Gmail inboxes */
+export function sendMaintenanceNoticeEmail({
+  toEmail,
+  toName,
+  shopName,
+  message,
+  startLabel,
+}) {
+  return sendGatedNotification("maintenanceNotice", {
+    toEmail,
+    toName,
+    shopName,
+    statusTitle: "Scheduled Maintenance Notice",
+    message:
+      `iConstruct is scheduled for maintenance` +
+      (startLabel ? ` on ${startLabel}` : "") +
+      `.\n\n` +
+      `${message || "We are performing scheduled system updates."}\n\n` +
+      `You will receive another push notification when maintenance begins. ` +
+      `During maintenance, shop dashboards and public pages may be unavailable. ` +
+      `Admins can still sign in at /admin.\n\n` +
+      `Thank you for your patience — iConstruct Team`,
+  });
+}

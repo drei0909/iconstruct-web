@@ -4,14 +4,14 @@ import {
   CheckCircle,
 } from "@phosphor-icons/react";
 
-function DonutChart({ segments = [], size = 132, thickness = 16, centerLabel, centerSub }) {
+function DonutChart({ segments = [], size = 128, thickness = 15, centerLabel, centerSub }) {
   const total = segments.reduce((s, x) => s + (Number(x.value) || 0), 0) || 1;
   const r = (size - thickness) / 2;
   const c = 2 * Math.PI * r;
   let offset = 0;
 
   return (
-    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+    <div style={{ position: "relative", width: size, height: size, flexShrink: 0, margin: "0 auto" }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#EEF2F7" strokeWidth={thickness} />
         {segments.map((seg, i) => {
@@ -50,7 +50,7 @@ function DonutChart({ segments = [], size = 132, thickness = 16, centerLabel, ce
         <div
           style={{
             fontFamily: "var(--font-display)",
-            fontSize: 20,
+            fontSize: 22,
             fontWeight: 900,
             color: "#0F172A",
             lineHeight: 1,
@@ -63,7 +63,7 @@ function DonutChart({ segments = [], size = 132, thickness = 16, centerLabel, ce
             style={{
               fontSize: 9,
               fontWeight: 700,
-              letterSpacing: "0.12em",
+              letterSpacing: "0.14em",
               color: "#94A3B8",
               marginTop: 4,
             }}
@@ -78,60 +78,69 @@ function DonutChart({ segments = [], size = 132, thickness = 16, centerLabel, ce
 
 function Legend({ items }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, minWidth: 0 }}>
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        justifyContent: "center",
+        gap: "8px 16px",
+        marginTop: 14,
+      }}
+    >
       {items.map((it) => (
-        <div key={it.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: it.color, flexShrink: 0 }} />
-          <span style={{ flex: 1, fontSize: 12.5, color: "#64748B" }}>{it.label}</span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", fontVariantNumeric: "tabular-nums" }}>
-            {it.value}
-          </span>
+        <div key={it.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: it.color, flexShrink: 0 }} />
+          <span style={{ fontSize: 12, color: "#64748B" }}>{it.label}</span>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{it.value}</span>
         </div>
       ))}
     </div>
   );
 }
 
-function ChartCard({ title, segments, centerLabel, centerSub, actionLabel, onAction }) {
+/** Equal square chart card — donut centered, legend under, action at bottom */
+function SquareChart({ title, segments, centerLabel, centerSub, actionLabel, onAction }) {
   return (
     <div
       style={{
         background: "#fff",
         border: "1px solid #E8EEF4",
         borderRadius: 16,
-        padding: "20px 22px",
+        padding: "18px 20px",
         display: "flex",
-        alignItems: "center",
-        gap: 18,
-        minHeight: 168,
+        flexDirection: "column",
+        height: "100%",
+        minHeight: 0,
+        boxSizing: "border-box",
       }}
     >
-      <DonutChart segments={segments} centerLabel={centerLabel} centerSub={centerSub} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13.5, fontWeight: 700, color: "#0F172A", marginBottom: 12 }}>{title}</div>
+      <div style={{ fontSize: 13.5, fontWeight: 700, color: "#0F172A", marginBottom: 12 }}>{title}</div>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 0 }}>
+        <DonutChart segments={segments} centerLabel={centerLabel} centerSub={centerSub} />
         <Legend items={segments} />
-        {actionLabel ? (
-          <button
-            type="button"
-            onClick={onAction}
-            style={{
-              marginTop: 14,
-              fontSize: 12,
-              fontWeight: 600,
-              color: "#2563EB",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              padding: 0,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-            }}
-          >
-            {actionLabel} <ArrowRight size={12} weight="bold" />
-          </button>
-        ) : null}
       </div>
+      {actionLabel ? (
+        <button
+          type="button"
+          onClick={onAction}
+          style={{
+            marginTop: 12,
+            fontSize: 12,
+            fontWeight: 600,
+            color: "#2563EB",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            padding: 0,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            alignSelf: "flex-start",
+          }}
+        >
+          {actionLabel} <ArrowRight size={12} weight="bold" />
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -147,15 +156,16 @@ function Kpi({ label, value, color, hint, onClick }) {
         background: "#fff",
         border: urgent ? `1px solid ${color}40` : "1px solid #E8EEF4",
         borderRadius: 14,
-        padding: "16px 18px",
+        padding: "14px 16px",
         cursor: "pointer",
         fontFamily: "inherit",
         boxShadow: urgent ? `0 0 0 3px ${color}10` : "none",
+        boxSizing: "border-box",
       }}
     >
       <div
         style={{
-          fontSize: 10,
+          fontSize: 9.5,
           fontWeight: 700,
           letterSpacing: "0.1em",
           textTransform: "uppercase",
@@ -167,23 +177,23 @@ function Kpi({ label, value, color, hint, onClick }) {
       <div
         style={{
           fontFamily: "var(--font-display)",
-          fontSize: 30,
+          fontSize: 28,
           fontWeight: 900,
           color,
           lineHeight: 1.1,
-          marginTop: 8,
+          marginTop: 6,
           fontVariantNumeric: "tabular-nums",
         }}
       >
         {value}
       </div>
-      <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 6 }}>{hint}</div>
+      <div style={{ fontSize: 11.5, color: "#94A3B8", marginTop: 4 }}>{hint}</div>
     </button>
   );
 }
 
 /**
- * Clean Super Admin dashboard with donut charts + action list.
+ * Neat one-screen admin overview: KPI strip + 2×2 equal squares.
  */
 export default function DashboardOverview({
   shops = [],
@@ -273,52 +283,63 @@ export default function DashboardOverview({
         status: "pending",
         onClick: () => setActiveTab("messages"),
       })),
-  ].slice(0, 6);
+  ].slice(0, 5);
 
   const timeStr = lastRefreshed
     ? lastRefreshed.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" })
     : "—";
 
   return (
-    <div style={{ maxWidth: 1000 }}>
+    <div
+      className="adm-overview"
+      style={{
+        width: "100%",
+        height: "calc(100vh - 116px)",
+        maxHeight: "calc(100vh - 116px)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+        boxSizing: "border-box",
+        overflow: "hidden",
+      }}
+    >
       {/* Header */}
       <div
         style={{
           display: "flex",
-          flexWrap: "wrap",
           justifyContent: "space-between",
-          alignItems: "flex-end",
+          alignItems: "center",
           gap: 12,
-          marginBottom: 22,
+          flexShrink: 0,
         }}
       >
         <div>
           <h2
             style={{
               fontFamily: "var(--font-display)",
-              fontSize: 26,
+              fontSize: 22,
               fontWeight: 900,
               color: "#0F172A",
-              margin: "0 0 6px",
+              margin: "0 0 2px",
               letterSpacing: "-0.02em",
             }}
           >
             {workCount > 0 ? `${workCount} waiting on you` : "All clear"}
           </h2>
-          <p style={{ margin: 0, fontSize: 13.5, color: "#64748B" }}>
-            Review shops, confirm payments, and reply to Contact Us — click any card to jump in.
+          <p style={{ margin: 0, fontSize: 12.5, color: "#64748B" }}>
+            Click a card to jump to the right tab.
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 12, color: "#94A3B8" }}>Updated {timeStr}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 11.5, color: "#94A3B8" }}>Updated {timeStr}</span>
           <button
             type="button"
             onClick={onRefresh}
             title="Refresh"
             style={{
-              width: 38,
-              height: 38,
-              borderRadius: 10,
+              width: 34,
+              height: 34,
+              borderRadius: 9,
               border: "1px solid #E8EEF4",
               background: "#fff",
               cursor: "pointer",
@@ -328,19 +349,19 @@ export default function DashboardOverview({
               color: "#64748B",
             }}
           >
-            <ArrowCounterClockwise size={17} />
+            <ArrowCounterClockwise size={15} />
           </button>
         </div>
       </div>
 
-      {/* KPIs */}
+      {/* KPI strip */}
       <div
         className="adm-kpi-row"
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-          gap: 12,
-          marginBottom: 16,
+          gap: 10,
+          flexShrink: 0,
         }}
       >
         <Kpi
@@ -379,17 +400,19 @@ export default function DashboardOverview({
         />
       </div>
 
-      {/* Donuts row */}
+      {/* 2×2 equal squares — fills remaining height */}
       <div
-        className="adm-donut-row"
+        className="adm-square-grid"
         style={{
+          flex: 1,
+          minHeight: 0,
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
+          gridTemplateRows: "1fr 1fr",
           gap: 12,
-          marginBottom: 12,
         }}
       >
-        <ChartCard
+        <SquareChart
           title="Plan mix"
           segments={planSegments}
           centerLabel={String(approved.length)}
@@ -397,7 +420,7 @@ export default function DashboardOverview({
           actionLabel="Manage shops"
           onAction={() => setActiveTab("shops")}
         />
-        <ChartCard
+        <SquareChart
           title="Applications"
           segments={shopSegments}
           centerLabel={String(stats.total || 0)}
@@ -408,18 +431,7 @@ export default function DashboardOverview({
             setActiveTab("applications");
           }}
         />
-      </div>
-
-      {/* Payments donut + attention */}
-      <div
-        className="adm-lower-clean"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1.15fr",
-          gap: 12,
-        }}
-      >
-        <ChartCard
+        <SquareChart
           title="Subscriptions"
           segments={paySegments}
           centerLabel={String(payStats.total || 0)}
@@ -431,13 +443,17 @@ export default function DashboardOverview({
           }}
         />
 
+        {/* Needs attention — same square size */}
         <div
           style={{
             background: "#fff",
             border: "1px solid #E8EEF4",
             borderRadius: 16,
             overflow: "hidden",
-            minHeight: 168,
+            display: "flex",
+            flexDirection: "column",
+            height: "100%",
+            minHeight: 0,
           }}
         >
           <div
@@ -447,13 +463,14 @@ export default function DashboardOverview({
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
+              flexShrink: 0,
             }}
           >
             <div style={{ fontSize: 13.5, fontWeight: 700, color: "#0F172A" }}>Needs attention</div>
             {workCount > 0 ? (
               <span
                 style={{
-                  fontSize: 11,
+                  fontSize: 10,
                   fontWeight: 700,
                   color: "#B45309",
                   background: "#FEF3C7",
@@ -467,66 +484,88 @@ export default function DashboardOverview({
           </div>
 
           {attention.length === 0 ? (
-            <div style={{ padding: "36px 20px", textAlign: "center", color: "#94A3B8" }}>
-              <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
-                <CheckCircle size={26} color="#CBD5E1" weight="duotone" />
+            <div
+              style={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#94A3B8",
+                padding: 20,
+                textAlign: "center",
+              }}
+            >
+              <CheckCircle size={28} color="#CBD5E1" weight="duotone" />
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#64748B", marginTop: 10 }}>
+                Nothing pending
               </div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#64748B" }}>Nothing pending</div>
-              <div style={{ fontSize: 12, marginTop: 4 }}>New work shows up here automatically.</div>
+              <div style={{ fontSize: 12, marginTop: 4 }}>You’re all caught up.</div>
             </div>
           ) : (
-            attention.map((item, i) => (
-              <div
-                key={item.id}
-                role="button"
-                tabIndex={0}
-                onClick={item.onClick}
-                onKeyDown={(e) => e.key === "Enter" && item.onClick()}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "11px 18px",
-                  borderBottom: i < attention.length - 1 ? "1px solid #F8FAFC" : "none",
-                  cursor: "pointer",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "#F8FAFC";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "transparent";
-                }}
-              >
-                {Avatar ? <Avatar name={item.name || ""} size={32} /> : null}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: "#0F172A",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {item.name}
+            <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+              {attention.map((item, i) => (
+                <div
+                  key={item.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={item.onClick}
+                  onKeyDown={(e) => e.key === "Enter" && item.onClick()}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 16px",
+                    borderBottom: i < attention.length - 1 ? "1px solid #F8FAFC" : "none",
+                    cursor: "pointer",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "#F8FAFC";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  {Avatar ? <Avatar name={item.name || ""} size={30} /> : null}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        color: "#0F172A",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {item.name}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#94A3B8" }}>
+                      {item.kind} · {item.sub}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 11, color: "#94A3B8" }}>
-                    {item.kind} · {item.sub}
-                  </div>
+                  {StatusBadge ? <StatusBadge status={item.status} /> : null}
+                  <ArrowRight size={13} color="#CBD5E1" />
                 </div>
-                {StatusBadge ? <StatusBadge status={item.status} /> : null}
-                <ArrowRight size={14} color="#CBD5E1" />
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
       </div>
 
       <style>{`
-        @media (max-width: 920px) {
+        @media (max-width: 900px) {
+          .adm-square-grid {
+            grid-template-columns: 1fr !important;
+            grid-template-rows: none !important;
+            overflow: auto !important;
+          }
+          .adm-overview {
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+          }
           .adm-kpi-row { grid-template-columns: 1fr 1fr !important; }
-          .adm-donut-row, .adm-lower-clean { grid-template-columns: 1fr !important; }
         }
         @media (max-width: 520px) {
           .adm-kpi-row { grid-template-columns: 1fr !important; }

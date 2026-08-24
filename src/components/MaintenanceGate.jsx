@@ -1,9 +1,14 @@
 // src/components/MaintenanceGate.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { doc, onSnapshot, getDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { useLocation } from "react-router-dom";
 import { auth, db } from "../services/firebase";
+import {
+  isMaintenanceActive,
+  toMillis,
+} from "../utils/maintenanceStatus";
+import { promoteMaintenanceIfDue } from "../controllers/maintenanceController";
 
 function isAdminPath(pathname = "") {
   return pathname === "/admin" || pathname.startsWith("/admin/");
@@ -14,61 +19,58 @@ export default function MaintenanceGate({ children }) {
   const [status, setStatus] = useState("checking"); // checking | maintenance | ok
   const [maintenanceOn, setMaintenanceOn] = useState(false);
   const [isAdminUser, setIsAdminUser] = useState(false);
+  const [config, setConfig] = useState({});
+  const [now, setNow] = useState(Date.now());
+  const promoteLock = useRef(false);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const resolveAccess = async (on, pathname = window.location.pathname) => {
+    setMaintenanceOn(on);
+    if (!on) {
+      setStatus("ok");
+      return;
+    }
+
+    const user = auth.currentUser;
+    if (!user) {
+      setIsAdminUser(false);
+      setStatus(isAdminPath(pathname) ? "ok" : "maintenance");
+      return;
+    }
+
+    try {
+      const adminSnap = await getDoc(doc(db, "admins", user.uid));
+      const admin = adminSnap.exists();
+      setIsAdminUser(admin);
+      setStatus(admin || isAdminPath(pathname) ? "ok" : "maintenance");
+    } catch {
+      setIsAdminUser(false);
+      setStatus(isAdminPath(pathname) ? "ok" : "maintenance");
+    }
+  };
 
   useEffect(() => {
     const unsubMaintenance = onSnapshot(
       doc(db, "systemConfig", "maintenance"),
       async (snap) => {
-        const on = snap.exists() ? snap.data().maintenanceMode === true : false;
-        setMaintenanceOn(on);
-        if (!on) {
-          setStatus("ok");
-          return;
-        }
-
-        const user = auth.currentUser;
-        if (!user) {
-          // Admins still need /admin login during maintenance
-          setIsAdminUser(false);
-          setStatus(isAdminPath(window.location.pathname) ? "ok" : "maintenance");
-          return;
-        }
-
-        try {
-          const adminSnap = await getDoc(doc(db, "admins", user.uid));
-          const admin = adminSnap.exists();
-          setIsAdminUser(admin);
-          setStatus(admin || isAdminPath(window.location.pathname) ? "ok" : "maintenance");
-        } catch {
-          setIsAdminUser(false);
-          setStatus(isAdminPath(window.location.pathname) ? "ok" : "maintenance");
-        }
+        const data = snap.exists() ? snap.data() : {};
+        setConfig(data);
+        const on = isMaintenanceActive(data, Date.now());
+        await resolveAccess(on);
       },
       () => setStatus("ok")
     );
 
-    const unsubAuth = onAuthStateChanged(auth, async (user) => {
+    const unsubAuth = onAuthStateChanged(auth, async () => {
       const snap = await getDoc(doc(db, "systemConfig", "maintenance")).catch(() => null);
-      const on = snap?.exists() ? snap.data().maintenanceMode === true : false;
-      setMaintenanceOn(on);
-
-      if (!on) {
-        setStatus("ok");
-        return;
-      }
-      if (!user) {
-        setIsAdminUser(false);
-        setStatus(isAdminPath(window.location.pathname) ? "ok" : "maintenance");
-        return;
-      }
-      try {
-        const adminSnap = await getDoc(doc(db, "admins", user.uid));
-        const admin = adminSnap.exists();
-        setIsAdminUser(admin);
-        setStatus(admin || isAdminPath(window.location.pathname) ? "ok" : "maintenance");
-      } catch {
-        setStatus(isAdminPath(window.location.pathname) ? "ok" : "maintenance");
-      }
+      const data = snap?.exists() ? snap.data() : {};
+      setConfig(data);
+      const on = isMaintenanceActive(data, Date.now());
+      await resolveAccess(on);
     });
 
     return () => {
@@ -77,7 +79,32 @@ export default function MaintenanceGate({ children }) {
     };
   }, []);
 
-  // Re-evaluate when route changes (e.g. jump to /admin while maintenance is on)
+  // Tick-based: when countdown ends, lock non-admins + promote Firestore once
+  useEffect(() => {
+    const on = isMaintenanceActive(config, now);
+    if (on !== maintenanceOn) {
+      resolveAccess(on, location.pathname);
+    }
+
+    const start = toMillis(config?.scheduledStartAt);
+    const due =
+      config?.noticeActive &&
+      !config?.maintenanceMode &&
+      start != null &&
+      now >= start;
+
+    if (due && !promoteLock.current && isAdminUser) {
+      promoteLock.current = true;
+      promoteMaintenanceIfDue()
+        .catch(() => {})
+        .finally(() => {
+          setTimeout(() => {
+            promoteLock.current = false;
+          }, 5000);
+        });
+    }
+  }, [now, config, maintenanceOn, location.pathname, isAdminUser]);
+
   useEffect(() => {
     if (!maintenanceOn) {
       setStatus("ok");
@@ -111,6 +138,7 @@ export default function MaintenanceGate({ children }) {
   }
 
   if (status === "maintenance") {
+    const note = String(config?.noticeMessage || "").trim();
     return (
       <div style={{
         minHeight: "100vh", display: "flex", alignItems: "center",
@@ -137,11 +165,30 @@ export default function MaintenanceGate({ children }) {
 
           <p style={{
             fontSize: 15, color: "#94A3B8", lineHeight: 1.7,
-            marginBottom: 32,
+            marginBottom: note ? 16 : 32,
           }}>
             iConstruct is currently undergoing scheduled maintenance.
             We&apos;ll be back online shortly. Thank you for your patience.
           </p>
+
+          {note ? (
+            <div style={{
+              textAlign: "left",
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(148,163,184,0.25)",
+              borderRadius: 12,
+              padding: "14px 16px",
+              marginBottom: 28,
+              fontSize: 13.5,
+              color: "#CBD5E1",
+              lineHeight: 1.6,
+            }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#94A3B8", marginBottom: 6 }}>
+                Admin note
+              </div>
+              {note}
+            </div>
+          ) : null}
 
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,

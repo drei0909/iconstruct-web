@@ -15,12 +15,24 @@ export async function fetchAllShops() {
 
 // Get all payment requests
 export async function fetchAllPayments() {
-  const q = query(
-    collection(db, "subscriptionPayments"),
-    orderBy("submittedAt", "desc")
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  try {
+    const q = query(
+      collection(db, "subscriptionPayments"),
+      orderBy("submittedAt", "desc")
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.warn("Payments ordered query failed, falling back:", err?.message || err);
+    const snap = await getDocs(collection(db, "subscriptionPayments"));
+    const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    rows.sort((a, b) => {
+      const ta = a.submittedAt?.toMillis?.() || a.submittedAt?.seconds * 1000 || 0;
+      const tb = b.submittedAt?.toMillis?.() || b.submittedAt?.seconds * 1000 || 0;
+      return tb - ta;
+    });
+    return rows;
+  }
 }
 
 // Update a shop's approval status

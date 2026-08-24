@@ -49,11 +49,13 @@ function selectStyle(active) {
  * @param {object} props
  * @param {Array} props.quotations
  * @param {function} [props.onGoProjects] - navigate to projects tab
+ * @param {function} [props.onMessageBuilder] - open chat for accepted quote
  * @param {string} [props.accentColor]
  */
 export default function ShopQuotationsPanel({
   quotations = [],
   onGoProjects,
+  onMessageBuilder,
   accentColor = ACCENT,
 }) {
   const [search, setSearch] = useState("");
@@ -457,6 +459,31 @@ export default function ShopQuotationsPanel({
                         </div>
                         <div style={{ fontSize: 12.5, color: "#334155", lineHeight: 1.6 }}>{q.note}</div>
                       </div>
+                    )}
+
+                    {sKey === "accepted" && typeof onMessageBuilder === "function" && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onMessageBuilder(q);
+                        }}
+                        style={{
+                          marginTop: 14,
+                          width: "100%",
+                          padding: "11px 16px",
+                          borderRadius: 10,
+                          border: "none",
+                          background: accentColor,
+                          color: "#fff",
+                          fontSize: 13,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        Message builder →
+                      </button>
                     )}
                   </div>
                 )}

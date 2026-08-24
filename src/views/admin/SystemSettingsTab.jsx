@@ -22,6 +22,27 @@ import {
   removeAdmin,
   writeLog,
 } from "../../controllers/settingsController";
+import {
+  scheduleMaintenanceWithNotice,
+  cancelScheduledMaintenance,
+  turnOnMaintenanceImmediate,
+  turnOffMaintenance,
+  updateMaintenanceExtras,
+} from "../../controllers/maintenanceController";
+import {
+  formatCountdown,
+  formatCountdownLong,
+  formatStartLocal,
+  getCountdownRemainingMs,
+  isMaintenanceActive,
+  isNoticeCountdownActive,
+  MAINTENANCE_PRESETS,
+  combineDateAndTime,
+  defaultScheduleDateTime,
+  msToDateTimeInputs,
+  resolvePresetScheduleMs,
+  validateFutureSchedule,
+} from "../../utils/maintenanceStatus";
 
 
 import { PLAN_CONFIG, formatProductLimit } from "../../config/planConfig";
@@ -113,11 +134,11 @@ const inputStyle = (focus) => ({
   boxSizing: "border-box",
 });
 
-function Input({ value, onChange, placeholder, type = "text", disabled, onKeyDown }) {
+function Input({ value, onChange, placeholder, type = "text", disabled, onKeyDown, min }) {
   const [focus, setFocus] = useState(false);
   return (
     <input type={type} value={value} onChange={onChange} placeholder={placeholder}
-      disabled={disabled} onKeyDown={onKeyDown}
+      disabled={disabled} onKeyDown={onKeyDown} min={min}
       style={{ ...inputStyle(focus), opacity: disabled ? 0.6 : 1 }}
       onFocus={() => setFocus(true)} onBlur={() => setFocus(false)} />
   );
@@ -412,6 +433,7 @@ export default function SystemSettingsTab({ currentUser }) {
     newApplication: true, applicationApproved: true, applicationRejected: true,
     paymentReceived: true, paymentConfirmed: true, paymentRejected: true,
     newBid: false, projectPosted: false, systemAlerts: true, dailyDigest: false,
+    maintenanceNotice: true,
     emailFrom: "no-reply@iconstruct.ph", digestTime: "08:00",
   });
   const [savingNotifs, setSavingNotifs] = useState(false);
@@ -420,7 +442,22 @@ export default function SystemSettingsTab({ currentUser }) {
   // ── System Maintenance state ──
   const [logs, setLogs]               = useState([]);
   const [logsLoading, setLogsLoading] = useState(true);
-  const [maintenance, setMaintenance] = useState({ maintenanceMode: false, backupSchedule: "daily", lastBackup: null, cacheEnabled: true });
+  const [maintenance, setMaintenance] = useState({
+    maintenanceMode: false,
+    noticeActive: false,
+    noticeMessage: "",
+    scheduledStartAt: null,
+    backupSchedule: "daily",
+    lastBackup: null,
+    cacheEnabled: true,
+    notifiedShopCount: 0,
+  });
+  const [maintNote, setMaintNote] = useState("");
+  const [maintPreset, setMaintPreset] = useState("custom");
+  const [maintDate, setMaintDate] = useState(() => defaultScheduleDateTime().date);
+  const [maintTime, setMaintTime] = useState(() => defaultScheduleDateTime().time);
+  const [schedulingMaint, setSchedulingMaint] = useState(false);
+  const [maintTick, setMaintTick] = useState(Date.now());
   const [savingMaint, setSavingMaint] = useState(false);
   const [logFilter, setLogFilter]     = useState("all");
 
@@ -543,12 +580,39 @@ export default function SystemSettingsTab({ currentUser }) {
     (async () => {
       try {
         const snap = await getDoc(doc(db, "systemConfig", "maintenance"));
-        if (snap.exists()) setMaintenance(s => ({ ...s, ...snap.data() }));
+        if (snap.exists()) {
+          const data = snap.data();
+          setMaintenance(s => ({ ...s, ...data }));
+          if (data.noticeMessage) setMaintNote(data.noticeMessage);
+        }
       } catch { /* use defaults */ }
 
     await loadLogs();
     })();
   }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => setMaintTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const applyMaintPreset = (presetId) => {
+    setMaintPreset(presetId);
+    const ms = resolvePresetScheduleMs(presetId);
+    if (ms != null) {
+      const { date, time } = msToDateTimeInputs(ms);
+      setMaintDate(date);
+      setMaintTime(time);
+    }
+  };
+
+  const getScheduledAtMs = () => {
+    if (maintPreset !== "custom") {
+      const ms = resolvePresetScheduleMs(maintPreset);
+      if (ms != null) return ms;
+    }
+    return combineDateAndTime(maintDate, maintTime);
+  };
 
   // ── Admin CRUD ──
   const handleAdminSave = async (form) => {
@@ -687,30 +751,101 @@ const handleSavePlan = async () => {
   finally { setSavingNotifs(false); }
 };
 
-  // ── Save maintenance settings ──
+  // ── Save maintenance extras (cache / backup) — not the lock toggle ──
  const handleSaveMaintenance = async () => {
   setSavingMaint(true);
   try {
-    await setDoc(doc(db, "systemConfig", "maintenance"),
-      { ...maintenance, updatedAt: serverTimestamp() }, { merge: true });
-
-    // Specific log messages depending on what changed
-    await writeLog(
-      maintenance.maintenanceMode ? "warn" : "success",
-      maintenance.maintenanceMode
-        ? "Maintenance mode ENABLED — non-admin users will see the maintenance page."
-        : "Maintenance mode DISABLED — platform restored to normal."
-    );
+    await updateMaintenanceExtras({
+      cacheEnabled: maintenance.cacheEnabled !== false,
+      backupSchedule: maintenance.backupSchedule || "daily",
+      lastBackup: maintenance.lastBackup || null,
+    });
     await writeLog("info", `Query caching ${maintenance.cacheEnabled ? "enabled" : "disabled"}.`);
     await writeLog("info", `Backup schedule set to: ${maintenance.backupSchedule}.`);
-
-    // Refresh logs panel immediately so the new entries appear
     await loadLogs();
-
-    showToast("Maintenance settings saved.");
+    showToast("Maintenance extras saved.");
   } catch { showToast("Failed to save maintenance settings.", "error"); }
   finally { setSavingMaint(false); }
 };
+
+  const refreshMaintenanceDoc = async () => {
+    const snap = await getDoc(doc(db, "systemConfig", "maintenance"));
+    if (snap.exists()) setMaintenance(s => ({ ...s, ...snap.data() }));
+  };
+
+  const handleScheduleNotice = async () => {
+    if (!String(maintNote || "").trim()) {
+      showToast("Add a maintenance note before scheduling.", "error");
+      return;
+    }
+    const scheduledAtMs = getScheduledAtMs();
+    const validationError = validateFutureSchedule(scheduledAtMs);
+    if (validationError) {
+      showToast(validationError, "error");
+      return;
+    }
+    setSchedulingMaint(true);
+    try {
+      const result = await scheduleMaintenanceWithNotice(maintNote, scheduledAtMs);
+      await refreshMaintenanceDoc();
+      await loadLogs();
+      showToast(
+        `Scheduled for ${formatStartLocal({}, scheduledAtMs)}. ` +
+          `Emails: ${result.sent}/${result.total}. Push notifications queued.`
+      );
+    } catch (err) {
+      showToast(err.message || "Failed to schedule maintenance.", "error");
+    } finally {
+      setSchedulingMaint(false);
+    }
+  };
+
+  const handleCancelNotice = async () => {
+    setSchedulingMaint(true);
+    try {
+      await cancelScheduledMaintenance();
+      await refreshMaintenanceDoc();
+      const defaults = defaultScheduleDateTime();
+      setMaintPreset("custom");
+      setMaintDate(defaults.date);
+      setMaintTime(defaults.time);
+      await loadLogs();
+      showToast("Scheduled maintenance cancelled.");
+    } catch {
+      showToast("Failed to cancel schedule.", "error");
+    } finally {
+      setSchedulingMaint(false);
+    }
+  };
+
+  const handleEnableNow = async () => {
+    setSchedulingMaint(true);
+    try {
+      await turnOnMaintenanceImmediate();
+      await refreshMaintenanceDoc();
+      await loadLogs();
+      showToast("Maintenance enabled immediately.");
+    } catch {
+      showToast("Failed to enable maintenance.", "error");
+    } finally {
+      setSchedulingMaint(false);
+    }
+  };
+
+  const handleDisableMaintenance = async () => {
+    setSchedulingMaint(true);
+    try {
+      await turnOffMaintenance();
+      await refreshMaintenanceDoc();
+      setMaintNote("");
+      await loadLogs();
+      showToast("Maintenance turned off. Site is live again.");
+    } catch {
+      showToast("Failed to disable maintenance.", "error");
+    } finally {
+      setSchedulingMaint(false);
+    }
+  };
 
   const isCurrentUser = (id) => currentUser?.uid === id;
   const filteredLogs = logFilter === "all" ? logs : logs.filter(l => l.level === logFilter);
@@ -1044,6 +1179,7 @@ const handleSavePlan = async () => {
           { key: "newBid",        label: "New Bid Submitted",    hint: "Notify contractor when a new bid is placed on their project." },
           { key: "projectPosted", label: "New Project Posted",   hint: "Notify registered contractors when a project is posted." },
           { key: "systemAlerts",  label: "System Alerts",        hint: "Critical system notifications (errors, downtime)." },
+          { key: "maintenanceNotice", label: "Maintenance Pre-Notice", hint: "Email all shops when a 1-hour maintenance countdown starts." },
           { key: "dailyDigest",   label: "Daily Activity Digest", hint: "Send a daily summary email to all admins." },
         ],
       },
@@ -1091,16 +1227,152 @@ const handleSavePlan = async () => {
 
   const renderMaintenance = () => {
     const logLevels = ["all", "info", "success", "warn", "error"];
+    const noticeLive = isNoticeCountdownActive(maintenance, maintTick);
+    const locked = isMaintenanceActive(maintenance, maintTick);
+    const remaining = getCountdownRemainingMs(maintenance, maintTick);
+    const startLabel = formatStartLocal(maintenance);
+
     return (
       <>
-        <SectionCard title="System Control" subtitle="Platform-wide maintenance and performance settings." icon={<TbBolt size={18} />} accent={T.warning}>
+        <SectionCard
+          title="Scheduled Maintenance Notice"
+          subtitle="Pick date & time — users get email + push now, and another push when maintenance starts."
+          icon={<TbAlertTriangle size={18} />}
+          accent={T.warning}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 560 }}>
+            {(noticeLive || locked) && (
+              <div style={{
+                background: locked ? "#FEF2F2" : "#FFFBEB",
+                border: `1px solid ${locked ? "#FECACA" : "#FCD34D"}`,
+                borderRadius: 10,
+                padding: "14px 16px",
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: locked ? "#B91C1C" : "#92400E", marginBottom: 6 }}>
+                  {locked ? "Maintenance is LIVE" : "Scheduled — countdown running"}
+                </div>
+                {!locked && noticeLive && (
+                  <div style={{ fontFamily: "ui-monospace, monospace", fontSize: 28, fontWeight: 700, color: "#92400E", letterSpacing: "0.04em" }}>
+                    {remaining >= 86400000 ? formatCountdownLong(remaining) : formatCountdown(remaining)}
+                  </div>
+                )}
+                {startLabel && !locked && (
+                  <div style={{ fontSize: 12, color: "#A16207", marginTop: 4 }}>Starts {startLabel}</div>
+                )}
+                {maintenance.noticeMessage && (
+                  <div style={{ fontSize: 13, color: locked ? "#7F1D1D" : "#78350F", marginTop: 10, lineHeight: 1.55 }}>
+                    Note: {maintenance.noticeMessage}
+                  </div>
+                )}
+                {maintenance.notifiedShopCount != null && noticeLive && (
+                  <div style={{ fontSize: 11.5, color: "#A16207", marginTop: 8 }}>
+                    Gmail sent: {maintenance.notifiedShopCount}
+                    {maintenance.initialPushSentFor ? " · Initial push sent" : " · Push pending"}
+                    {maintenance.reminderPushSentFor ? " · Start-time push sent" : ""}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!locked && !noticeLive && (
+              <>
+                <Field label="When should maintenance start?">
+                  <Select
+                    value={maintPreset}
+                    onChange={(e) => applyMaintPreset(e.target.value)}
+                    options={MAINTENANCE_PRESETS.map((p) => ({
+                      value: p.id,
+                      label: p.label,
+                    }))}
+                  />
+                </Field>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <Field label="Date">
+                    <Input
+                      type="date"
+                      value={maintDate}
+                      min={new Date().toISOString().slice(0, 10)}
+                      onChange={(e) => {
+                        setMaintPreset("custom");
+                        setMaintDate(e.target.value);
+                      }}
+                    />
+                  </Field>
+                  <Field label="Time">
+                    <Input
+                      type="time"
+                      value={maintTime}
+                      onChange={(e) => {
+                        setMaintPreset("custom");
+                        setMaintTime(e.target.value);
+                      }}
+                    />
+                  </Field>
+                </div>
+                {getScheduledAtMs() && !validateFutureSchedule(getScheduledAtMs()) && (
+                  <div style={{ fontSize: 12, color: T.info, background: T.infoLight, padding: "10px 12px", borderRadius: 8 }}>
+                    Maintenance will start on <strong>{formatStartLocal({}, getScheduledAtMs())}</strong>
+                  </div>
+                )}
+              </>
+            )}
+
+            <Field label="Maintenance note (dashboard banner + Gmail + push)">
+              <textarea
+                value={maintNote}
+                onChange={(e) => setMaintNote(e.target.value)}
+                rows={4}
+                placeholder="Example: We are upgrading servers tonight. Bidding and products will be unavailable for a short time."
+                disabled={locked}
+                style={{
+                  width: "100%",
+                  fontFamily: "var(--font-base)",
+                  fontSize: 13.5,
+                  lineHeight: 1.55,
+                  color: T.text,
+                  background: "#F8FAFC",
+                  border: `1.5px solid ${T.border}`,
+                  borderRadius: 8,
+                  padding: "12px 14px",
+                  resize: "vertical",
+                  outline: "none",
+                }}
+              />
+            </Field>
+
+            <div style={{ fontSize: 12, color: T.textMuted, lineHeight: 1.6 }}>
+              When you schedule: shops get <strong>Gmail</strong> + an <strong>initial push</strong> right away.
+              At your chosen date &amp; time, everyone gets a <strong>reminder push</strong> and the site locks for non-admins.
+              Example: Aug 26, 5:00 PM — users are notified now, then pushed again at 5:00 PM.
+            </div>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {!locked && !noticeLive && (
+                <Btn variant="primary" loading={schedulingMaint} onClick={handleScheduleNotice}>
+                  Schedule &amp; Notify Users
+                </Btn>
+              )}
+              {noticeLive && (
+                <Btn variant="ghost" loading={schedulingMaint} onClick={handleCancelNotice}>
+                  Cancel countdown
+                </Btn>
+              )}
+              {!locked && (
+                <Btn variant="ghost" loading={schedulingMaint} onClick={handleEnableNow}>
+                  Enable immediately
+                </Btn>
+              )}
+              {locked && (
+                <Btn variant="primary" loading={schedulingMaint} onClick={handleDisableMaintenance}>
+                  Turn maintenance off
+                </Btn>
+              )}
+            </div>
+          </div>
+        </SectionCard>
+
+        <SectionCard title="System Control" subtitle="Cache and backup extras (separate from the lock)." icon={<TbBolt size={18} />} accent={T.warning}>
           <div style={{ display: "flex", flexDirection: "column", gap: 18, maxWidth: 500 }}>
-            <Toggle
-              checked={maintenance.maintenanceMode}
-              onChange={v => setMaintenance(s => ({ ...s, maintenanceMode: v }))}
-              label="Maintenance Mode"
-              hint="When enabled, all non-admin users will see a maintenance page. Use before major updates." />
-            <div style={{ height: 1, background: T.border }} />
             <Toggle
               checked={maintenance.cacheEnabled !== false}
               onChange={v => setMaintenance(s => ({ ...s, cacheEnabled: v }))}
@@ -1120,7 +1392,7 @@ const handleSavePlan = async () => {
             {maintenance.lastBackup && (
               <div style={{ fontSize: 11.5, color: T.textMuted }}>Last backup: {maintenance.lastBackup}</div>
             )}
-            <Btn variant="primary" loading={savingMaint} onClick={handleSaveMaintenance}>Save Maintenance Settings</Btn>
+            <Btn variant="primary" loading={savingMaint} onClick={handleSaveMaintenance}>Save Cache / Backup Settings</Btn>
           </div>
         </SectionCard>
 

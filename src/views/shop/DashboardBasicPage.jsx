@@ -20,7 +20,9 @@ import SettingsTab from "../../components/SettingsTab";
 import MobileNav from "../../components/ui/MobileNav";
 import ShopProjectsPanel from "../../components/shop/ShopProjectsPanel";
 import ShopQuotationsPanel from "../../components/shop/ShopQuotationsPanel";
+import ShopMessagesPanel from "../../components/shop/ShopMessagesPanel";
 import DashboardBrand from "../../components/ui/DashboardBrand";
+import ShopNotificationBell from "../../components/ui/ShopNotificationBell";
 
 import {
   TbBolt, TbConfetti, TbAlertTriangle, TbCreditCard, TbBuildingBank,
@@ -35,6 +37,7 @@ const NAV = [
   { key: "overview",   label: "Overview"    },
   { key: "projects",   label: "Projects"    },
   { key: "quotations", label: "Quotations"  },
+  { key: "messages",   label: "Messages"    },
   { key: "products",   label: "My Products" },
   { key: "upgrade",    label: "Upgrade Plan", isUpgrade: true },
   { key: "settings",   label: "Settings" },
@@ -151,11 +154,12 @@ function Projects({ projects, quotaUsed, setQuoteModal, setActiveTab, loading, q
   );
 }
 
-function Quotations({ quotations, setActiveTab }) {
+function Quotations({ quotations, setActiveTab, onMessageBuilder }) {
   return (
     <ShopQuotationsPanel
       quotations={quotations}
       onGoProjects={() => setActiveTab("projects")}
+      onMessageBuilder={onMessageBuilder}
     />
   );
 }
@@ -314,6 +318,7 @@ export default function ShopDashboardBasic() {
   const [toast, setToast]                     = useState(null);
   const [quoteModal, setQuoteModal]           = useState(null);
   const [submitting, setSubmitting]           = useState(false);
+  const [chatQuote, setChatQuote]             = useState(null);
   const [showPlanActivatedModal, setShowPlanActivatedModal] = useState(false);
   const prevStatusRef = useRef(null);
 
@@ -384,7 +389,23 @@ export default function ShopDashboardBasic() {
     switch (activeTab) {
       case "overview":   return <Overview quotations={quotations} projects={projects} quotaUsed={quotaUsed} setActiveTab={setActiveTab} />;
       case "projects":   return <Projects projects={projects} quotations={quotations} quotaUsed={quotaUsed} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} loading={loading} />;
-      case "quotations": return <Quotations quotations={quotations} setActiveTab={setActiveTab} />;
+      case "quotations": return (
+        <Quotations
+          quotations={quotations}
+          setActiveTab={setActiveTab}
+          onMessageBuilder={(q) => {
+            setChatQuote(q);
+            setActiveTab("messages");
+          }}
+        />
+      );
+      case "messages": return (
+        <ShopMessagesPanel
+          accentColor="#2C3E50"
+          bootstrapQuote={chatQuote}
+          onBootstrapped={() => setChatQuote(null)}
+        />
+      );
       case "products":   return <ProductsTab plan="basic" />;
       case "upgrade":    return <Upgrade existingPayment={existingPayment} onPaymentSuccess={handlePaymentSuccess} />;
       case "settings":
@@ -476,6 +497,7 @@ export default function ShopDashboardBasic() {
             <div className="db-topbar-breadcrumb">iConstruct · Shop Manager</div>
           </div>
           <div className="db-topbar-right">
+            <ShopNotificationBell />
             <PlanBadge />
             <div className="db-topbar-avatar">{initials(shop?.shopName)}</div>
           </div>

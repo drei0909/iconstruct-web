@@ -64,10 +64,13 @@ export async function submitQuotation({ projectId, amount, note, items }) {
 
   const projectSnap = await getDoc(doc(db, "projectPosts", projectId));
   if (!projectSnap.exists()) throw new Error("Project not found");
+  const post = projectSnap.data() || {};
   const projectTitle =
-    projectSnap.data()?.projectName ||
-    projectSnap.data()?.title ||
+    post.projectName ||
+    post.title ||
     "Project";
+  const builderId =
+    post.userId || post.builderId || post.ownerId || post.postedBy || "";
 
   await insertQuotation({
     projectId,
@@ -77,6 +80,7 @@ export async function submitQuotation({ projectId, amount, note, items }) {
     amount: n,
     note,
     items: items || [],
+    builderId,
   });
 }
 

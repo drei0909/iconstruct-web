@@ -1,14 +1,16 @@
 // src/components/forms/ForgotPassword.jsx
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth, db } from "../../services/firebase";
 import { sendOTP, verifyOTP } from "../../controllers/authController";
 
 const STEPS = ["Enter Email", "Verify OTP", "Reset Password", "Done"];
 
-export default function ForgotPassword({ onClose }) {
-  const navigate = useNavigate();
+/**
+ * @param {"shop"|"admin"} variant — same OTP → Firebase reset flow; only the account lookup differs
+ */
+export default function ForgotPassword({ onClose, variant = "shop" }) {
+  const isAdmin = variant === "admin";
   const [step, setStep]             = useState(0);
   const [email, setEmail]           = useState("");
   const [ownerName, setOwnerName]   = useState("");
@@ -44,12 +46,24 @@ export default function ForgotPassword({ onClose }) {
     setLoading(true); setError("");
     try {
       const { getDocs, collection, query, where } = await import("firebase/firestore");
-      const q    = query(collection(db, "shops"), where("email", "==", email.trim().toLowerCase()));
+      const normalized = email.trim().toLowerCase();
+      const col = isAdmin ? "admins" : "shops";
+      const q    = query(collection(db, col), where("email", "==", normalized));
       const snap = await getDocs(q);
-      if (snap.empty) { setError("No shop account found with this email address."); return; }
-      const shopData = snap.docs[0].data();
-      setOwnerName(shopData.ownerName || "Shop Owner");
-      await sendOTP(email.trim().toLowerCase(), shopData.ownerName || "Shop Owner");
+      if (snap.empty) {
+        setError(
+          isAdmin
+            ? "No admin account found with this email address."
+            : "No shop account found with this email address."
+        );
+        return;
+      }
+      const data = snap.docs[0].data();
+      const name = isAdmin
+        ? (data.displayName || "Admin")
+        : (data.ownerName || "Shop Owner");
+      setOwnerName(name);
+      await sendOTP(normalized, name, "password_reset");
       startResendTimer();
       setStep(1);
     } catch (err) {
@@ -92,7 +106,7 @@ export default function ForgotPassword({ onClose }) {
     if (resendTimer > 0) return;
     setLoading(true); setError("");
     try {
-      await sendOTP(email.trim().toLowerCase(), ownerName);
+      await sendOTP(email.trim().toLowerCase(), ownerName, "password_reset");
       setOtp(["","","","","",""]); startResendTimer();
     } catch { setError("Failed to resend code. Please try again."); }
     finally { setLoading(false); }
@@ -140,14 +154,16 @@ export default function ForgotPassword({ onClose }) {
           <>
             <h3 className="fp-title">Forgot Password?</h3>
             <p className="fp-sub">
-              Enter the email address linked to your shop account. We'll send a 6-digit verification code to confirm it's you.
+              {isAdmin
+                ? "Enter the email address linked to your admin account. We'll send a 6-digit verification code to confirm it's you."
+                : "Enter the email address linked to your shop account. We'll send a 6-digit verification code to confirm it's you."}
             </p>
             <div className="fp-field">
               <label className="fp-label">Email Address</label>
               <input
                 className="fp-input"
                 type="email"
-                placeholder="yourshop@email.com"
+                placeholder={isAdmin ? "admin@iconstruct.ph" : "yourshop@email.com"}
                 value={email}
                 onChange={e => { setEmail(e.target.value); setError(""); }}
                 onKeyDown={e => e.key === "Enter" && handleEmailSubmit()}

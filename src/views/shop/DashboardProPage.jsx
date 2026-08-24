@@ -20,9 +20,11 @@ import SettingsTab from "../../components/SettingsTab";
 import MobileNav from "../../components/ui/MobileNav";
 import ShopProjectsPanel from "../../components/shop/ShopProjectsPanel";
 import ShopQuotationsPanel from "../../components/shop/ShopQuotationsPanel";
+import ShopMessagesPanel from "../../components/shop/ShopMessagesPanel";
 import PaidPlanAnalytics from "../../components/shop/PaidPlanAnalytics";
 import { getQuoteMoneyStats } from "../../utils/quoteAnalytics";
 import DashboardBrand from "../../components/ui/DashboardBrand";
+import ShopNotificationBell from "../../components/ui/ShopNotificationBell";
 
 import {
   ArrowRight,
@@ -36,6 +38,7 @@ const NAV = [
   { key: "overview",   label: "Overview" },
   { key: "projects",   label: "All Projects" },
   { key: "quotations", label: "Quotations" },
+  { key: "messages",   label: "Messages" },
   { key: "analytics",  label: "Analytics" },
   { key: "products",   label: "My Products" },
   { key: "billing",    label: "Billing" },
@@ -220,12 +223,13 @@ function Billing({ shop }) {
   );
 }
 
-function Quotations({ quotations, setActiveTab, accentColor = "#2C5282" }) {
+function Quotations({ quotations, setActiveTab, accentColor = "#2C5282", onMessageBuilder }) {
   return (
     <ShopQuotationsPanel
       quotations={quotations}
       accentColor={accentColor}
       onGoProjects={() => setActiveTab("projects")}
+      onMessageBuilder={onMessageBuilder}
     />
   );
 }
@@ -244,6 +248,7 @@ export default function ShopDashboardPro() {
   const [toast, setToast]           = useState(null);
   const [quoteModal, setQuoteModal] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [chatQuote, setChatQuote] = useState(null);
   const [showPlanActivatedModal, setShowPlanActivatedModal] = useState(false);
   const prevStatusRef = useRef(null);
 
@@ -440,6 +445,7 @@ export default function ShopDashboardPro() {
     <header className="db-topbar" style={{ height:58, background:"#fff", borderBottom:"1px solid #E2E8F0", display:"flex", alignItems:"center", padding:"0 28px", justifyContent:"space-between", position:"sticky", top:0, zIndex:50 }}>
       <div style={{ fontSize:15, fontWeight:700, color:"#0F172A" }}>{NAV.find(n=>n.key===activeTab)?.label}</div>
       <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+        <ShopNotificationBell />
         <PlanBadge />
         <div style={{ width:34, height:34, borderRadius:"50%", background:"linear-gradient(135deg,#1E3A5F,#3B82F6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, color:"#fff" }}>
           {shop?.shopName?.[0] || "S"}
@@ -452,7 +458,24 @@ export default function ShopDashboardPro() {
     switch (activeTab) {
       case "overview":   return <Overview quotations={quotations} projects={projects} accepted={accepted} pending={pending} rejected={rejected} money={money} monthQuotes={monthQuotes} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} />;
       case "projects":   return <AllProjects projects={projects} quotations={quotations} setQuoteModal={setQuoteModal} />;
-      case "quotations": return <Quotations quotations={quotations} setActiveTab={setActiveTab} accentColor="#2C5282" />;
+      case "quotations": return (
+        <Quotations
+          quotations={quotations}
+          setActiveTab={setActiveTab}
+          accentColor="#2C5282"
+          onMessageBuilder={(q) => {
+            setChatQuote(q);
+            setActiveTab("messages");
+          }}
+        />
+      );
+      case "messages": return (
+        <ShopMessagesPanel
+          accentColor="#2C5282"
+          bootstrapQuote={chatQuote}
+          onBootstrapped={() => setChatQuote(null)}
+        />
+      );
       case "analytics":  return <PaidPlanAnalytics quotations={quotations} tier="pro" />;
       case "products":   return <ProductsTab plan="pro" />;
       case "billing":    return <Billing shop={shop} />;

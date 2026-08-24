@@ -29,9 +29,21 @@ export async function insertContactMessage({ name, email, subject, message }) {
 }
 
 export async function fetchContactMessages() {
-  const q = query(collection(db, COL), orderBy("createdAt", "desc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  try {
+    const q = query(collection(db, COL), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.warn("Contact messages ordered query failed, falling back:", err?.message || err);
+    const snap = await getDocs(collection(db, COL));
+    const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    rows.sort((a, b) => {
+      const ta = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
+      const tb = b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
+      return tb - ta;
+    });
+    return rows;
+  }
 }
 
 export async function updateContactMessage(id, patch) {
