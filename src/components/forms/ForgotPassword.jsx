@@ -1,7 +1,7 @@
 // src/components/forms/ForgotPassword.jsx
 import { useState, useRef, useEffect } from "react";
 import { sendPasswordResetEmail } from "firebase/auth";
-import { auth, db } from "../../services/firebase";
+import { auth } from "../../services/firebase";
 import { sendOTP, verifyOTP } from "../../controllers/authController";
 
 const STEPS = ["Enter Email", "Verify OTP", "Reset Password", "Done"];
@@ -45,29 +45,17 @@ export default function ForgotPassword({ onClose, variant = "shop" }) {
     if (!email.trim()) { setError("Please enter your email address."); return; }
     setLoading(true); setError("");
     try {
-      const { getDocs, collection, query, where } = await import("firebase/firestore");
       const normalized = email.trim().toLowerCase();
-      const col = isAdmin ? "admins" : "shops";
-      const q    = query(collection(db, col), where("email", "==", normalized));
-      const snap = await getDocs(q);
-      if (snap.empty) {
-        setError(
-          isAdmin
-            ? "No admin account found with this email address."
-            : "No shop account found with this email address."
-        );
-        return;
-      }
-      const data = snap.docs[0].data();
-      const name = isAdmin
-        ? (data.displayName || "Admin")
-        : (data.ownerName || "Shop Owner");
-      setOwnerName(name);
-      await sendOTP(normalized, name, "password_reset");
+      // Name is resolved server-side by the requestEmailOtp Cloud Function, so the
+      // client no longer reads the shops/admins collection. If no account exists,
+      // the server sends nothing and still reports success (no account enumeration),
+      // so we always advance to the code step.
+      await sendOTP(normalized, "", "password_reset");
+      setOwnerName("");
       startResendTimer();
       setStep(1);
     } catch (err) {
-      setError("Failed to send verification code. Please try again.");
+      setError(err?.message || "Failed to send verification code. Please try again.");
     } finally { setLoading(false); }
   };
 

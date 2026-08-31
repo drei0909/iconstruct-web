@@ -1348,6 +1348,47 @@ exports.requestEmailOtp = onRequest(
       });
     }
 
+    // For password reset, resolve the display name server-side (Admin SDK) so the
+    // web client never has to read the shops/admins collection unauthenticated.
+    let toName = ownerName;
+    if (purpose === "password_reset") {
+      toName = "there";
+      let accountExists = false;
+      try {
+        let snap = await db
+          .collection("shops")
+          .where("email", "==", email)
+          .limit(1)
+          .get();
+        if (snap.empty) {
+          snap = await db
+            .collection("admins")
+            .where("email", "==", email)
+            .limit(1)
+            .get();
+        }
+        if (!snap.empty) {
+          accountExists = true;
+          const d = snap.docs[0].data() || {};
+          toName = d.ownerName || d.displayName || "there";
+        }
+      } catch (e) {
+        // Fail open: a transient Firestore error must not lock real users out.
+        logger.warn("password_reset name lookup failed", e.message);
+        accountExists = true;
+      }
+      if (!accountExists) {
+        // No account: send nothing, but return the same generic response so the
+        // endpoint can't be used to enumerate registered emails.
+        logger.info("password_reset for unknown email — no code sent", { email });
+        return res.status(200).json({
+          success: true,
+          expiresInSec: 600,
+          message: "If the address is valid, a code was sent.",
+        });
+      }
+    }
+
     const otp = generateOtpCode();
     const expires = Date.now() + 10 * 60 * 1000;
     const docId = email.replace(/\//g, "_");
@@ -1365,7 +1406,7 @@ exports.requestEmailOtp = onRequest(
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    await sendOtpViaEmailJs({ toEmail: email, toName: ownerName, otpCode: otp });
+    await sendOtpViaEmailJs({ toEmail: email, toName, otpCode: otp });
 
     logger.info("OTP issued", { email, purpose });
     return res.status(200).json({
