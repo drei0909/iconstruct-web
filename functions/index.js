@@ -32,6 +32,7 @@ const db = admin.firestore();
 setGlobalOptions({ maxInstances: 10 });
 
 const paymongoSecret = defineSecret("PAYMONGO_SECRET_KEY");
+const paymongoWebhookSecret = defineSecret("PAYMONGO_WEBHOOK_SECRET");
 
 // Amounts in centavos (PHP × 100) — keep in sync with src/config/planConfig.js
 const PLAN_PRICES = {
@@ -95,6 +96,21 @@ function getPaymongoSecret() {
   const fromEnv = process.env.PAYMONGO_SECRET_KEY;
   if (!fromEnv) {
     throw new Error("PAYMONGO_SECRET_KEY is not configured.");
+  }
+  return fromEnv;
+}
+
+function getPaymongoWebhookSecret() {
+  // Bound secret (production) or dotenv (local emulator / fallback)
+  try {
+    const bound = paymongoWebhookSecret.value();
+    if (bound) return bound;
+  } catch {
+    /* secret not bound in this context */
+  }
+  const fromEnv = process.env.PAYMONGO_WEBHOOK_SECRET;
+  if (!fromEnv) {
+    throw new Error("PAYMONGO_WEBHOOK_SECRET is not configured.");
   }
   return fromEnv;
 }
@@ -328,6 +344,66 @@ function extractPaidAmount(attrs = {}) {
     attrs.amount ??
     null
   );
+}
+
+/**
+ * Verify the Paymongo-Signature header.
+ * Header format: "t=<unix>,te=<test-hmac>,li=<live-hmac>"
+ * Valid when HMAC-SHA256(`${t}.${rawBody}`, signingSecret) hex === te (test) or li (live).
+ * rawBody MUST be the exact bytes PayMongo sent — never JSON.stringify(req.body).
+ */
+function verifyPaymongoSignature(req) {
+  const header = req.headers["paymongo-signature"];
+  if (typeof header !== "string" || !header) {
+    return { ok: false, reason: "missing_signature_header" };
+  }
+
+  const parts = {};
+  for (const kv of header.split(",")) {
+    const i = kv.indexOf("=");
+    if (i > 0) parts[kv.slice(0, i).trim()] = kv.slice(i + 1).trim();
+  }
+
+  const timestamp = parts.t;
+  const candidates = [parts.te, parts.li].filter(Boolean);
+  if (!timestamp || candidates.length === 0) {
+    return { ok: false, reason: "malformed_signature_header" };
+  }
+
+  // Replay protection: reject deliveries whose timestamp is more than 10 minutes
+  // from now. PayMongo re-signs every retry with a fresh timestamp, so this does
+  // not block legitimate redelivery.
+  const ageSec = Math.abs(Date.now() / 1000 - Number(timestamp));
+  if (!Number.isFinite(ageSec) || ageSec > 600) {
+    return { ok: false, reason: "stale_timestamp" };
+  }
+
+  const rawBody = Buffer.isBuffer(req.rawBody)
+    ? req.rawBody
+    : Buffer.from(
+        typeof req.rawBody === "string"
+          ? req.rawBody
+          : JSON.stringify(req.body || {}),
+        "utf8"
+      );
+
+  const signedPayload = Buffer.concat([
+    Buffer.from(`${timestamp}.`, "utf8"),
+    rawBody,
+  ]);
+
+  const expected = crypto
+    .createHmac("sha256", getPaymongoWebhookSecret().trim())
+    .update(signedPayload)
+    .digest("hex");
+  const expBuf = Buffer.from(expected, "utf8");
+
+  const match = candidates.some((c) => {
+    const cBuf = Buffer.from(c, "utf8");
+    return cBuf.length === expBuf.length && crypto.timingSafeEqual(cBuf, expBuf);
+  });
+
+  return match ? { ok: true } : { ok: false, reason: "signature_mismatch" };
 }
 
 /**
@@ -919,7 +995,7 @@ exports.verifyPaymentSession = onRequest(
  * Create the webhook in the SAME mode as payments (Test vs Live).
  */
 exports.paymongoWebhook = onRequest(
-  { cors: false, secrets: [paymongoSecret], invoker: "public", timeoutSeconds: 60 },
+  { cors: false, secrets: [paymongoSecret, paymongoWebhookSecret], invoker: "public", timeoutSeconds: 60 },
   async (req, res) => {
     res.set("Access-Control-Allow-Origin", "*");
     if (req.method === "OPTIONS") return res.status(204).send("");
@@ -942,6 +1018,16 @@ exports.paymongoWebhook = onRequest(
         contentType: req.headers["content-type"],
         bodyPreview: rawBody.slice(0, 500),
       });
+
+      // Reject anything that is not a genuine, signed PayMongo delivery.
+      const sig = verifyPaymongoSignature(req);
+      if (!sig.ok) {
+        logger.warn("paymongoWebhook signature rejected", {
+          reason: sig.reason,
+          ip: clientIp(req),
+        });
+        return res.status(401).json({ ok: false, error: "invalid_signature" });
+      }
 
       const parsed = normalizePaymongoWebhook(req.body || {});
       const eventType = parsed.eventType || String(req.body?.data?.type || "");
