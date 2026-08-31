@@ -1,5 +1,6 @@
 // src/services/firebase.js
 import { initializeApp } from "firebase/app";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 import {
   initializeFirestore,
   persistentLocalCache,
@@ -20,6 +21,33 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+
+// ── App Check ──────────────────────────────────────────────────────────────
+// Attaches an attestation token to every Firestore / Storage / Functions call
+// so the backend can tell genuine app traffic from scripts. Enforcement is
+// configured per-API in the Firebase Console — keep it OFF until the Flutter
+// app also sends tokens.
+//
+// Local dev (npm run dev) can't run real reCAPTCHA, so a debug token is used.
+// On first run the browser console prints:  "App Check debug token: <uuid>"
+// Register that value at: Firebase Console → App Check → your web app →
+// "Manage debug tokens".
+if (import.meta.env.DEV) {
+  // eslint-disable-next-line no-restricted-globals
+  self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+}
+
+try {
+  initializeAppCheck(app, {
+    provider: new ReCaptchaEnterpriseProvider(
+      "6LdPvqEtAAAAAB0c93AWrDfoegfc8KttTr8uJRuz"
+    ),
+    isTokenAutoRefreshEnabled: true,
+  });
+} catch (err) {
+  // Never let App Check init break the app (e.g. blocked reCAPTCHA script).
+  console.warn("[AppCheck] init skipped:", err?.message || err);
+}
 
 // ── Firestore with persistent local cache (multi-tab safe) ──────────────────
 // This replaces getFirestore(app).
