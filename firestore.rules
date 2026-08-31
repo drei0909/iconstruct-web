@@ -336,6 +336,31 @@ service cloud.firestore {
       }
     }
 
+    // ── Contact Us messages (web-only: public submit → admin inbox) ────────
+    // Not used by the Flutter app. Anyone may create a well-formed message;
+    // only admins can read / triage / delete.
+    match /contactMessages/{messageId} {
+      allow create: if request.resource.data.keys().hasOnly([
+          "name", "email", "subject", "message", "status", "createdAt"
+        ])
+        && request.resource.data.status == "new"
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.email is string
+        && request.resource.data.email.size() > 3
+        && request.resource.data.email.size() <= 200
+        && request.resource.data.subject is string
+        && request.resource.data.subject.size() > 0
+        && request.resource.data.subject.size() <= 200
+        && request.resource.data.message is string
+        && request.resource.data.message.size() >= 10
+        && request.resource.data.message.size() <= 5000
+        && request.resource.data.createdAt == request.time;
+      allow read: if isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
     // In-app notifications — written by Cloud Functions (Admin SDK) only.
     match /notifications/{notificationId} {
       allow read: if signedIn()
