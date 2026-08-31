@@ -100,16 +100,27 @@ async function paymongoFetch(secret, apiPath, options = {}) {
   return json;
 }
 
-function decodeUidFromBearer(authHeader) {
+/**
+ * Verify a Firebase ID token properly (signature + issuer + expiry) via
+ * firebase-admin. Local dev proxy only. Returns the real uid, or null if the
+ * token is missing/forged/expired. Signature verification uses Google's public
+ * certs — no service account or ADC required.
+ */
+async function verifyBearer(authHeader) {
+  const token = String(authHeader || "").replace(/^Bearer\s+/i, "").trim();
+  if (!token) return null;
   try {
-    const token = String(authHeader || "").replace(/^Bearer\s+/i, "");
-    const part = token.split(".")[1];
-    if (!part) return null;
-    const payload = JSON.parse(
-      Buffer.from(part.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")
-    );
-    return payload.user_id || payload.sub || null;
-  } catch {
+    const admin = await getAdminDb();
+    if (!admin) {
+      console.warn(
+        "[PayMongo] firebase-admin unavailable — cannot verify token. Run `npm install` in functions/."
+      );
+      return null;
+    }
+    const decoded = await admin.auth().verifyIdToken(token);
+    return decoded.uid || null;
+  } catch (err) {
+    console.warn("[PayMongo] ID token verification failed:", err.message);
     return null;
   }
 }
@@ -237,8 +248,8 @@ async function localSyncPayment(secretKey, authHeader, body) {
     );
   }
 
-  const uid = decodeUidFromBearer(authHeader);
-  if (!uid) throw new Error("Invalid session. Sign out and log in again.");
+  const uid = await verifyBearer(authHeader);
+  if (!uid) throw new Error("Invalid or expired session. Sign out and log in again.");
 
   const trySession = async (sessionId) => {
     if (!sessionId || !String(sessionId).startsWith("cs_")) return null;
@@ -466,13 +477,18 @@ function paymongoDevApiPlugin(secretKey) {
           }
 
           if (url === "/api/paymongo/create") {
-            const { planId, shopId, shopEmail, successUrl, cancelUrl } = body;
+            const { planId, shopEmail, successUrl, cancelUrl } = body;
             if (!planId || !PLAN_PRICES[planId]) {
               return sendJson(res, 400, { error: "Invalid plan selected." });
             }
+            const uid = await verifyBearer(authHeader);
+            if (!uid) {
+              return sendJson(res, 401, {
+                error: "Invalid or expired session. Sign out and log in again.",
+              });
+            }
             const plan = await resolvePlanPriceLocal(planId);
             const origin = "http://localhost:5173";
-            const uid = shopId || decodeUidFromBearer(authHeader) || "";
             const payload = {
               data: {
                 attributes: {
