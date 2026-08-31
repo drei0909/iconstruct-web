@@ -95,6 +95,12 @@ export default function RegisterForm() {
   const [otpError, setOtpError]   = useState("");
   const [resendTimer, setResendTimer] = useState(0);
   const otpRefs = useRef([]);
+  // Binds request → verify → submit to this browser session (see authController).
+  const flowIdRef = useRef(
+    (typeof crypto !== "undefined" && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : `f_${Date.now()}_${Math.random().toString(36).slice(2)}`
+  );
 
   // Terms modal
   const [termsOpen,    setTermsOpen]    = useState(false);
@@ -184,7 +190,7 @@ export default function RegisterForm() {
     if (!validateStep0()) return;
     setLoading(true); setGlobalError("");
     try {
-      await sendOTP(form.email, form.ownerName);
+      await sendOTP(form.email, form.ownerName, "register", flowIdRef.current);
       setStep(1);
       startResendTimer();
     } catch (err) {
@@ -220,7 +226,7 @@ export default function RegisterForm() {
     if (code.length < 6) { setOtpError("Enter the complete 6-digit code."); return; }
     setLoading(true); setOtpError("");
     try {
-      await verifyOTP(form.email, code);
+      await verifyOTP(form.email, code, flowIdRef.current);
       setStep(2);
     } catch (err) { setOtpError(err.message); }
     finally { setLoading(false); }
@@ -230,7 +236,7 @@ export default function RegisterForm() {
     if (resendTimer > 0) return;
     setLoading(true);
     try {
-      await sendOTP(form.email, form.ownerName);
+      await sendOTP(form.email, form.ownerName, "register", flowIdRef.current);
       setOtp(["","","","","",""]);
       setOtpError("");
       startResendTimer();
@@ -311,7 +317,7 @@ export default function RegisterForm() {
     setLoading(true);
     setGlobalError("");
     try {
-      await registerShop(form);
+      await registerShop({ ...form, flowId: flowIdRef.current });
       setSubmitted(true);
     } catch (err) {
       const byCode = {

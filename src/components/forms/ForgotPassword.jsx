@@ -19,6 +19,12 @@ export default function ForgotPassword({ onClose, variant = "shop" }) {
   const [error, setError]           = useState("");
   const [resendTimer, setResendTimer] = useState(0);
   const otpRefs = useRef([]);
+  // Binds request → verify to this browser session (see authController).
+  const flowIdRef = useRef(
+    (typeof crypto !== "undefined" && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : `f_${Date.now()}_${Math.random().toString(36).slice(2)}`
+  );
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -50,7 +56,7 @@ export default function ForgotPassword({ onClose, variant = "shop" }) {
       // client no longer reads the shops/admins collection. If no account exists,
       // the server sends nothing and still reports success (no account enumeration),
       // so we always advance to the code step.
-      await sendOTP(normalized, "", "password_reset");
+      await sendOTP(normalized, "", "password_reset", flowIdRef.current);
       setOwnerName("");
       startResendTimer();
       setStep(1);
@@ -83,7 +89,7 @@ export default function ForgotPassword({ onClose, variant = "shop" }) {
     if (code.length < 6) { setError("Please enter the complete 6-digit code."); return; }
     setLoading(true); setError("");
     try {
-      await verifyOTP(email.trim().toLowerCase(), code);
+      await verifyOTP(email.trim().toLowerCase(), code, flowIdRef.current);
       setError(""); setStep(2);
     } catch (err) {
       setError(err.message || "Invalid code. Please try again.");
@@ -94,7 +100,7 @@ export default function ForgotPassword({ onClose, variant = "shop" }) {
     if (resendTimer > 0) return;
     setLoading(true); setError("");
     try {
-      await sendOTP(email.trim().toLowerCase(), ownerName, "password_reset");
+      await sendOTP(email.trim().toLowerCase(), ownerName, "password_reset", flowIdRef.current);
       setOtp(["","","","","",""]); startResendTimer();
     } catch { setError("Failed to resend code. Please try again."); }
     finally { setLoading(false); }

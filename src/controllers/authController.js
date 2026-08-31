@@ -145,20 +145,22 @@ async function uploadShopDocument(uid, d, index) {
   };
 }
 
-/** Request OTP — code is generated and emailed only by Cloud Functions. */
-export async function sendOTP(email, ownerName, purpose = "register") {
+/** Request OTP — code is generated and emailed only by Cloud Functions.
+ *  flowId ties request → verify → register to one browser session. */
+export async function sendOTP(email, ownerName, purpose = "register", flowId = "") {
   const normalized = normalizeEmail(email);
   assertRateLimit(`otp:${normalized}`, RATE.otp, "Too many OTP requests");
   await callOtpEndpoint("request", {
     email: normalized,
     ownerName: ownerName || "Shop Owner",
     purpose,
+    flowId: flowId || "",
   });
   return true;
 }
 
 /** Verify OTP code via Cloud Functions (single-use server-side). */
-export async function verifyOTP(email, inputOtp) {
+export async function verifyOTP(email, inputOtp, flowId = "") {
   const normalized = normalizeEmail(email);
   assertRateLimit(
     `otp-verify:${normalized}`,
@@ -168,22 +170,25 @@ export async function verifyOTP(email, inputOtp) {
   await callOtpEndpoint("verify", {
     email: normalized,
     otp: String(inputOtp || "").trim(),
+    flowId: flowId || "",
   });
   return true;
 }
 
-async function assertEmailVerifiedForRegister(email) {
+async function assertEmailVerifiedForRegister(email, flowId = "") {
   await callOtpEndpoint("assert", {
     email: normalizeEmail(email),
     consume: false,
+    flowId: flowId || "",
   });
 }
 
-async function consumeEmailVerification(email) {
+async function consumeEmailVerification(email, flowId = "") {
   try {
     await callOtpEndpoint("assert", {
       email: normalizeEmail(email),
       consume: true,
+      flowId: flowId || "",
     });
   } catch {
     /* best-effort */
@@ -215,10 +220,11 @@ export async function loginShop(email, password) {
 
 export async function registerShop(form) {
   const email = normalizeEmail(form.email);
+  const flowId = form.flowId || "";
   assertRateLimit(`register:${email}`, RATE.register, "Too many registration attempts");
 
   // Server gate — OTP collection is no longer client-readable
-  await assertEmailVerifiedForRegister(email);
+  await assertEmailVerifiedForRegister(email, flowId);
 
   const cred = await createUserWithEmailAndPassword(auth, email, form.password);
 
@@ -268,7 +274,7 @@ export async function registerShop(form) {
     createdAt: serverTimestamp(),
   });
 
-  await consumeEmailVerification(email);
+  await consumeEmailVerification(email, flowId);
 
   return cred.user;
 }

@@ -1392,6 +1392,9 @@ exports.requestEmailOtp = onRequest(
     const otp = generateOtpCode();
     const expires = Date.now() + 10 * 60 * 1000;
     const docId = email.replace(/\//g, "_");
+    // Ties this OTP to the browser session that started the flow. verify/assert
+    // must present the same value, so a third party can't consume the result.
+    const flowId = String(req.body?.flowId || "").slice(0, 64) || null;
 
     await db.collection("otps").doc(docId).set({
       email,
@@ -1401,6 +1404,7 @@ exports.requestEmailOtp = onRequest(
       expires,
       verified: false,
       purpose,
+      flowId,
       attempts: 0,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -1457,6 +1461,15 @@ exports.verifyEmailOtp = onRequest(
     }
 
     const data = snap.data() || {};
+
+    // If this OTP was bound to a flow, the caller must present the same flowId.
+    const flowId = String(req.body?.flowId || "").slice(0, 64);
+    if (data.flowId && data.flowId !== flowId) {
+      return res.status(400).json({
+        error: "Verification context mismatch. Restart the form and request a new code.",
+      });
+    }
+
     if (data.verified === true && Date.now() <= (data.expires || 0)) {
       return res.status(200).json({ success: true, verified: true });
     }
@@ -1519,6 +1532,16 @@ exports.assertEmailOtpVerified = onRequest(
     const ref = db.collection("otps").doc(email.replace(/\//g, "_"));
     const snap = await ref.get();
     const data = snap.exists ? snap.data() : null;
+
+    // If this OTP was bound to a flow, the caller must present the same flowId.
+    const flowId = String(req.body?.flowId || "").slice(0, 64);
+    if (data && data.flowId && data.flowId !== flowId) {
+      return res.status(403).json({
+        verified: false,
+        error: "Verification context mismatch. Restart the form and request a new code.",
+      });
+    }
+
     const ok =
       data &&
       data.verified === true &&
