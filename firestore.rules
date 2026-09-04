@@ -65,7 +65,8 @@ service cloud.firestore {
         && request.resource.data.subscriptionPlan == "basic"
         && request.resource.data.status == "pending";
 
-      // Owners may edit profile fields only — not plan, approval, or billing.
+      // Owners may edit profile fields only — not plan, approval, billing,
+      // identity/email, KYC documents, or an oversized fcmTokens array.
       // Cloud Functions (Admin SDK) bypass rules for PayMongo activation.
       allow update: if isAdmin() || (
         isOwner(shopId)
@@ -75,7 +76,14 @@ service cloud.firestore {
               "subscriptionStatus",
               "subscriptionExpiry",
               "status",
+              "email",
+              "uid",
+              "createdAt",
+              "documents",
+              "documentURL",
+              "documentName",
             ])
+        && request.resource.data.get("fcmTokens", []).size() <= 30
       ) || (
         isOwner(shopId)
         && request.resource.data.diff(resource.data).affectedKeys()
@@ -114,12 +122,19 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // ── Subscription payments ───────────────────────────────────────────────
+    // ── Subscription payments (manual GCash flow → admin review) ────────────
+    // A shop may only create a *pending* request for a known paid plan; it may
+    // not pre-set the status or forge the plan. Only admins confirm/reject.
     match /subscriptionPayments/{paymentId} {
       allow read: if isAdmin()
                   || (signedIn() && resource.data.shopId == request.auth.uid);
       allow create: if signedIn()
-        && request.resource.data.shopId == request.auth.uid;
+        && request.resource.data.shopId == request.auth.uid
+        && request.resource.data.status == "pending"
+        && request.resource.data.planName is string
+        && request.resource.data.planName.lower() in ["pro", "business"]
+        && request.resource.data.get("screenshotBase64", "").size() < 950000
+        && request.resource.data.get("referenceNumber", "").size() <= 120;
       allow update, delete: if isAdmin();
     }
 
