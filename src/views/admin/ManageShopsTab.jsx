@@ -220,8 +220,8 @@ export default function ManageShopsTab({
       >
         <StatPill label="Live shops" value={live.length} color="#10B981" active={planFilter === "all"} onClick={() => setPlanFilter("all")} />
         <StatPill label="Basic" value={mix.basic} color="#64748B" active={planFilter === "basic"} onClick={() => setPlanFilter("basic")} />
-        <StatPill label="Pro" value={mix.pro} color="#3B82F6" active={planFilter === "pro"} onClick={() => setPlanFilter("pro")} />
-        <StatPill label="Business" value={mix.business} color="#7C3AED" active={planFilter === "business"} onClick={() => setPlanFilter("business")} />
+        <StatPill label="Pro" value={mix.pro} color="#2C5282" active={planFilter === "pro"} onClick={() => setPlanFilter("pro")} />
+        <StatPill label="Business" value={mix.business} color="#CFB184" active={planFilter === "business"} onClick={() => setPlanFilter("business")} />
         <StatPill
           label="Expiring / expired"
           value={mix.expiring + mix.expired}

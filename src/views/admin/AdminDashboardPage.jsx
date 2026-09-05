@@ -38,6 +38,7 @@
   import DashboardOverview from "./DashboardOverview";
   import ShopApplicationsTab, { getDocCompleteness } from "./ShopApplicationsTab";
   import ManageShopsTab from "./ManageShopsTab";
+  import DashboardBrand from "../../components/ui/DashboardBrand";
   import { auth } from "../../services/firebase";
 
   const STATUS_COLOR = {
@@ -133,7 +134,7 @@
           value={paySearch}
           onChange={e => setPaySearch(e.target.value)}
           placeholder="Search by shop, email, reference, or plan..."
-          accentColor="#7C3AED"
+          accentColor="#154665"
           style={{ marginBottom:12 }}
           width="100%"
         />
@@ -493,13 +494,12 @@
     };
 
     const Sidebar = () => (
-      <aside style={{ width:sidebarCollapsed?72:240, minHeight:"100vh", background:"linear-gradient(175deg,#0F172A 0%,#1E2D3D 60%,#162032 100%)", display:"flex", flexDirection:"column", borderRight:"1px solid rgba(255,255,255,0.06)", transition:"width 0.25s cubic-bezier(0.4,0,0.2,1)", overflow:"hidden", flexShrink:0 }}>
+      <aside style={{ width:sidebarCollapsed?72:240, minHeight:"100vh", background:"var(--db-ink)", display:"flex", flexDirection:"column", borderRight:"1px solid rgba(255,255,255,0.06)", transition:"width 0.25s cubic-bezier(0.4,0,0.2,1)", overflow:"hidden", flexShrink:0 }}>
         <div style={{ padding:sidebarCollapsed?"24px 0":"24px 20px", borderBottom:"1px solid rgba(255,255,255,0.06)", display:"flex", alignItems:"center", justifyContent:sidebarCollapsed?"center":"space-between", gap:10 }}>
-          {!sidebarCollapsed && (
-            <div>
-              <div style={{ fontFamily:"'Lora',Georgia,serif", fontSize:18, fontWeight:900, color:"#F1F5F9" }}>iConstruct</div>
-              <div style={{ fontSize:9, fontWeight:700, letterSpacing:"0.16em", textTransform:"uppercase", color:"rgba(148,163,184,0.6)", marginTop:3 }}>Admin Control Center</div>
-            </div>
+          {sidebarCollapsed ? (
+            <DashboardBrand collapsed />
+          ) : (
+            <DashboardBrand subtitle="Admin Control Center" compact />
           )}
           <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} style={{ width:28, height:28, borderRadius:6, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.08)", color:"rgba(148,163,184,0.7)", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
             <List size={15} />

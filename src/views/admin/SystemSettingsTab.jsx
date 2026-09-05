@@ -1058,7 +1058,7 @@ const handleSavePlan = async () => {
 
   const renderPlans = () => {
     const planKeys = ["basic", "pro", "business"];
-    const planColors = { basic: "#64748B", pro: "#1D4ED8", business: "#7C3AED" };
+    const planColors = { basic: "#64748B", pro: "#2C5282", business: "#CFB184" };
     return (
       <>
         {plansLoading ? (

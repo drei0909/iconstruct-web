@@ -146,7 +146,7 @@ function SquareChart({ title, segments, centerLabel, centerSub, actionLabel, onA
 }
 
 function Kpi({ label, value, color, hint, onClick }) {
-  const urgent = Number(value) > 0 && label !== "Live shops";
+  const urgent = Number(value) > 0 && label !== "Approved shops";
   return (
     <button
       type="button"
@@ -179,7 +179,7 @@ function Kpi({ label, value, color, hint, onClick }) {
           fontFamily: "var(--font-display)",
           fontSize: 28,
           fontWeight: 900,
-          color,
+          color: "#0F172A",
           lineHeight: 1.1,
           marginTop: 6,
           fontVariantNumeric: "tabular-nums",
@@ -223,9 +223,11 @@ export default function DashboardOverview({
     else planMix.basic += 1;
   });
 
+  // One palette, reused everywhere: neutral/brand for plan tiers, amber/green/red
+  // for status. No one-off hues per chart.
   const planSegments = [
     { label: "Basic", value: planMix.basic, color: "#94A3B8" },
-    { label: "Pro", value: planMix.pro, color: "#3B82F6" },
+    { label: "Pro", value: planMix.pro, color: "#2C5282" },
     { label: "Business", value: planMix.business, color: "#CFB184" },
   ];
 
@@ -236,7 +238,7 @@ export default function DashboardOverview({
   ];
 
   const paySegments = [
-    { label: "Pending", value: payStats.pending || 0, color: "#7C3AED" },
+    { label: "Pending", value: payStats.pending || 0, color: "#F59E0B" },
     { label: "Confirmed", value: payStats.confirmed || 0, color: "#10B981" },
     { label: "Rejected", value: payStats.rejected || 0, color: "#EF4444" },
   ];
@@ -377,8 +379,8 @@ export default function DashboardOverview({
         <Kpi
           label="Payments"
           value={payStats.pending || 0}
-          color="#7C3AED"
-          hint="Awaiting confirm"
+          color="#F59E0B"
+          hint="Awaiting confirmation"
           onClick={() => {
             setPayFilter?.("pending");
             setActiveTab("subscriptions");
@@ -387,15 +389,15 @@ export default function DashboardOverview({
         <Kpi
           label="Messages"
           value={newContactCount || 0}
-          color="#0EA5E9"
-          hint="Contact Us"
+          color="#F59E0B"
+          hint="New from Contact Us"
           onClick={() => setActiveTab("messages")}
         />
         <Kpi
-          label="Live shops"
+          label="Approved shops"
           value={stats.approved || 0}
           color="#10B981"
-          hint="Approved"
+          hint="Currently live"
           onClick={() => setActiveTab("shops")}
         />
       </div>
