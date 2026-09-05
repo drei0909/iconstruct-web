@@ -28,19 +28,23 @@ import {
   TbBolt, TbConfetti, TbAlertTriangle, TbCreditCard, TbBuildingBank,
   TbMenu2, TbLogout,
 } from "react-icons/tb";
+import {
+  SquaresFour, Briefcase, Receipt, ChatCircleText, Package,
+  CreditCard as CreditCardIcon, GearSix,
+} from "@phosphor-icons/react";
 
 const cfg           = getPlanConfig("basic");
 const QUOTA_LIMIT   = cfg.quotaLimit;
 const PROJECT_LIMIT = cfg.projectLimit;
 
 const NAV = [
-  { key: "overview",   label: "Overview"    },
-  { key: "projects",   label: "Projects"    },
-  { key: "quotations", label: "Quotations"  },
-  { key: "messages",   label: "Messages"    },
-  { key: "products",   label: "My Products" },
-  { key: "upgrade",    label: "Upgrade Plan", isUpgrade: true },
-  { key: "settings",   label: "Settings" },
+  { key: "overview",   label: "Overview",     icon: <SquaresFour size={16} /> },
+  { key: "projects",   label: "Projects",     icon: <Briefcase size={16} /> },
+  { key: "quotations", label: "Quotations",   icon: <Receipt size={16} /> },
+  { key: "messages",   label: "Messages",     icon: <ChatCircleText size={16} /> },
+  { key: "products",   label: "My Products",  icon: <Package size={16} /> },
+  { key: "upgrade",    label: "Upgrade Plan", icon: <CreditCardIcon size={16} />, isUpgrade: true },
+  { key: "settings",   label: "Settings",     icon: <GearSix size={16} /> },
 ];
 
 const LOCKED = [
@@ -452,9 +456,8 @@ export default function ShopDashboardBasic() {
               onClick={() => setActiveTab(item.key)}
               title={item.label}
             >
-              {sidebarCollapsed ? (
-                <span className="db-nav-abbr">{item.label.slice(0, 1)}</span>
-              ) : (
+              <span style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>{item.icon}</span>
+              {!sidebarCollapsed && (
                 <>
                   <span>{item.label}</span>
                   {item.isUpgrade && <span className="db-nav-badge-new">UPGRADE</span>}

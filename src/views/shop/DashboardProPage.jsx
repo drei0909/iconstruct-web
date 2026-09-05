@@ -32,17 +32,25 @@ import {
   Lightning,
   List,
   SignOut,
+  SquaresFour,
+  Briefcase,
+  Receipt,
+  ChatCircleText,
+  ChartLineUp,
+  Package,
+  CreditCard,
+  GearSix,
 } from "@phosphor-icons/react";
 
 const NAV = [
-  { key: "overview",   label: "Overview" },
-  { key: "projects",   label: "All Projects" },
-  { key: "quotations", label: "Quotations" },
-  { key: "messages",   label: "Messages" },
-  { key: "analytics",  label: "Analytics" },
-  { key: "products",   label: "My Products" },
-  { key: "billing",    label: "Billing" },
-  { key: "settings",   label: "Settings" },
+  { key: "overview",   label: "Overview",     icon: <SquaresFour size={16} /> },
+  { key: "projects",   label: "All Projects", icon: <Briefcase size={16} /> },
+  { key: "quotations", label: "Quotations",   icon: <Receipt size={16} /> },
+  { key: "messages",   label: "Messages",     icon: <ChatCircleText size={16} /> },
+  { key: "analytics",  label: "Analytics",    icon: <ChartLineUp size={16} /> },
+  { key: "products",   label: "My Products",  icon: <Package size={16} /> },
+  { key: "billing",    label: "Billing",      icon: <CreditCard size={16} /> },
+  { key: "settings",   label: "Settings",     icon: <GearSix size={16} /> },
 ];
 
 function PlanBadge() {
@@ -389,11 +397,8 @@ export default function ShopDashboardPro() {
                 transition: "all 0.15s",
               }}
             >
-              {sidebarCollapsed ? (
-                <span style={{ fontSize: 12, fontWeight: 700 }}>{item.label.slice(0, 1)}</span>
-              ) : (
-                <span>{item.label}</span>
-              )}
+              <span style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>{item.icon}</span>
+              {!sidebarCollapsed && <span>{item.label}</span>}
             </button>
           );
         })}
