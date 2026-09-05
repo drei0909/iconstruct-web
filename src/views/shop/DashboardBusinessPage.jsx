@@ -13,7 +13,7 @@ import PayMongoPaymentForm from "../../components/forms/PayMongoPaymentForm";
 import React from "react";
 import QuoteModal from "../../components/QuoteModal";
 import SettingsTab from "../../components/SettingsTab";
-import MobileNav from "../../components/ui/MobileNav";
+import MobileDrawerNav from "../../components/ui/MobileDrawerNav";
 import ShopProjectsPanel from "../../components/shop/ShopProjectsPanel";
 import ShopQuotationsPanel from "../../components/shop/ShopQuotationsPanel";
 import ShopMessagesPanel from "../../components/shop/ShopMessagesPanel";
@@ -295,6 +295,7 @@ export default function ShopDashboardBusiness() {
   const [loading, setLoading]       = useState(true);
   const [activeTab, setActiveTab]   = useState("overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [toast, setToast]           = useState(null);
   const [quoteModal, setQuoteModal] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -484,7 +485,17 @@ export default function ShopDashboardBusiness() {
 
   const Topbar = () => (
     <header className="db-topbar" style={{ height:58, background:"#fff", borderBottom:"1px solid #E2E8F0", display:"flex", alignItems:"center", padding:"0 28px", justifyContent:"space-between", position:"sticky", top:0, zIndex:50 }}>
-      <div style={{ fontSize:15, fontWeight:700, color:"#0F172A" }}>{NAV.find(n=>n.key===activeTab)?.label}</div>
+      <div className="db-topbar-left">
+        <button
+          type="button"
+          className="db-mobile-trigger"
+          aria-label="Open menu"
+          onClick={() => setMobileNavOpen(true)}
+        >
+          <TbMenu2 size={20} />
+        </button>
+        <div style={{ fontSize:15, fontWeight:700, color:"#0F172A" }}>{NAV.find(n=>n.key===activeTab)?.label}</div>
+      </div>
       <div style={{ display:"flex", alignItems:"center", gap:10 }}>
         <ShopNotificationBell />
         <PlanBadge />
@@ -546,8 +557,18 @@ export default function ShopDashboardBusiness() {
             {loading ? <div style={{ textAlign:"center", padding:80, color:"#94A3B8" }}>Loading dashboard...</div> : renderContent()}
           </main>
         </div>
-        <MobileNav items={NAV} activeTab={activeTab} onSelect={setActiveTab} accentColor="#2C5282" />
       </div>
+
+      <MobileDrawerNav
+        items={NAV}
+        activeTab={activeTab}
+        onSelect={setActiveTab}
+        open={mobileNavOpen}
+        onClose={() => setMobileNavOpen(false)}
+        accentColor="#CFB184"
+        subtitle="Shop Manager · Business"
+        onLogout={async () => { await logoutShop(); navigate("/login"); }}
+      />
 
       {quoteModal && (
         <QuoteModal

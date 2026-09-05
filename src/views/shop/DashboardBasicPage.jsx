@@ -17,7 +17,7 @@ import PayMongoPaymentForm from "../../components/forms/PayMongoPaymentForm";
 import React from "react";
 import QuoteModal from "../../components/QuoteModal";
 import SettingsTab from "../../components/SettingsTab";
-import MobileNav from "../../components/ui/MobileNav";
+import MobileDrawerNav from "../../components/ui/MobileDrawerNav";
 import ShopProjectsPanel from "../../components/shop/ShopProjectsPanel";
 import ShopQuotationsPanel from "../../components/shop/ShopQuotationsPanel";
 import ShopMessagesPanel from "../../components/shop/ShopMessagesPanel";
@@ -319,6 +319,7 @@ export default function ShopDashboardBasic() {
   const [loading, setLoading]                 = useState(true);
   const [activeTab, setActiveTab]             = useState("overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [toast, setToast]                     = useState(null);
   const [quoteModal, setQuoteModal]           = useState(null);
   const [submitting, setSubmitting]           = useState(false);
@@ -495,9 +496,19 @@ export default function ShopDashboardBasic() {
 
       <div className="db-main-col">
         <header className="db-topbar">
-          <div>
-            <div className="db-topbar-title">{NAV.find(n=>n.key===activeTab)?.label}</div>
-            <div className="db-topbar-breadcrumb">iConstruct · Shop Manager</div>
+          <div className="db-topbar-left">
+            <button
+              type="button"
+              className="db-mobile-trigger"
+              aria-label="Open menu"
+              onClick={() => setMobileNavOpen(true)}
+            >
+              <TbMenu2 size={20} />
+            </button>
+            <div>
+              <div className="db-topbar-title">{NAV.find(n=>n.key===activeTab)?.label}</div>
+              <div className="db-topbar-breadcrumb">iConstruct · Shop Manager</div>
+            </div>
           </div>
           <div className="db-topbar-right">
             <ShopNotificationBell />
@@ -508,7 +519,16 @@ export default function ShopDashboardBasic() {
         <main className="db-content">{renderContent()}</main>
       </div>
 
-      <MobileNav items={NAV} activeTab={activeTab} onSelect={setActiveTab} accentColor="#2C5282" />
+      <MobileDrawerNav
+        items={NAV}
+        activeTab={activeTab}
+        onSelect={setActiveTab}
+        open={mobileNavOpen}
+        onClose={() => setMobileNavOpen(false)}
+        accentColor="#2C5282"
+        subtitle="Shop Manager"
+        onLogout={async () => { await logoutShop(); navigate("/login"); }}
+      />
 
       {quoteModal && (
         <QuoteModal

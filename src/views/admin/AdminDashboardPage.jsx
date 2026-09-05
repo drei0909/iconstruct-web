@@ -39,6 +39,7 @@
   import ShopApplicationsTab, { getDocCompleteness } from "./ShopApplicationsTab";
   import ManageShopsTab from "./ManageShopsTab";
   import DashboardBrand from "../../components/ui/DashboardBrand";
+  import MobileDrawerNav from "../../components/ui/MobileDrawerNav";
   import { auth } from "../../services/firebase";
 
   const STATUS_COLOR = {
@@ -232,6 +233,7 @@
     const [payRejectReason, setPayRejectReason] = useState("");
     const [toast, setToast]                     = useState(null);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const [notifOpen, setNotifOpen]             = useState(false);
     const [previewModal, setPreviewModal]       = useState(null);
 
@@ -494,7 +496,7 @@
     };
 
     const Sidebar = () => (
-      <aside style={{ width:sidebarCollapsed?72:240, minHeight:"100vh", background:"var(--db-ink)", display:"flex", flexDirection:"column", borderRight:"1px solid rgba(255,255,255,0.06)", transition:"width 0.25s cubic-bezier(0.4,0,0.2,1)", overflow:"hidden", flexShrink:0 }}>
+      <aside className="db-sidebar" style={{ width:sidebarCollapsed?72:240, minHeight:"100vh", background:"var(--db-ink)", display:"flex", flexDirection:"column", borderRight:"1px solid rgba(255,255,255,0.06)", transition:"width 0.25s cubic-bezier(0.4,0,0.2,1)", overflow:"hidden", flexShrink:0 }}>
         <div style={{ padding:sidebarCollapsed?"16px 0 14px":"24px 20px", borderBottom:"1px solid rgba(255,255,255,0.06)", display:"flex", flexDirection:sidebarCollapsed?"column":"row", alignItems:"center", justifyContent:sidebarCollapsed?"center":"space-between", gap:10 }}>
           {sidebarCollapsed ? (
             <DashboardBrand collapsed />
@@ -566,9 +568,19 @@
 
     const Topbar = () => (
       <header style={{ height:60, background:"#ffffff", borderBottom:"1px solid #E2E8F0", display:"flex", alignItems:"center", padding:"0 28px", justifyContent:"space-between", position:"sticky", top:0, zIndex:50 }}>
-        <div>
-          <div style={{ fontSize:16, fontWeight:700, color:"#0F172A" }}>{TABS.find(t=>t.key===activeTab)?.label}</div>
-          <div style={{ fontSize:11, color:"#94A3B8" }}>iConstruct · Admin Control Center</div>
+        <div className="db-topbar-left">
+          <button
+            type="button"
+            className="db-mobile-trigger"
+            aria-label="Open menu"
+            onClick={() => setMobileNavOpen(true)}
+          >
+            <List size={20} />
+          </button>
+          <div>
+            <div style={{ fontSize:16, fontWeight:700, color:"#0F172A" }}>{TABS.find(t=>t.key===activeTab)?.label}</div>
+            <div style={{ fontSize:11, color:"#94A3B8" }}>iConstruct · Admin Control Center</div>
+          </div>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
           <div style={{ position:"relative" }}>
@@ -639,6 +651,24 @@
             </main>
           </div>
         </div>
+
+        <MobileDrawerNav
+          items={TABS.map(tab => ({
+            ...tab,
+            badge: tab.key === "applications" ? stats.pending : tab.key === "subscriptions" ? payStats.pending : 0,
+          }))}
+          activeTab={activeTab}
+          onSelect={(key) => {
+            if (key === "applications") setFilter("all");
+            if (key === "subscriptions") setPayFilter("all");
+            setActiveTab(key);
+          }}
+          open={mobileNavOpen}
+          onClose={() => setMobileNavOpen(false)}
+          accentColor="#3B82F6"
+          subtitle="Admin Control Center"
+          onLogout={handleLogout}
+        />
 
         {/* Detail Modal */}
         {selected && (() => {

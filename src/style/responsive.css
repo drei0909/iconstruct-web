@@ -401,7 +401,7 @@ img, video, iframe { max-width: 100%; height: auto; }
   }
 
   .db-content {
-    padding: 16px 14px 80px; /* bottom padding for mobile nav */
+    padding: 16px 14px;
   }
 
   /* Topbar adjustments */
@@ -454,55 +454,8 @@ img, video, iframe { max-width: 100%; height: auto; }
   .db-toast {
     left: 16px;
     right: 16px;
-    bottom: 72px; /* above mobile nav */
+    bottom: 16px;
     max-width: 100%;
-  }
-}
-
-/* ── Mobile bottom navigation bar (replaces sidebar on phone) ── */
-@media (max-width: 768px) {
-  .db-mobile-nav {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 60px;
-    background: var(--db-ink, #1A2332);
-    display: flex;
-    align-items: center;
-    justify-content: space-around;
-    z-index: 100;
-    border-top: 1px solid rgba(255,255,255,0.07);
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-
-  .db-mobile-nav-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
-    background: none;
-    border: none;
-    color: rgba(168,184,200,0.55);
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    cursor: pointer;
-    padding: 6px 8px;
-    border-radius: 8px;
-    transition: color 0.15s;
-    flex: 1;
-    min-width: 0;
-  }
-
-  .db-mobile-nav-item.active {
-    color: #93C5FD;
-  }
-
-  .db-mobile-nav-icon {
-    font-size: 18px;
-    line-height: 1;
   }
 }
 
@@ -554,37 +507,6 @@ img, video, iframe { max-width: 100%; height: auto; }
   /* Settings layout becomes vertical */
   div[style*="display: flex"][style*="gap: 22"] {
     flex-direction: column !important;
-  }
-}
-
-
-/* ================================================================
-   16. ADMIN DASHBOARD — Advanced (inline-styled sidebars)
-   ================================================================ */
-
-/* The Business/Pro/Basic dashboards use inline styles for sidebar.
-   We patch the shell containers via class names that exist. */
-
-@media (max-width: 768px) {
-  /* Business dashboard sidebar override */
-  aside[style*="width:240"],
-  aside[style*="width: 240"],
-  aside[style*="width:228"],
-  aside[style*="width: 228"] {
-    display: none !important;
-  }
-
-  /* Pro/Business main content area full width */
-  div[style*="flex:1"][style*="flexDirection:column"],
-  div[style*="flex: 1"][style*="flex-direction: column"] {
-    width: 100% !important;
-    min-width: 0 !important;
-  }
-
-  /* Admin sidebar */
-  aside[style*="minHeight:\"100vh\""],
-  aside[style*="min-height: 100vh"] {
-    display: none !important;
   }
 }
 
@@ -714,12 +636,7 @@ img, video, iframe { max-width: 100%; height: auto; }
   }
 
   .db-content {
-    padding-bottom: calc(80px + env(safe-area-inset-bottom));
-  }
-
-  .db-mobile-nav {
-    padding-bottom: env(safe-area-inset-bottom);
-    height: calc(60px + env(safe-area-inset-bottom));
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
   }
 }
 
@@ -861,89 +778,7 @@ html, body, #root {
   overflow-x: hidden;
 }
 
-/* Mobile nav: hidden on desktop, shown on phone */
-.db-mobile-nav {
-  display: none !important;
-}
-
 @media (max-width: 768px) {
-  .db-mobile-nav {
-    display: flex !important;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 60px;
-    background: #1A2332;
-    align-items: center;
-    justify-content: space-around;
-    z-index: 200;
-    border-top: 1px solid rgba(255,255,255,0.07);
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-
-  .db-mobile-nav-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
-    background: none;
-    border: none;
-    color: rgba(168,184,200,0.5);
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    cursor: pointer;
-    padding: 6px 4px;
-    border-radius: 8px;
-    flex: 1;
-    min-height: 44px;
-    font-family: var(--font-ui);
-  }
-
-  .db-mobile-nav-item.active { color: #93C5FD; }
-  .db-mobile-nav-icon { font-size: 18px; line-height: 1; }
-  .db-mobile-nav-label {
-    max-width: 56px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-}
-
-
-/* ================================================================
-   29. ADMIN SHELL — mobile
-   ================================================================ */
-
-@media (max-width: 768px) {
-  .admin-sidebar {
-    display: none !important;
-  }
-
-  .admin-shell {
-    flex-direction: column !important;
-  }
-
-  .admin-main-col {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .admin-content {
-    padding: 16px 14px 80px !important;
-  }
-
-  .admin-topbar {
-    padding: 0 14px !important;
-    height: 52px !important;
-  }
-
-  .admin-topbar > div:first-child > div:first-child {
-    font-size: 14px !important;
-  }
-
   .adm-stats {
     grid-template-columns: 1fr 1fr !important;
     gap: 10px !important;
@@ -1044,9 +879,8 @@ html, body, #root {
 }
 
 @media (max-width: 768px) {
-  /* Extra padding so content clears the bottom tab bar */
   .db-content {
-    padding: 16px 14px 88px !important;
+    padding: 16px 14px !important;
   }
 
   .db-topbar {
@@ -1127,5 +961,177 @@ html, body, #root {
 
   .db-sidebar {
     width: 200px !important;
+  }
+}
+
+
+/* ================================================================
+   34. MOBILE NAV DRAWER — hamburger-triggered, replaces bottom tabs
+   All shop dashboards + admin now use the same off-canvas drawer,
+   opened from a hamburger button placed in the topbar.
+   ================================================================ */
+
+.db-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.db-mobile-trigger {
+  display: none;
+}
+
+.db-mobile-backdrop {
+  display: none;
+}
+
+.db-mobile-drawer {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .db-mobile-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid rgba(15,23,42,0.12);
+    background: rgba(15,23,42,0.04);
+    color: #1A2332;
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 0;
+  }
+
+  .db-mobile-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(8,12,20,0.55);
+    z-index: 400;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .db-mobile-backdrop.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .db-mobile-drawer {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    height: 100dvh;
+    width: min(82vw, 300px);
+    background: var(--db-ink, #1A2332);
+    z-index: 401;
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: 10px 0 30px rgba(0,0,0,0.35);
+    overflow-y: auto;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .db-mobile-drawer.is-open {
+    transform: translateX(0);
+  }
+
+  .db-mobile-drawer-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 18px 16px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    flex-shrink: 0;
+  }
+
+  .db-mobile-drawer-close {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: rgba(226,232,240,0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .db-mobile-drawer-items {
+    display: flex;
+    flex-direction: column;
+    padding: 10px 0;
+    gap: 2px;
+  }
+
+  .db-mobile-drawer-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 13px 18px;
+    background: transparent;
+    border: none;
+    border-left: 3px solid transparent;
+    color: rgba(203,213,225,0.78);
+    font-size: 13.5px;
+    font-weight: 500;
+    font-family: var(--font-ui, inherit);
+    text-align: left;
+    cursor: pointer;
+    min-height: 46px;
+  }
+
+  .db-mobile-drawer-icon {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .db-mobile-drawer-icon svg {
+    width: 19px;
+    height: 19px;
+  }
+
+  .db-mobile-drawer-item.active {
+    background: rgba(255,255,255,0.08);
+    border-left-color: var(--db-mobile-accent, #3B82F6);
+    color: #ffffff;
+    font-weight: 600;
+  }
+
+  .db-mobile-drawer-badge {
+    margin-left: auto;
+    background: #EF4444;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    border-radius: 10px;
+    padding: 2px 6px;
+    flex-shrink: 0;
+  }
+
+  .db-mobile-drawer-signout {
+    margin: auto 14px 16px;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(239,68,68,0.3);
+    background: rgba(239,68,68,0.12);
+    color: #F87171;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
   }
 }
