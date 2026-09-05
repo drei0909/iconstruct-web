@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, NavLink } from "react-router-dom";
+import { TbDownload, TbDeviceMobile, TbBrandAndroid } from "react-icons/tb";
 import logo from "../../assets/logo/logo2.png";
+
+const APK_LINK = "https://drive.google.com/file/d/1ZWRpjb9WsaZ7r1BTHjQQh50AxzSS70mM/view?usp=sharing";
 
 function Navbar({ forceScrolled = false, hideBar = false }) {
   const [scrolled, setScrolled] = useState(false);
@@ -56,7 +59,8 @@ function Navbar({ forceScrolled = false, hideBar = false }) {
                 className="nb-link"
                 onClick={() => setModalOpen(true)}
               >
-                {/* Download */}
+                <TbDownload size={14} style={{ verticalAlign: -2, marginRight: 5 }} />
+                Download App
               </button>
             </li>
 
@@ -153,7 +157,7 @@ function Navbar({ forceScrolled = false, hideBar = false }) {
             </div>
 
             <div className="nb-modal-body">
-              <div className="nb-modal-icon">📱</div>
+              <div className="nb-modal-icon"><TbDeviceMobile size={26} /></div>
               <h3 className="nb-modal-title">Get iConstruct</h3>
               <p className="nb-modal-text">
                 Download the iConstruct mobile app and start connecting
@@ -161,11 +165,23 @@ function Navbar({ forceScrolled = false, hideBar = false }) {
                 projects — all from your phone.
               </p>
               <div className="nb-modal-btns">
-                <a href="#" className="nb-modal-store">
-                  <span className="nb-modal-store-sub">Get it on</span>
-                  <span className="nb-modal-store-name">▶ Google Play</span>
+                <a
+                  href={APK_LINK}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="nb-modal-store"
+                >
+                  <span className="nb-modal-store-sub">Download for</span>
+                  <span className="nb-modal-store-name">
+                    <TbBrandAndroid size={18} style={{ verticalAlign: -3, marginRight: 6 }} />
+                    Android (APK)
+                  </span>
                 </a>
               </div>
+              <p className="nb-modal-note">
+                Opens in Google Drive. You may need to allow installs from
+                unknown sources in your phone's settings.
+              </p>
             </div>
 
           </div>
