@@ -442,11 +442,21 @@ export default function ShopApplicationsTab({
                             <button
                               type="button"
                               disabled={actionLoading}
-                              onClick={() => {
-                                const ok = window.confirm(
-                                  `Approve “${shop.shopName}”?\n\nThey will receive a confirmation email and can sign in.`
-                                );
-                                if (ok) onQuickApprove(shop.id);
+                              onClick={async () => {
+                                const Swal = (await import("sweetalert2")).default;
+                                const result = await Swal.fire({
+                                  icon: "question",
+                                  title: "Approve this shop?",
+                                  text: `"${shop.shopName}" will receive a confirmation email and can sign in.`,
+                                  showCancelButton: true,
+                                  confirmButtonText: "Approve",
+                                  cancelButtonText: "Cancel",
+                                  confirmButtonColor: "#154665",
+                                  cancelButtonColor: "#94A3B8",
+                                  reverseButtons: true,
+                                  focusCancel: true,
+                                });
+                                if (result.isConfirmed) onQuickApprove(shop.id);
                               }}
                               style={{
                                 padding: "6px 11px",
