@@ -495,7 +495,7 @@
 
     const Sidebar = () => (
       <aside style={{ width:sidebarCollapsed?72:240, minHeight:"100vh", background:"var(--db-ink)", display:"flex", flexDirection:"column", borderRight:"1px solid rgba(255,255,255,0.06)", transition:"width 0.25s cubic-bezier(0.4,0,0.2,1)", overflow:"hidden", flexShrink:0 }}>
-        <div style={{ padding:sidebarCollapsed?"24px 0":"24px 20px", borderBottom:"1px solid rgba(255,255,255,0.06)", display:"flex", alignItems:"center", justifyContent:sidebarCollapsed?"center":"space-between", gap:10 }}>
+        <div style={{ padding:sidebarCollapsed?"16px 0 14px":"24px 20px", borderBottom:"1px solid rgba(255,255,255,0.06)", display:"flex", flexDirection:sidebarCollapsed?"column":"row", alignItems:"center", justifyContent:sidebarCollapsed?"center":"space-between", gap:10 }}>
           {sidebarCollapsed ? (
             <DashboardBrand collapsed />
           ) : (
