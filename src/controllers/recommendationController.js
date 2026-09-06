@@ -44,8 +44,8 @@ export function runMaterialEstimateLocal(areaSqm, config) {
 }
 
 /** Admin save from System Settings. */
-export async function updateRecommendationEngine({ formula, pricing }) {
-  const saved = await saveRecommendationEngine({ formula, pricing });
+export async function updateRecommendationEngine({ formula, pricing, source }) {
+  const saved = await saveRecommendationEngine({ formula, pricing, source });
   await writeLog("info", "Recommendation engine formulas and pricing updated.");
   return saved;
 }

@@ -16,14 +16,15 @@ export async function fetchRecommendationEngine() {
   return normalizeEngineDoc(snap.data());
 }
 
-export async function saveRecommendationEngine({ formula, pricing }) {
-  const payload = normalizeEngineDoc({ formula, pricing });
+export async function saveRecommendationEngine({ formula, pricing, source }) {
+  const payload = normalizeEngineDoc({ formula, pricing, source });
   await setDoc(
     REF(),
     {
       schemaVersion: ENGINE_SCHEMA_VERSION,
       formula: payload.formula,
       pricing: payload.pricing,
+      source: payload.source,
       updatedAt: serverTimestamp(),
     },
     { merge: true }

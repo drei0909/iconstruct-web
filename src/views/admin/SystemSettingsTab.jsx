@@ -65,6 +65,7 @@ import {
 import {
   DEFAULT_FORMULA,
   DEFAULT_PRICING,
+  DEFAULT_SOURCE,
 } from "../../utils/recommendationEngine";
 import RecommendationEstimatePreview from "../../components/RecommendationEstimatePreview";
 
@@ -418,6 +419,7 @@ export default function SystemSettingsTab({ currentUser }) {
   // ── Recommendation Engine state ──
   const [formula, setFormula]         = useState(DEFAULT_FORMULA);
   const [pricing, setPricing]         = useState(DEFAULT_PRICING);
+  const [source, setSource]           = useState(DEFAULT_SOURCE);
   const [engineLoading, setEngineLoading] = useState(true);
   const [savingEngine, setSavingEngine]   = useState(false);
 
@@ -484,6 +486,7 @@ export default function SystemSettingsTab({ currentUser }) {
         const cfg = await getRecommendationConfig();
         setFormula(cfg.formula);
         setPricing(cfg.pricing);
+        setSource(cfg.source || DEFAULT_SOURCE);
       } catch {
         /* use defaults */
       }
@@ -682,10 +685,11 @@ export default function SystemSettingsTab({ currentUser }) {
   const handleSaveEngine = async () => {
     setSavingEngine(true);
     try {
-      const saved = await updateRecommendationEngine({ formula, pricing });
+      const saved = await updateRecommendationEngine({ formula, pricing, source });
       setFormula(saved.formula);
       setPricing(saved.pricing);
-      showToast("Recommendation engine updated. Builder app will use these values.");
+      setSource(saved.source);
+      showToast("Recommendation engine updated.");
     } catch {
       showToast("Failed to save engine config.", "error");
     } finally {
@@ -988,20 +992,25 @@ const handleSavePlan = async () => {
 
   const renderEngine = () => {
     const formulaFields = [
-      { key: "cementBagsPerSqm",   label: "Cement Bags per sqm" },
-      { key: "sandBagsPerSqm",     label: "Sand Bags per sqm" },
-      { key: "gravelBagsPerSqm",   label: "Gravel Bags per sqm" },
-      { key: "steelBarsPerSqm",    label: "Steel Bars per sqm" },
-      { key: "hollowBlocksPerSqm", label: "Hollow Blocks per sqm" },
-      { key: "wasteFactor",        label: "Waste Factor (e.g. 0.10 = 10%)" },
+      { key: "cementBagsPerSqm", label: "Cement (bags / m²)" },
+      { key: "sandCuMPerSqm",    label: "Sand (m³ / m²)" },
+      { key: "gravelCuMPerSqm",  label: "Gravel (m³ / m²)" },
+      { key: "steelKgPerSqm",    label: "Reinforcing steel (kg / m²)" },
+      { key: "chbPcsPerSqm",     label: "CHB (pcs / m²)" },
+      { key: "wasteFactor",      label: "Waste factor (0.05 = 5%)" },
     ];
     const pricingFields = [
-      { key: "cementPerBag",   label: "Cement (₱/bag)" },
-      { key: "sandPerBag",     label: "Sand (₱/bag)" },
-      { key: "gravelPerBag",   label: "Gravel (₱/bag)" },
-      { key: "steelBarPer",    label: "Steel Bar (₱/pc)" },
-      { key: "hollowBlockPer", label: "Hollow Block (₱/pc)" },
-      { key: "laborPerSqm",    label: "Labor Cost (₱/sqm)" },
+      { key: "cementPerBag", label: "Cement (₱ / bag)" },
+      { key: "sandPerCuM",   label: "Sand (₱ / m³)" },
+      { key: "gravelPerCuM", label: "Gravel (₱ / m³)" },
+      { key: "steelPerKg",   label: "Reinforcing steel (₱ / kg)" },
+      { key: "chbPerPc",     label: "CHB (₱ / pc)" },
+      { key: "laborPerSqm",  label: "Labor (₱ / m²)" },
+    ];
+    const sourceFields = [
+      { key: "reference", label: "DPWH reference", placeholder: "e.g. DPWH D.O. No. 24, s. 2024" },
+      { key: "region",    label: "Region",         placeholder: "e.g. Region IV-A (CALABARZON)" },
+      { key: "asOf",      label: "Prices as of",   placeholder: "e.g. 2024 Q4" },
     ];
     return (
       <>
@@ -1017,7 +1026,7 @@ const handleSavePlan = async () => {
               </div>
               <div style={{ background: T.infoLight, border: `1px solid #BAE6FD`, borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#0369A1", marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 8 }}>
                 <TbInfoCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-                These values define how many units of each material are required per square meter of floor area. Waste factor is applied on top of the base computation.
+                Factors follow DPWH Detailed Unit Price Analysis (DUPA): Class A concrete (1:2:4) and 100&nbsp;mm CHB wall. Quantities are per m² of gross floor area; the waste factor is added on top.
               </div>
             </>
           )}
@@ -1033,9 +1042,21 @@ const handleSavePlan = async () => {
                   </Field>
                 ))}
               </div>
+
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: T.textLight, marginBottom: 10 }}>
+                Pricing source (DPWH reference)
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 14, marginBottom: 18 }}>
+                {sourceFields.map(({ key, label, placeholder }) => (
+                  <Field key={key} label={label}>
+                    <Input type="text" value={source[key] || ""} placeholder={placeholder} onChange={e => setSource(s => ({ ...s, [key]: e.target.value }))} />
+                  </Field>
+                ))}
+              </div>
+
               <div style={{ background: T.warningLight, border: `1px solid #FCD34D`, borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#92400E", marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 8 }}>
                 <TbAlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-                Prices are reference values for estimation only. Final pricing is determined by individual shop listings.
+                Set these from the current DPWH regional Department Order (Revised Unit Prices of Construction Materials &amp; Labor) for the project's region. Values here are reference only — final pricing comes from shop quotations.
               </div>
             </>
           )}

@@ -99,7 +99,7 @@ export default function RecommendationEstimatePreview({
                       {row.label}
                     </td>
                     <td style={{ padding: "8px", color: "#64748B" }}>
-                      {row.qty.toLocaleString("en-PH")} {row.unit}
+                      {row.qty.toLocaleString("en-PH", { maximumFractionDigits: 2 })} {row.unit}
                     </td>
                     <td style={{ padding: "8px", color: "#0F172A", fontWeight: 600 }}>
                       {peso(row.cost)}
@@ -109,7 +109,7 @@ export default function RecommendationEstimatePreview({
                 <tr style={{ borderTop: "1px solid #E2E8F0" }}>
                   <td style={{ padding: "8px", color: "#334155", fontWeight: 600 }}>Labor</td>
                   <td style={{ padding: "8px", color: "#64748B" }}>
-                    {result.areaSqm} sqm
+                    {result.areaSqm} m²
                   </td>
                   <td style={{ padding: "8px", color: "#0F172A", fontWeight: 600 }}>
                     {peso(result.labor)}
@@ -129,8 +129,16 @@ export default function RecommendationEstimatePreview({
               gap: 8,
             }}
           >
-            <span style={{ fontSize: 11, color: "#94A3B8", maxWidth: 280, lineHeight: 1.4 }}>
+            <span style={{ fontSize: 11, color: "#94A3B8", maxWidth: 320, lineHeight: 1.4 }}>
               {result.disclaimer}
+              {result.source?.reference ? (
+                <>
+                  <br />
+                  Basis: {result.source.reference}
+                  {result.source.region ? ` · ${result.source.region}` : ""}
+                  {result.source.asOf ? ` · ${result.source.asOf}` : ""}
+                </>
+              ) : null}
             </span>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.08em" }}>
