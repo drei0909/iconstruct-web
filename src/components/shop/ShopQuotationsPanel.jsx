@@ -321,6 +321,8 @@ export default function ShopQuotationsPanel({
             const sKey = (q.status || "pending").toLowerCase();
             const sc = STATUS_META[sKey] || STATUS_META.pending;
             const items = q.items || [];
+            const quotedItems = items.filter((it) => it.status !== "declined");
+            const declinedItems = items.filter((it) => it.status === "declined");
 
             return (
               <div
@@ -358,7 +360,8 @@ export default function ShopQuotationsPanel({
                     </div>
                     <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 2 }}>
                       Submitted {formatDate(q.createdAt)}
-                      {items.length > 0 ? ` · ${items.length} item${items.length > 1 ? "s" : ""}` : ""}
+                      {quotedItems.length > 0 ? ` · ${quotedItems.length} quoted` : ""}
+                      {declinedItems.length > 0 ? ` · ${declinedItems.length} unavailable` : ""}
                     </div>
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
@@ -399,7 +402,7 @@ export default function ShopQuotationsPanel({
                           Items quoted
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
-                          {items.map((item, i) => (
+                          {quotedItems.map((item, i) => (
                             <div
                               key={i}
                               style={{
@@ -420,6 +423,11 @@ export default function ShopQuotationsPanel({
                                 <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
                                   {item.qty} {item.unit || ""} × {peso(item.price)}
                                 </div>
+                                {item.lineNote ? (
+                                  <div style={{ fontSize: 11, color: "#64748B", marginTop: 4, fontStyle: "italic" }}>
+                                    “{item.lineNote}”
+                                  </div>
+                                ) : null}
                               </div>
                               <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
                                 {peso(item.subtotal ?? (item.qty * item.price))}
@@ -427,6 +435,38 @@ export default function ShopQuotationsPanel({
                             </div>
                           ))}
                         </div>
+
+                        {declinedItems.length > 0 && (
+                          <>
+                            <div style={{
+                              fontSize: 10, fontWeight: 700, color: "#B91C1C",
+                              letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8,
+                            }}>
+                              Marked unavailable ({declinedItems.length})
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+                              {declinedItems.map((item, i) => (
+                                <div
+                                  key={i}
+                                  style={{
+                                    background: "#FEF2F2",
+                                    border: "1px solid #FCA5A5",
+                                    borderRadius: 10,
+                                    padding: "10px 14px",
+                                  }}
+                                >
+                                  <div style={{ fontSize: 13, fontWeight: 600, color: "#B91C1C" }}>
+                                    {item.productName || "Item"}
+                                  </div>
+                                  <div style={{ fontSize: 11, color: "#9F1239", marginTop: 2 }}>
+                                    {item.lineNote ? item.lineNote : "Not available from this shop"}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
+
                         <div style={{
                           display: "flex", justifyContent: "space-between", alignItems: "center",
                           paddingTop: 12, borderTop: "1px solid #E2E8F0",

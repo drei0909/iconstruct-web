@@ -23,6 +23,7 @@ import ShopQuotationsPanel from "../../components/shop/ShopQuotationsPanel";
 import ShopMessagesPanel from "../../components/shop/ShopMessagesPanel";
 import DashboardBrand from "../../components/ui/DashboardBrand";
 import ShopNotificationBell from "../../components/ui/ShopNotificationBell";
+import TopProductsCard from "../../components/shop/TopProductsCard";
 
 import {
   TbBolt, TbConfetti, TbAlertTriangle, TbCreditCard, TbBuildingBank,
@@ -118,6 +119,9 @@ function Overview({ quotations, projects, quotaUsed, setActiveTab }) {
         <StatCard label="Quotations Submitted" value={quotations.length} color="var(--db-accent-mid)" sub="All time" />
         <StatCard label="This Month"            value={quotaUsed}         color="var(--db-amber)"      sub={`of ${QUOTA_LIMIT} allowed`} />
         <StatCard label="Accepted"              value={accepted}          color="var(--db-green)"      sub={quotations.length ? `${Math.round((accepted / quotations.length) * 100)}% of submitted` : "No quotes yet"} />
+      </div>
+      <div style={{ marginBottom: 20 }}>
+        <TopProductsCard quotations={quotations} accentColor="#2C5282" />
       </div>
       <div className="db-card">
         <div className="db-card-header">

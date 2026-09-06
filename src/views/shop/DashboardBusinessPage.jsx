@@ -26,6 +26,7 @@ import {
 import { loadQuoteTemplates, saveQuoteTemplates } from "../../utils/quoteTemplates";
 import DashboardBrand from "../../components/ui/DashboardBrand";
 import ShopNotificationBell from "../../components/ui/ShopNotificationBell";
+import TopProductsCard from "../../components/shop/TopProductsCard";
 
 import {
   TbConfetti, TbAlertTriangle, TbMenu2, TbLogout,
@@ -134,6 +135,10 @@ function Overview({ shop, quotations, projects, money, stale, insights, setQuote
             <div style={{ fontSize:11, color:"#64748B", marginTop:4 }}>Use as your price baseline when quoting.</div>
           </div>
         </div>
+      </div>
+
+      <div style={{ marginTop: 20 }}>
+        <TopProductsCard quotations={quotations} accentColor="#0D2E43" />
       </div>
     </div>
   );

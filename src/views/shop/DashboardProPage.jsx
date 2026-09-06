@@ -25,6 +25,7 @@ import PaidPlanAnalytics from "../../components/shop/PaidPlanAnalytics";
 import { getQuoteMoneyStats } from "../../utils/quoteAnalytics";
 import DashboardBrand from "../../components/ui/DashboardBrand";
 import ShopNotificationBell from "../../components/ui/ShopNotificationBell";
+import TopProductsCard from "../../components/shop/TopProductsCard";
 
 import {
   ArrowRight,
@@ -151,6 +152,10 @@ function Overview({ shop, quotations, projects, accepted, pending, rejected, mon
             }
           </div>
         </div>
+      </div>
+
+      <div style={{ marginTop: 20 }}>
+        <TopProductsCard quotations={quotations} accentColor="#3B82F6" />
       </div>
     </div>
   );

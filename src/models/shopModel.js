@@ -96,9 +96,12 @@
     amount,
     note,
     items,
+    quotedCount,
+    declinedCount,
     builderId,
   }) {
     const quotationRef = collection(db, "projectPosts", projectId, "quotations");
+    const list = Array.isArray(items) ? items : [];
     const payload = {
       projectId: String(projectId),
       projectTitle: projectTitle || "Project",
@@ -106,7 +109,9 @@
       shopName: shopName || "",
       amount: parseFloat(amount),
       note: note || "",
-      items: Array.isArray(items) ? items : [],
+      items: list,
+      quotedCount: Number.isFinite(quotedCount) ? quotedCount : list.filter((i) => i.status !== "declined").length,
+      declinedCount: Number.isFinite(declinedCount) ? declinedCount : list.filter((i) => i.status === "declined").length,
       status: "pending",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),

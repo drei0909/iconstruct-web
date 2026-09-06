@@ -55,7 +55,7 @@ export async function getShopQuotations() {
   return fetchQuotationsByShop(user.uid);
 }
 
-export async function submitQuotation({ projectId, amount, note, items }) {
+export async function submitQuotation({ projectId, amount, note, items, quotedCount, declinedCount }) {
   const { user, shop } = await requireApprovedShop();
 
   const n = Number(amount);
@@ -72,6 +72,7 @@ export async function submitQuotation({ projectId, amount, note, items }) {
   const builderId =
     post.userId || post.builderId || post.ownerId || post.postedBy || "";
 
+  const list = Array.isArray(items) ? items : [];
   await insertQuotation({
     projectId,
     projectTitle,
@@ -79,7 +80,13 @@ export async function submitQuotation({ projectId, amount, note, items }) {
     shopName: shop.shopName,
     amount: n,
     note,
-    items: items || [],
+    items: list,
+    quotedCount: Number.isFinite(quotedCount)
+      ? quotedCount
+      : list.filter((i) => i.status !== "declined").length,
+    declinedCount: Number.isFinite(declinedCount)
+      ? declinedCount
+      : list.filter((i) => i.status === "declined").length,
     builderId,
   });
 }

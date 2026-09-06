@@ -135,6 +135,40 @@ export function buildShopInsights(stats, staleCount, tier = "pro") {
   return tips.slice(0, 5);
 }
 
+/**
+ * Rank the products a shop actually sells, from its own quotations.
+ * "Most purchased" = lines on accepted quotes. Declined lines never count.
+ * Legacy items with no `status` are treated as quoted.
+ *
+ * @returns {{ name, orders, qty, value, valueLabel }[]}
+ */
+export function getTopQuotedProducts(quotations = [], { limit = 5, status = "accepted" } = {}) {
+  const list = (Array.isArray(quotations) ? quotations : []).filter(
+    (q) => (q.status || "pending") === status
+  );
+
+  const map = new Map();
+  list.forEach((q) => {
+    (Array.isArray(q.items) ? q.items : []).forEach((it) => {
+      if (it && it.status === "declined") return;
+      const name = (it?.productName || "").trim();
+      if (!name) return;
+      const qty = Number(it.qty) || 0;
+      const sub = Number(it.subtotal) || qty * (Number(it.price) || 0);
+      const row = map.get(name) || { name, orders: 0, qty: 0, value: 0 };
+      row.orders += 1;
+      row.qty += qty;
+      row.value += sub;
+      map.set(name, row);
+    });
+  });
+
+  return [...map.values()]
+    .sort((a, b) => b.qty - a.qty || b.value - a.value)
+    .slice(0, limit)
+    .map((r) => ({ ...r, valueLabel: peso(r.value) }));
+}
+
 export function downloadQuotationsCsv(quotations = [], filename = "quotations.csv") {
   const rows = [
     ["Project", "Amount", "Status", "Note", "Date"],
