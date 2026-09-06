@@ -43,7 +43,7 @@ import {
 } from "@phosphor-icons/react";
 
 const NAV = [
-  { key: "overview",   label: "Overview",     icon: <SquaresFour size={16} /> },
+  { key: "overview",   label: "Dashboard",    icon: <SquaresFour size={16} /> },
   { key: "projects",   label: "All Projects", icon: <Briefcase size={16} /> },
   { key: "quotations", label: "Quotations",   icon: <Receipt size={16} /> },
   { key: "messages",   label: "Messages",     icon: <ChatCircleText size={16} /> },
