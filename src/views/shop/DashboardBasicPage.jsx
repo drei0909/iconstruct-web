@@ -79,9 +79,11 @@ function StatCard({ label, value, color, sub }) {
 // ─── TAB COMPONENTS (defined OUTSIDE parent — stable identity, no remount) ────
 
 function Overview({ quotations, projects, quotaUsed, setActiveTab }) {
-  const accepted = quotations.filter(q => q.status === "accepted").length;
-  const pct      = Math.min((quotaUsed / QUOTA_LIMIT) * 100, 100);
-  const barColor = pct >= 100 ? "var(--db-red)" : pct >= 66 ? "var(--db-amber)" : "var(--db-green)";
+  const accepted  = quotations.filter(q => q.status === "accepted").length;
+  const pct       = Math.min((quotaUsed / QUOTA_LIMIT) * 100, 100);
+  const barColor  = pct >= 100 ? "var(--db-red)" : pct >= 66 ? "var(--db-amber)" : "var(--db-green)";
+  const quotesLeft = Math.max(QUOTA_LIMIT - quotaUsed, 0);
+  const openCount  = projects.length;
   return (
     <div>
       <div className="db-upgrade-banner">
@@ -89,7 +91,9 @@ function Overview({ quotations, projects, quotaUsed, setActiveTab }) {
           <div className="db-upgrade-banner-title" style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <TbBolt size={14} /> You're on the Free Plan
           </div>
-          <div className="db-upgrade-banner-sub">Unlock unlimited bidding, priority listing &amp; analytics.</div>
+          <div className="db-upgrade-banner-sub">
+            {quotesLeft} of {QUOTA_LIMIT} quotations left this month · {openCount} open project{openCount === 1 ? "" : "s"} to bid on
+          </div>
         </div>
         <button className="db-upgrade-cta-btn" onClick={() => setActiveTab("upgrade")}>Upgrade Now →</button>
       </div>
@@ -113,7 +117,7 @@ function Overview({ quotations, projects, quotaUsed, setActiveTab }) {
       <div className="db-stat-grid">
         <StatCard label="Quotations Submitted" value={quotations.length} color="var(--db-accent-mid)" sub="All time" />
         <StatCard label="This Month"            value={quotaUsed}         color="var(--db-amber)"      sub={`of ${QUOTA_LIMIT} allowed`} />
-        <StatCard label="Accepted"              value={accepted}          color="var(--db-green)"      sub="Won quotations" />
+        <StatCard label="Accepted"              value={accepted}          color="var(--db-green)"      sub={quotations.length ? `${Math.round((accepted / quotations.length) * 100)}% of submitted` : "No quotes yet"} />
       </div>
       <div className="db-card">
         <div className="db-card-header">

@@ -74,7 +74,15 @@ function StatCard({ label, value, color, sub }) {
 
 // ─── TAB COMPONENTS (defined OUTSIDE parent — stable identity, no remount) ────
 
-function Overview({ quotations, projects, accepted, pending, rejected, money, monthQuotes, setQuoteModal, setActiveTab }) {
+function subscriptionRenewLine(shop) {
+  const t = shop?.subscriptionExpiry;
+  const d = t ? (typeof t.toDate === "function" ? t.toDate() : new Date(t.seconds ? t.seconds * 1000 : t)) : null;
+  if (!d || Number.isNaN(d.getTime())) return "Subscription active";
+  const days = Math.max(Math.ceil((d.getTime() - Date.now()) / 86400000), 0);
+  return `Renews ${d.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })} · ${days} day${days === 1 ? "" : "s"} left`;
+}
+
+function Overview({ shop, quotations, projects, accepted, pending, rejected, money, monthQuotes, setQuoteModal, setActiveTab }) {
   return (
     <div>
       <div style={{ background:"linear-gradient(135deg,#2C5282,#3B82F6)", borderRadius:14, padding:"20px 24px", marginBottom:24, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -83,7 +91,7 @@ function Overview({ quotations, projects, accepted, pending, rejected, money, mo
             <Lightning size={14} weight="fill" /> Pro Plan Active
           </div>
           <div style={{ fontSize:12, color:"rgba(255,255,255,0.7)" }}>
-            Unlimited bidding · Revenue analytics · CSV export · Quote templates
+            {subscriptionRenewLine(shop)} · {pending} quote{pending === 1 ? "" : "s"} awaiting reply
           </div>
         </div>
         <button onClick={() => setActiveTab("billing")} style={{ background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.3)", borderRadius:8, padding:"8px 16px", fontSize:11.5, fontWeight:600, color:"#fff", cursor:"pointer" }}>Manage Billing →</button>
@@ -93,7 +101,7 @@ function Overview({ quotations, projects, accepted, pending, rejected, money, mo
         <StatCard label="Revenue won"     value={money.format.revenueWon} color="#10B981" sub="Accepted quote totals" />
         <StatCard label="Open pipeline"   value={money.format.pipeline}   color="#F59E0B" sub="Pending value" />
         <StatCard label="Win rate"        value={`${money.winRate}%`}     color="#3B82F6" sub={`${monthQuotes.length} bids this month`} />
-        <StatCard label="Open projects"   value={projects.length}         color="#2C5282" sub="Unlimited access" />
+        <StatCard label="Open projects"   value={projects.length}         color="#2C5282" sub="Ready to bid" />
       </div>
 
       <div className="db-two-col" style={{ display:"grid", gridTemplateColumns:"1fr 300px", gap:20 }}>
@@ -472,7 +480,7 @@ export default function ShopDashboardPro() {
 
   const renderContent = () => {
     switch (activeTab) {
-      case "overview":   return <Overview quotations={quotations} projects={projects} accepted={accepted} pending={pending} rejected={rejected} money={money} monthQuotes={monthQuotes} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} />;
+      case "overview":   return <Overview shop={shop} quotations={quotations} projects={projects} accepted={accepted} pending={pending} rejected={rejected} money={money} monthQuotes={monthQuotes} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} />;
       case "projects":   return <AllProjects projects={projects} quotations={quotations} setQuoteModal={setQuoteModal} />;
       case "quotations": return (
         <Quotations
@@ -505,7 +513,7 @@ export default function ShopDashboardPro() {
             onShopUpdated={(next) => setShop((s) => ({ ...s, ...next }))}
           />
         );
-      default:           return <Overview quotations={quotations} projects={projects} accepted={accepted} pending={pending} rejected={rejected} money={money} monthQuotes={monthQuotes} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} />;
+      default:           return <Overview shop={shop} quotations={quotations} projects={projects} accepted={accepted} pending={pending} rejected={rejected} money={money} monthQuotes={monthQuotes} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} />;
     }
   };
 

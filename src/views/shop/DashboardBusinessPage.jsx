@@ -70,14 +70,22 @@ function StatCard({ label, value, color, sub, featured }) {
 
 // ─── TAB COMPONENTS ───────────────────────────────────────────────────────────
 
-function Overview({ quotations, projects, money, stale, insights, setQuoteModal, setActiveTab }) {
+function subscriptionRenewLine(shop) {
+  const t = shop?.subscriptionExpiry;
+  const d = t ? (typeof t.toDate === "function" ? t.toDate() : new Date(t.seconds ? t.seconds * 1000 : t)) : null;
+  if (!d || Number.isNaN(d.getTime())) return "Subscription active";
+  const days = Math.max(Math.ceil((d.getTime() - Date.now()) / 86400000), 0);
+  return `Renews ${d.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })} · ${days} day${days === 1 ? "" : "s"} left`;
+}
+
+function Overview({ shop, quotations, projects, money, stale, insights, setQuoteModal, setActiveTab }) {
   return (
     <div>
       <div style={{ background:"linear-gradient(135deg,#0D2E43,#2D6A8F)", borderRadius:14, padding:"22px 26px", marginBottom:24, display:"flex", alignItems:"center", justifyContent:"space-between", boxShadow:"0 8px 32px rgba(13,46,67,0.25)" }}>
         <div>
           <div style={{ fontSize:14, fontWeight:700, color:"#fff", marginBottom:4 }}>Business Plan Active</div>
           <div style={{ fontSize:12, color:"rgba(255,255,255,0.75)", lineHeight:1.6 }}>
-            Unlimited listings · Intelligence insights · Bid toolkit · Unlimited projects
+            {subscriptionRenewLine(shop)} · {stale.length} follow-up{stale.length === 1 ? "" : "s"} due
           </div>
         </div>
         <button onClick={() => setActiveTab("billing")} style={{ background:"rgba(255,255,255,0.12)", border:"1px solid rgba(255,255,255,0.28)", borderRadius:8, padding:"8px 16px", fontSize:11.5, fontWeight:600, color:"#fff", cursor:"pointer", whiteSpace:"nowrap" }}>Manage Billing →</button>
@@ -508,7 +516,7 @@ export default function ShopDashboardBusiness() {
 
   const renderContent = () => {
     switch (activeTab) {
-      case "overview":   return <Overview quotations={quotations} projects={projects} money={money} stale={stale} insights={insights} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} />;
+      case "overview":   return <Overview shop={shop} quotations={quotations} projects={projects} money={money} stale={stale} insights={insights} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} />;
       case "projects":   return <AllProjects projects={projects} quotations={quotations} setQuoteModal={setQuoteModal} />;
       case "quotations": return (
         <QuotationsBusiness
@@ -543,7 +551,7 @@ export default function ShopDashboardBusiness() {
           />
         );
       default:
-        return <Overview quotations={quotations} projects={projects} money={money} stale={stale} insights={insights} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} />;
+        return <Overview shop={shop} quotations={quotations} projects={projects} money={money} stale={stale} insights={insights} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} />;
     }
   };
 
