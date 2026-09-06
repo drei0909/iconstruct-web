@@ -140,7 +140,8 @@ export function buildShopInsights(stats, staleCount, tier = "pro") {
  * "Most purchased" = lines on accepted quotes. Declined lines never count.
  * Legacy items with no `status` are treated as quoted.
  *
- * @returns {{ name, orders, qty, value, valueLabel }[]}
+ * @returns {{ name, orders, qty, value, category, avgUnitPrice, share,
+ *   valueLabel, avgUnitPriceLabel, lastOrdered }[]}
  */
 export function getTopQuotedProducts(quotations = [], { limit = 5, status = "accepted" } = {}) {
   const list = (Array.isArray(quotations) ? quotations : []).filter(
@@ -149,24 +150,44 @@ export function getTopQuotedProducts(quotations = [], { limit = 5, status = "acc
 
   const map = new Map();
   list.forEach((q) => {
+    const qDate = toDate(q.createdAt);
     (Array.isArray(q.items) ? q.items : []).forEach((it) => {
       if (it && it.status === "declined") return;
       const name = (it?.productName || "").trim();
       if (!name) return;
       const qty = Number(it.qty) || 0;
       const sub = Number(it.subtotal) || qty * (Number(it.price) || 0);
-      const row = map.get(name) || { name, orders: 0, qty: 0, value: 0 };
+      const row = map.get(name) || {
+        name, orders: 0, qty: 0, value: 0, category: "", lastOrderedMs: 0,
+      };
       row.orders += 1;
       row.qty += qty;
       row.value += sub;
+      if (!row.category && it.category) row.category = String(it.category).trim();
+      if (qDate && qDate.getTime() > row.lastOrderedMs) row.lastOrderedMs = qDate.getTime();
       map.set(name, row);
     });
   });
 
-  return [...map.values()]
+  const ranked = [...map.values()]
     .sort((a, b) => b.qty - a.qty || b.value - a.value)
-    .slice(0, limit)
-    .map((r) => ({ ...r, valueLabel: peso(r.value) }));
+    .slice(0, limit);
+
+  const topValue = ranked.reduce((s, r) => s + r.value, 0) || 1;
+
+  return ranked.map((r) => {
+    const avgUnitPrice = r.qty ? r.value / r.qty : 0;
+    return {
+      ...r,
+      avgUnitPrice,
+      share: r.value / topValue,
+      valueLabel: peso(r.value),
+      avgUnitPriceLabel: peso(avgUnitPrice),
+      lastOrdered: r.lastOrderedMs
+        ? new Date(r.lastOrderedMs).toLocaleDateString("en-PH", { month: "short", day: "numeric" })
+        : null,
+    };
+  });
 }
 
 export function downloadQuotationsCsv(quotations = [], filename = "quotations.csv") {

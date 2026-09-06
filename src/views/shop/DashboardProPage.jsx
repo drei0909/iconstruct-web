@@ -155,7 +155,7 @@ function Overview({ shop, quotations, projects, accepted, pending, rejected, mon
       </div>
 
       <div style={{ marginTop: 20 }}>
-        <TopProductsCard quotations={quotations} accentColor="#3B82F6" />
+        <TopProductsCard quotations={quotations} accentColor="#3B82F6" plan="pro" />
       </div>
     </div>
   );

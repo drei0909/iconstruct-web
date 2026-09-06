@@ -121,7 +121,7 @@ function Overview({ quotations, projects, quotaUsed, setActiveTab }) {
         <StatCard label="Accepted"              value={accepted}          color="var(--db-green)"      sub={quotations.length ? `${Math.round((accepted / quotations.length) * 100)}% of submitted` : "No quotes yet"} />
       </div>
       <div style={{ marginBottom: 20 }}>
-        <TopProductsCard quotations={quotations} accentColor="#2C5282" />
+        <TopProductsCard quotations={quotations} accentColor="#2C5282" plan="basic" onUpgrade={() => setActiveTab("upgrade")} />
       </div>
       <div className="db-card">
         <div className="db-card-header">

@@ -138,7 +138,7 @@ function Overview({ shop, quotations, projects, money, stale, insights, setQuote
       </div>
 
       <div style={{ marginTop: 20 }}>
-        <TopProductsCard quotations={quotations} accentColor="#0D2E43" />
+        <TopProductsCard quotations={quotations} accentColor="#0D2E43" plan="business" />
       </div>
     </div>
   );
