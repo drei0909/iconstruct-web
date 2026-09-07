@@ -1,6 +1,7 @@
 // src/views/admin/AdminLoginPage.jsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { auth } from "../../services/firebase";
 import { loginAdmin } from "../../controllers/adminController";
 import ForgotPassword from "../../components/forms/ForgotPassword";
 
@@ -20,6 +21,13 @@ export default function AdminLogin() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Session still active — skip re-auth; AdminRoute re-verifies admin status.
+    if (auth.currentUser) {
+      navigate("/admin/dashboard", { replace: true });
+      return;
+    }
+
     setLoading(true);
     setError("");
     try {

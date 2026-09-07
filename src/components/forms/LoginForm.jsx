@@ -1,6 +1,7 @@
 // src/components/forms/LoginForm.jsx
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { auth } from "../../services/firebase";
 import { loginShop } from "../../controllers/authController";
 import ForgotPassword from "./ForgotPassword";
 import { requestNotificationPermission } from "../../services/fcmService";
@@ -24,6 +25,14 @@ function LoginForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Session still active (e.g. user hit Back to this page and clicked
+    // Sign In without logging out) — go straight through, no re-auth.
+    if (auth.currentUser) {
+      navigate("/shop/dashboard", { replace: true });
+      return;
+    }
+
     setLoading(true);
     setFirebaseError("");
     try {
