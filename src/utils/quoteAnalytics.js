@@ -15,19 +15,80 @@ function toDate(value) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * Interpret a quotation's acceptance state for the shop side.
+ *
+ * The builder app (Flutter) may write, on accept:
+ *   - status: "accepted" | "partially_accepted" | "rejected" | "pending"
+ *   - items[i].accepted: boolean   (only meaningful on partial acceptance)
+ *   - acceptedTotal: number        (optional — recomputed here if absent)
+ * Legacy quotes carry only status "accepted"/"pending"/"rejected" with no
+ * per-line flags; those are treated as "all supply lines taken".
+ */
+export function getAcceptanceSummary(q = {}) {
+  const status = (q.status || "pending").toLowerCase();
+  const items = Array.isArray(q.items) ? q.items : [];
+  const supplyItems = items.filter((it) => it && it.status !== "declined");
+
+  const isClosed = status === "accepted" || status === "partially_accepted";
+  const isPartial = status === "partially_accepted";
+  const hasLineFlags = items.some((it) => typeof it?.accepted === "boolean");
+
+  const isTaken = (it) => {
+    if (!it || it.status === "declined") return false;
+    if (!isClosed) return false;
+    if (isPartial && hasLineFlags) return it.accepted === true;
+    return true;
+  };
+
+  const takenItems = supplyItems.filter(isTaken);
+  const notTakenItems = isClosed ? supplyItems.filter((it) => !isTaken(it)) : [];
+
+  const lineSubtotal = (it) =>
+    Number(it.subtotal) || (Number(it.qty) || 0) * (Number(it.price) || 0);
+  const computedTotal = takenItems.reduce((s, it) => s + lineSubtotal(it), 0);
+  const acceptedTotal = Number.isFinite(Number(q.acceptedTotal))
+    ? Number(q.acceptedTotal)
+    : isClosed
+      ? computedTotal
+      : 0;
+
+  return {
+    status,
+    isClosed,
+    isPartial,
+    lineCount: supplyItems.length,
+    takenCount: takenItems.length,
+    takenItems,
+    notTakenItems,
+    acceptedTotal,
+    quotedTotal: Number(q.amount) || 0,
+  };
+}
+
+const isWonStatus = (q) => {
+  const s = (q.status || "").toLowerCase();
+  return s === "accepted" || s === "partially_accepted";
+};
+
 export function getQuoteMoneyStats(quotations = []) {
   const list = Array.isArray(quotations) ? quotations : [];
-  const accepted = list.filter((q) => q.status === "accepted");
+  const accepted = list.filter(isWonStatus);
   const pending = list.filter((q) => !q.status || q.status === "pending");
   const rejected = list.filter((q) => q.status === "rejected");
 
   const sum = (arr) => arr.reduce((s, q) => s + (Number(q.amount) || 0), 0);
   const avg = (arr) => (arr.length ? sum(arr) / arr.length : 0);
 
-  const revenueWon = sum(accepted);
+  // A partial acceptance is only won for the lines the builder actually took.
+  const revenueWon = accepted.reduce(
+    (s, q) => s + getAcceptanceSummary(q).acceptedTotal,
+    0
+  );
   const pipeline = sum(pending);
   const lostValue = sum(rejected);
   const totalQuoted = sum(list);
+  const avgAccepted = accepted.length ? revenueWon / accepted.length : 0;
 
   return {
     total: list.length,
@@ -40,7 +101,7 @@ export function getQuoteMoneyStats(quotations = []) {
     lostValue,
     totalQuoted,
     avgBid: avg(list),
-    avgAccepted: avg(accepted),
+    avgAccepted,
     avgRejected: avg(rejected),
     avgPending: avg(pending),
     format: {
@@ -49,7 +110,7 @@ export function getQuoteMoneyStats(quotations = []) {
       lostValue: peso(lostValue),
       totalQuoted: peso(totalQuoted),
       avgBid: peso(avg(list)),
-      avgAccepted: peso(avg(accepted)),
+      avgAccepted: peso(avgAccepted),
       avgRejected: peso(avg(rejected)),
     },
   };
@@ -85,9 +146,9 @@ export function getMonthlyMoneyBreakdown(quotations = [], limit = 6) {
     }
     map[key].bids++;
     const amt = Number(q.amount) || 0;
-    if (q.status === "accepted") {
+    if (isWonStatus(q)) {
       map[key].acc++;
-      map[key].revenue += amt;
+      map[key].revenue += getAcceptanceSummary(q).acceptedTotal;
     } else if (q.status === "rejected") {
       map[key].rej++;
     } else {
@@ -136,23 +197,21 @@ export function buildShopInsights(stats, staleCount, tier = "pro") {
 }
 
 /**
- * Rank the products a shop actually sells, from its own quotations.
- * "Most purchased" = lines on accepted quotes. Declined lines never count.
- * Legacy items with no `status` are treated as quoted.
+ * Rank the products a shop actually supplied, from its own quotes.
+ * Source = quotes the builder accepted (fully or partially). Only the lines
+ * the builder actually took count; declined lines never do. A substituted
+ * line counts under the product the shop actually offered.
  *
  * @returns {{ name, orders, qty, value, category, avgUnitPrice, share,
  *   valueLabel, avgUnitPriceLabel, lastOrdered }[]}
  */
-export function getTopQuotedProducts(quotations = [], { limit = 5, status = "accepted" } = {}) {
-  const list = (Array.isArray(quotations) ? quotations : []).filter(
-    (q) => (q.status || "pending") === status
-  );
+export function getTopQuotedProducts(quotations = [], { limit = 5 } = {}) {
+  const list = (Array.isArray(quotations) ? quotations : []).filter(isWonStatus);
 
   const map = new Map();
   list.forEach((q) => {
     const qDate = toDate(q.createdAt);
-    (Array.isArray(q.items) ? q.items : []).forEach((it) => {
-      if (it && it.status === "declined") return;
+    getAcceptanceSummary(q).takenItems.forEach((it) => {
       const name = (it?.productName || "").trim();
       if (!name) return;
       const qty = Number(it.qty) || 0;

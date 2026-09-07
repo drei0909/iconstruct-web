@@ -49,7 +49,7 @@ export default function TopProductsCard({
 }) {
   const tier = plan === "business" ? "business" : plan === "pro" ? "pro" : "basic";
   const limit = tier === "business" ? 6 : tier === "pro" ? 5 : 3;
-  const top = getTopQuotedProducts(quotations, { limit, status: "accepted" });
+  const top = getTopQuotedProducts(quotations, { limit });
 
   const totalValue = top.reduce((s, p) => s + p.value, 0);
   const totalUnits = top.reduce((s, p) => s + p.qty, 0);

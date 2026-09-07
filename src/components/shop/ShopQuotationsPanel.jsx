@@ -2,15 +2,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { TbClipboardList, TbSearch, TbX, TbRefresh, TbChevronDown } from "react-icons/tb";
 import ListPagination, { paginate } from "../ui/ListPagination";
+import { getAcceptanceSummary } from "../../utils/quoteAnalytics";
 
 const ACCENT = "#2C5282";
 const DEFAULT_PAGE_SIZE = 8;
 
 const STATUS_META = {
-  pending:  { bg: "#FEF3C7", color: "#92400E", border: "#FCD34D", label: "Pending" },
-  accepted: { bg: "#D1FAE5", color: "#065F46", border: "#6EE7B7", label: "Accepted" },
-  rejected: { bg: "#FEE2E2", color: "#991B1B", border: "#FCA5A5", label: "Rejected" },
+  pending:              { bg: "#FEF3C7", color: "#92400E", border: "#FCD34D", label: "Pending" },
+  accepted:             { bg: "#D1FAE5", color: "#065F46", border: "#6EE7B7", label: "Accepted" },
+  partially_accepted:   { bg: "#FEF3C7", color: "#92400E", border: "#FCD34D", label: "Partial" },
+  rejected:             { bg: "#FEE2E2", color: "#991B1B", border: "#FCA5A5", label: "Rejected" },
 };
+
+// "accepted" filter/count also covers partial acceptances.
+const wonKey = (s) => (s === "partially_accepted" ? "accepted" : s);
 
 function toDate(ts) {
   if (!ts) return null;
@@ -68,7 +73,7 @@ export default function ShopQuotationsPanel({
   const counts = useMemo(() => {
     const c = { all: quotations.length, pending: 0, accepted: 0, rejected: 0 };
     quotations.forEach((q) => {
-      const s = (q.status || "pending").toLowerCase();
+      const s = wonKey((q.status || "pending").toLowerCase());
       if (c[s] != null) c[s] += 1;
       else c.pending += 1;
     });
@@ -81,15 +86,15 @@ export default function ShopQuotationsPanel({
   );
   const acceptedAmount = useMemo(
     () => quotations
-      .filter((q) => (q.status || "").toLowerCase() === "accepted")
-      .reduce((sum, q) => sum + (Number(q.amount) || 0), 0),
+      .filter((q) => wonKey((q.status || "").toLowerCase()) === "accepted")
+      .reduce((sum, q) => sum + getAcceptanceSummary(q).acceptedTotal, 0),
     [quotations]
   );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     let list = quotations.filter((item) => {
-      const s = (item.status || "pending").toLowerCase();
+      const s = wonKey((item.status || "pending").toLowerCase());
       if (status !== "all" && s !== status) return false;
       if (!q) return true;
       const hay = [
@@ -321,8 +326,11 @@ export default function ShopQuotationsPanel({
             const sKey = (q.status || "pending").toLowerCase();
             const sc = STATUS_META[sKey] || STATUS_META.pending;
             const items = q.items || [];
-            const quotedItems = items.filter((it) => it.status !== "declined");
+            const supplyItems = items.filter((it) => it.status !== "declined");
             const declinedItems = items.filter((it) => it.status === "declined");
+            const acc = getAcceptanceSummary(q);
+            const takenSet = new Set(acc.takenItems);
+            const canMessage = sKey === "accepted" || sKey === "partially_accepted";
 
             return (
               <div
@@ -360,8 +368,9 @@ export default function ShopQuotationsPanel({
                     </div>
                     <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 2 }}>
                       Submitted {formatDate(q.createdAt)}
-                      {quotedItems.length > 0 ? ` · ${quotedItems.length} quoted` : ""}
+                      {supplyItems.length > 0 ? ` · ${supplyItems.length} item${supplyItems.length > 1 ? "s" : ""}` : ""}
                       {declinedItems.length > 0 ? ` · ${declinedItems.length} unavailable` : ""}
+                      {acc.isClosed ? ` · builder took ${acc.takenCount} of ${acc.lineCount}` : ""}
                     </div>
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
@@ -393,47 +402,86 @@ export default function ShopQuotationsPanel({
                     padding: "16px 18px",
                     background: "#FAFBFC",
                   }}>
+                    {acc.isClosed && (
+                      <div style={{
+                        marginBottom: 14, padding: "10px 14px", borderRadius: 10,
+                        background: acc.isPartial ? "#FFFBEB" : "#ECFDF5",
+                        border: `1px solid ${acc.isPartial ? "#FCD34D" : "#6EE7B7"}`,
+                      }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: acc.isPartial ? "#92400E" : "#065F46" }}>
+                          {acc.isPartial
+                            ? `Builder accepted ${acc.takenCount} of ${acc.lineCount} items`
+                            : "Builder accepted this quote"}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: acc.isPartial ? "#B45309" : "#047857", marginTop: 2 }}>
+                          Accepted total {peso(acc.acceptedTotal)}
+                          {acc.isPartial ? ` · you quoted ${peso(acc.quotedTotal)}` : ""}
+                        </div>
+                      </div>
+                    )}
+
                     {items.length > 0 ? (
                       <>
                         <div style={{
                           fontSize: 10, fontWeight: 700, color: "#94A3B8",
                           letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10,
                         }}>
-                          Items quoted
+                          Items {acc.isClosed ? "supplied" : "quoted"}
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
-                          {quotedItems.map((item, i) => (
-                            <div
-                              key={i}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                gap: 12,
-                                background: "#fff",
-                                border: "1px solid #E2E8F0",
-                                borderRadius: 10,
-                                padding: "10px 14px",
-                              }}
-                            >
-                              <div>
-                                <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>
-                                  {item.productName || "Item"}
-                                </div>
-                                <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
-                                  {item.qty} {item.unit || ""} × {peso(item.price)}
-                                </div>
-                                {item.lineNote ? (
-                                  <div style={{ fontSize: 11, color: "#64748B", marginTop: 4, fontStyle: "italic" }}>
-                                    “{item.lineNote}”
+                          {supplyItems.map((item, i) => {
+                            const isSub = item.status === "substituted";
+                            const taken = acc.isClosed ? takenSet.has(item) : null;
+                            return (
+                              <div
+                                key={i}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  gap: 12,
+                                  background: "#fff",
+                                  border: `1px solid ${isSub ? "#FCD34D" : "#E2E8F0"}`,
+                                  borderRadius: 10,
+                                  padding: "10px 14px",
+                                  opacity: taken === false ? 0.55 : 1,
+                                }}
+                              >
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                    {item.productName || "Item"}
+                                    {isSub && (
+                                      <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.05em", color: "#B45309", background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: 5, padding: "1px 5px" }}>
+                                        SUBSTITUTE
+                                      </span>
+                                    )}
+                                    {taken === true && (
+                                      <span style={{ fontSize: 9, fontWeight: 800, color: "#065F46", background: "#D1FAE5", border: "1px solid #6EE7B7", borderRadius: 5, padding: "1px 5px" }}>TAKEN</span>
+                                    )}
+                                    {taken === false && (
+                                      <span style={{ fontSize: 9, fontWeight: 800, color: "#64748B", background: "#F1F5F9", border: "1px solid #E2E8F0", borderRadius: 5, padding: "1px 5px" }}>NOT TAKEN</span>
+                                    )}
                                   </div>
-                                ) : null}
+                                  {isSub && item.requestedName ? (
+                                    <div style={{ fontSize: 11, color: "#B45309", marginTop: 2 }}>
+                                      instead of {item.requestedName}
+                                    </div>
+                                  ) : null}
+                                  <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
+                                    {item.qty} {item.unit || ""} × {peso(item.price)}
+                                  </div>
+                                  {item.lineNote ? (
+                                    <div style={{ fontSize: 11, color: "#64748B", marginTop: 4, fontStyle: "italic" }}>
+                                      “{item.lineNote}”
+                                    </div>
+                                  ) : null}
+                                </div>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", flexShrink: 0 }}>
+                                  {peso(item.subtotal ?? (item.qty * item.price))}
+                                </div>
                               </div>
-                              <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
-                                {peso(item.subtotal ?? (item.qty * item.price))}
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
 
                         {declinedItems.length > 0 && (
@@ -471,11 +519,19 @@ export default function ShopQuotationsPanel({
                           display: "flex", justifyContent: "space-between", alignItems: "center",
                           paddingTop: 12, borderTop: "1px solid #E2E8F0",
                         }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>Total</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
+                            {acc.isClosed ? "Quote total" : "Total"}
+                          </span>
                           <span style={{ fontSize: 18, fontWeight: 900, color: accentColor }}>
                             {peso(q.amount)}
                           </span>
                         </div>
+                        {acc.isPartial && (
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: "#92400E" }}>Accepted total</span>
+                            <span style={{ fontSize: 15, fontWeight: 900, color: "#B45309" }}>{peso(acc.acceptedTotal)}</span>
+                          </div>
+                        )}
                       </>
                     ) : (
                       <div style={{ fontSize: 13, color: "#94A3B8", marginBottom: q.note ? 12 : 0 }}>
@@ -501,7 +557,7 @@ export default function ShopQuotationsPanel({
                       </div>
                     )}
 
-                    {sKey === "accepted" && typeof onMessageBuilder === "function" && (
+                    {canMessage && typeof onMessageBuilder === "function" && (
                       <button
                         type="button"
                         onClick={(e) => {

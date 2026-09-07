@@ -97,6 +97,7 @@
     note,
     items,
     quotedCount,
+    substitutedCount,
     declinedCount,
     builderId,
   }) {
@@ -110,7 +111,8 @@
       amount: parseFloat(amount),
       note: note || "",
       items: list,
-      quotedCount: Number.isFinite(quotedCount) ? quotedCount : list.filter((i) => i.status !== "declined").length,
+      quotedCount: Number.isFinite(quotedCount) ? quotedCount : list.filter((i) => i.status === "quoted" || i.status == null).length,
+      substitutedCount: Number.isFinite(substitutedCount) ? substitutedCount : list.filter((i) => i.status === "substituted").length,
       declinedCount: Number.isFinite(declinedCount) ? declinedCount : list.filter((i) => i.status === "declined").length,
       status: "pending",
       createdAt: serverTimestamp(),

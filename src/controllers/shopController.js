@@ -55,7 +55,7 @@ export async function getShopQuotations() {
   return fetchQuotationsByShop(user.uid);
 }
 
-export async function submitQuotation({ projectId, amount, note, items, quotedCount, declinedCount }) {
+export async function submitQuotation({ projectId, amount, note, items, quotedCount, substitutedCount, declinedCount }) {
   const { user, shop } = await requireApprovedShop();
 
   const n = Number(amount);
@@ -83,7 +83,10 @@ export async function submitQuotation({ projectId, amount, note, items, quotedCo
     items: list,
     quotedCount: Number.isFinite(quotedCount)
       ? quotedCount
-      : list.filter((i) => i.status !== "declined").length,
+      : list.filter((i) => i.status === "quoted" || i.status == null).length,
+    substitutedCount: Number.isFinite(substitutedCount)
+      ? substitutedCount
+      : list.filter((i) => i.status === "substituted").length,
     declinedCount: Number.isFinite(declinedCount)
       ? declinedCount
       : list.filter((i) => i.status === "declined").length,
