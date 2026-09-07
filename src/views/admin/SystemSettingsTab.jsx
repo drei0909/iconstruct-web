@@ -45,7 +45,7 @@ import {
 } from "../../utils/maintenanceStatus";
 
 
-import { PLAN_CONFIG, formatProductLimit } from "../../config/planConfig";
+import { PLAN_CONFIG } from "../../config/planConfig";
 import { db } from "../../services/firebase";
 import {
   doc,
@@ -514,12 +514,6 @@ export default function SystemSettingsTab({ currentUser }) {
                   ? Number(live.price)
                   : cfg.price,
               billingCycle: live.billingCycle || "monthly",
-              productLimit:
-                live.productLimit !== undefined
-                  ? live.productLimit
-                  : cfg.productLimit === Infinity
-                    ? -1
-                    : cfg.productLimit,
               quotaLimit:
                 live.quotaLimit !== undefined
                   ? live.quotaLimit
@@ -548,8 +542,6 @@ export default function SystemSettingsTab({ currentUser }) {
               label: cfg.label,
               price: cfg.price,
               billingCycle: "monthly",
-              productLimit:
-                cfg.productLimit === Infinity ? -1 : cfg.productLimit,
               quotaLimit: cfg.quotaLimit === Infinity ? -1 : cfg.quotaLimit,
               projectLimit:
                 cfg.projectLimit === Infinity ? -1 : cfg.projectLimit,
@@ -706,10 +698,6 @@ const handleSavePlan = async () => {
       ...planForm,
       key: editingPlan,
       price: Number(planForm.price) || 0,
-      productLimit:
-        planForm.productLimit === "" || planForm.productLimit === undefined
-          ? -1
-          : Number(planForm.productLimit),
       quotaLimit:
         planForm.quotaLimit === "" || planForm.quotaLimit === undefined
           ? -1
@@ -731,7 +719,7 @@ const handleSavePlan = async () => {
     setEditingPlan(null);
     await writeLog(
       "info",
-      `Subscription plan updated: ${editingPlan.toUpperCase()} — ₱${cleaned.price}, products: ${cleaned.productLimit === -1 ? "∞" : cleaned.productLimit}, public: ${cleaned.isPublic}`
+      `Subscription plan updated: ${editingPlan.toUpperCase()} — ₱${cleaned.price}, quota/mo: ${cleaned.quotaLimit === -1 ? "∞" : cleaned.quotaLimit}, public: ${cleaned.isPublic}`
     );
     showToast(
       "Plan saved. Landing page, shop upgrade screens, and checkout will use the new price & features."
@@ -1106,8 +1094,7 @@ const handleSavePlan = async () => {
                         </span>
                       </div>
                       <div style={{ fontSize: 11.5, color: T.textMuted, marginBottom: 12 }}>
-                        Products: {plan.productLimit === -1 ? "Unlimited" : plan.productLimit}<br />
-                        Quotas: {plan.quotaLimit === -1 ? "Unlimited" : plan.quotaLimit + "/mo"}
+                        Quotations: {plan.quotaLimit === -1 ? "Unlimited" : plan.quotaLimit + " / month"}
                       </div>
                       <div style={{ marginBottom: 12 }}>
                         {(plan.features || []).map((f, i) => (
@@ -1148,8 +1135,7 @@ const handleSavePlan = async () => {
                           onChange={e => setPlanForm(f => ({ ...f, billingCycle: e.target.value }))}
                           options={[{ value: "monthly", label: "Monthly" }, { value: "quarterly", label: "Quarterly" }, { value: "annually", label: "Annually" }]} />
                       </Field>
-                      <Field label="Product Limit (-1 = unlimited)"><Input type="number" value={planForm.productLimit ?? -1} onChange={e => setPlanForm(f => ({ ...f, productLimit: parseInt(e.target.value) }))} /></Field>
-                      <Field label="Quota Limit (-1 = unlimited)"><Input type="number" value={planForm.quotaLimit ?? -1} onChange={e => setPlanForm(f => ({ ...f, quotaLimit: parseInt(e.target.value) }))} /></Field>
+                      <Field label="Quotations / month (-1 = unlimited)"><Input type="number" value={planForm.quotaLimit ?? -1} onChange={e => setPlanForm(f => ({ ...f, quotaLimit: parseInt(e.target.value) }))} /></Field>
                     </div>
                     <Field label="Features (one per line)">
                       <Textarea rows={5}

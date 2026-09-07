@@ -12,7 +12,6 @@ export const PLAN_CONFIG = {
     label: "Free · Basic",
     price: 0,
     billingCycle: "month",
-    productLimit: 20,
     quotaLimit: 3,
     projectLimit: 5,
     color: "#648DB6",
@@ -25,11 +24,13 @@ export const PLAN_CONFIG = {
     sidebarActiveBorder: "#3B82F6",
     sidebarActiveBg: "rgba(59,130,246,0.12)",
     features: [
-      "List up to 20 products",
-      "Public shop profile",
-      "View limited project postings (5)",
-      "Submit up to 3 quotations / month",
-      "Standard search visibility",
+      "Per-item quoting on open projects",
+      "3 quotations per month",
+      "See 5 open project postings",
+      "Smart project matching — right jobs float to the top",
+      "Public storefront profile (hours, coverage, contact)",
+      "DPWH material cost estimate on every project",
+      "Top Products ranking — your 3 best sellers",
     ],
   },
   pro: {
@@ -37,7 +38,6 @@ export const PLAN_CONFIG = {
     label: "Pro · Active",
     price: 999,
     billingCycle: "month",
-    productLimit: 150,
     quotaLimit: Infinity,
     projectLimit: Infinity,
     color: "#2C3E50",
@@ -51,13 +51,14 @@ export const PLAN_CONFIG = {
     sidebarActiveBg: "rgba(59,130,246,0.15)",
     features: [
       "Everything in Basic",
-      "Up to 150 product listings",
-      "Unlimited quotes & full project board",
-      "Revenue & pipeline analytics",
-      "Export quotation history (CSV)",
-      "Quote note templates",
-      "Live pricing guide when bidding",
+      "Unlimited quotations",
+      "Full project board — every open project",
+      "Revenue, pipeline and win-rate analytics",
+      "DPWH price reference on every quote line",
+      "Reusable quote-note templates",
       "Follow-up queue for pending bids",
+      "Storefront \"About / specialties\" section",
+      "Top Products with volume share and unit pricing",
     ],
   },
   business: {
@@ -65,7 +66,6 @@ export const PLAN_CONFIG = {
     label: "Business",
     price: 4999,
     billingCycle: "month",
-    productLimit: Infinity,
     quotaLimit: Infinity,
     projectLimit: Infinity,
     color: "#154665",
@@ -79,12 +79,13 @@ export const PLAN_CONFIG = {
     sidebarActiveBg: "rgba(207,177,132,0.15)",
     features: [
       "Everything in Pro",
-      "Unlimited product listings",
       "Business intelligence dashboard",
-      "Monthly revenue & lost-value tracking",
-      "Smart pricing insights",
-      "Extended follow-up & history limits",
-      "Bid toolkit (template library)",
+      "Monthly revenue and lost-value tracking",
+      "\"Quote vs DPWH baseline\" check on every quotation",
+      "Bid Toolkit — reusable quote-template library",
+      "Featured storefront placement",
+      "Top Products with concentration and recency insights",
+      "Priority support",
     ],
   },
 };
@@ -150,7 +151,7 @@ export function getPlanConfig(planKey) {
 
 /**
  * Merges Firestore admin plan edits into static theme config.
- * Applies: price, features, label, billingCycle, isPublic, product/quota/project limits.
+ * Applies: price, features, label, billingCycle, isPublic, quota/project limits.
  */
 export async function getLivePlanConfig(planKey) {
   const key = (planKey || "basic").toLowerCase();
@@ -164,10 +165,6 @@ export async function getLivePlanConfig(planKey) {
     if (snap.exists()) {
       const firestorePlan = snap.data()?.plans?.[key];
       if (firestorePlan) {
-        base.productLimit = firestoreLimit(
-          firestorePlan.productLimit,
-          base.productLimit
-        );
         base.quotaLimit = firestoreLimit(
           firestorePlan.quotaLimit,
           base.quotaLimit
@@ -230,40 +227,3 @@ export async function getAllLivePlans() {
   return map;
 }
 
-export function formatProductLimit(limit) {
-  return limit === Infinity ? "Unlimited" : String(limit);
-}
-
-export function isAtProductLimit(currentCount, limit) {
-  return limit !== Infinity && currentCount >= limit;
-}
-
-/** How many more products this plan still allows. */
-export function getProductSlotsRemaining(currentCount, limit) {
-  if (limit === Infinity) return Infinity;
-  return Math.max(0, (Number(limit) || 0) - (Number(currentCount) || 0));
-}
-
-/**
- * Credit only as many rows as the plan still has room for.
- */
-export function applyProductPlanQuota(rows, currentCount, limit) {
-  const list = Array.isArray(rows) ? rows : [];
-  if (limit === Infinity) {
-    return {
-      accepted: list,
-      skipped: [],
-      slotsRemaining: Infinity,
-      limit,
-      currentCount: Number(currentCount) || 0,
-    };
-  }
-  const slotsRemaining = getProductSlotsRemaining(currentCount, limit);
-  return {
-    accepted: list.slice(0, slotsRemaining),
-    skipped: list.slice(slotsRemaining),
-    slotsRemaining,
-    limit,
-    currentCount: Number(currentCount) || 0,
-  };
-}

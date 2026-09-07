@@ -93,15 +93,13 @@ export async function fetchPlatformOpsCounts() {
     }
   };
 
-  const [projects, products, users] = await Promise.all([
+  const [projects, users] = await Promise.all([
     safeCount("projectPosts"),
-    safeCount("products"),
     safeCount("users"),
   ]);
 
   return {
     projectPosts: projects,
-    products,
     builders: users,
   };
 }

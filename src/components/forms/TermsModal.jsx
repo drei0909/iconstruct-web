@@ -36,37 +36,27 @@ Approval is granted only after all submitted documents are verified for authenti
   {
     num: "04",
     title: "Subscription Plans & Fees",
-    body: `Upon admin approval, your shop is automatically granted Basic (Free) access. You may optionally upgrade to a paid subscription plan for expanded features.
+    body: `Upon admin approval, your shop is automatically granted Basic (Free) access. You may optionally upgrade to a paid subscription plan for expanded features. Current prices and the full feature list for each plan are shown in the Pricing section of the iConstruct homepage and in your dashboard's Upgrade / Billing screen.
 
-Basic Plan — Free
-• Up to 20 product listings
-• Basic shop profile visibility
-• View limited project postings
-• Submit up to 3 quotations per month
+Basic (Free)
+• A capped number of quotations per month
+• A limited view of open project postings
+• Public storefront profile and smart project matching
 
-Pro Plan — ₱499/month
-• Up to 150 product listings
-• Priority listing in search results
-• Unlimited project bidding access
-• Promotional exposure on the platform
-• Quotation performance insights
+Pro and Business (paid)
+• Unlimited quotations and the full project board
+• Revenue, pipeline and win-rate analytics
+• DPWH material price references while quoting
+• Business adds business-intelligence reporting, the Bid Toolkit, and priority support
 
-Business Plan — ₱4,499/year
-• Unlimited product listings
-• All Pro Plan features
-• Featured placement on the platform
-• Advanced analytics dashboard
-• Bulk product import (CSV/Excel)
-• Priority customer support
-
-Subscription fees are non-refundable once a billing cycle has begun. If you downgrade your plan, product listings exceeding your new plan's limit will be hidden — not permanently deleted — until your listing count falls within the allowed limit or you upgrade again. iConstruct does not process direct financial transactions between users and hardware shops; subscription payments are the only fees processed through the platform.`,
+Subscription fees are non-refundable once a billing cycle has begun. If you downgrade, your features and limits revert to those of the new plan at the end of the current billing cycle. iConstruct does not process direct financial transactions between users and hardware shops; subscription payments are the only fees processed through the platform.`,
   },
   {
     num: "05",
     title: "Acceptable Use of the Platform",
     body: `As a registered hardware shop on iConstruct, you agree to:
 
-• Keep your product listings, pricing, and shop information accurate and updated at all times.
+• Keep your storefront profile, coverage areas, and shop information accurate and updated at all times.
 • Submit quotations and bidding responses honestly and in good faith.
 • Use the platform solely for lawful construction supply and hardware business purposes within Lipa City.
 • Respond to project bids and quotation requests in a timely and professional manner.
@@ -85,7 +75,7 @@ Violation of these terms may result in immediate account suspension or permanent
     title: "Intellectual Property",
     body: `iConstruct, its name, logo, system design, material estimation algorithms, and rule-based recommendation engine are the intellectual property of the iConstruct development team. All rights are reserved.
 
-You retain ownership of the business information, product listings, and documents you upload to the platform. By uploading content, you grant iConstruct a non-exclusive, royalty-free license to display, process, and use that content solely for the purpose of operating and improving the platform — including displaying your shop profile to builders, contractors, and homeowners within Lipa City.
+You retain ownership of the business information, storefront details, and documents you upload to the platform. By uploading content, you grant iConstruct a non-exclusive, royalty-free license to display, process, and use that content solely for the purpose of operating and improving the platform — including displaying your shop profile to builders, contractors, and homeowners within Lipa City.
 
 You may not reproduce, distribute, modify, or commercially exploit any part of the iConstruct platform without prior written consent from the development team.`,
   },
@@ -130,7 +120,7 @@ The platform is currently offered as a capstone academic project and is not affi
 • Inactivity for an extended period without notice
 • Any activity deemed harmful to the platform, its users, or the local construction community
 
-Upon account termination, your shop profile and product listings will be removed from the platform. You may request reactivation by contacting the iConstruct team and providing updated, valid documentation.`,
+Upon account termination, your shop profile and storefront will be removed from the platform. You may request reactivation by contacting the iConstruct team and providing updated, valid documentation.`,
   },
   {
     num: "10",

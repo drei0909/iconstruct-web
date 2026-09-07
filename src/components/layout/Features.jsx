@@ -45,7 +45,7 @@ const features = [
     tag: "Management",
     title: "Unified Shop Manager Dashboard",
     description:
-      "Update product listings, manage pricing, review posted projects, submit quotations, and track bidding history — all from one centralized web dashboard built for hardware shop owners.",
+      "Review posted projects, quote line by line, set what you supply, manage your storefront, and track bidding history — all from one centralized web dashboard built for hardware shop owners.",
   },
 ];
 
@@ -312,7 +312,7 @@ export default function Features() {
             </h2>
             <p className="sp-subtitle">
               Start free after your shop is approved. Upgrade any time to unlock
-              more product listings, priority visibility, and powerful analytics.
+              unlimited quoting, priority visibility, and powerful analytics.
             </p>
             <div className="sp-flow-pill">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"
