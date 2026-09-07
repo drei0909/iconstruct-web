@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Package } from "@phosphor-icons/react";
 import { db } from "../services/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
+import { estimateProjectBaseline, referenceUnitPrice } from "../utils/recommendationEngine";
 
 const peso = (n) =>
   new Intl.NumberFormat("en-PH", {
@@ -84,8 +85,17 @@ export default function QuoteModal({
   submitting,
   accentColor = "#2C3E50",
   accentGradient = "linear-gradient(180deg, #2C3E50 30%, #648DB6 100%)",
+  estimateConfig = null,
+  plan = "basic",
 }) {
   const materials = Array.isArray(project.materials) ? project.materials : [];
+
+  // DPWH planning baseline for this project (all plans see the total; Pro/Business
+  // also get per-line reference prices; Business gets an over-baseline warning).
+  const baseline = estimateConfig ? estimateProjectBaseline(project, estimateConfig) : null;
+  const showLineRef = plan === "pro" || plan === "business";
+  const showBaselineWarning = plan === "business";
+  const refPricing = estimateConfig?.pricing || null;
 
   // Each line starts as "quote" with an empty price. The shop can flip a line to
   // "substitute" (offer a different item it does carry) or "decline" (can't supply).
@@ -187,6 +197,7 @@ export default function QuoteModal({
 
   const infoPills = [
     project.totalAreaSqm   != null && { label: "Area",        value: `${project.totalAreaSqm} sqm` },
+    baseline                       && { label: "DPWH est.",   value: peso(baseline.materialsTotal) },
     project.quotationCount != null && { label: "Bids so far", value: project.quotationCount },
     project.budget                 && { label: "Budget",      value: project.budget },
     project.locationCity           && { label: "Location",    value: project.locationCity },
@@ -278,6 +289,13 @@ export default function QuoteModal({
                 const active  = (isQuote || isSub) && r.price > 0;
                 const imgUrl  = imagesLoading ? null : (imageMap[m.name] || null);
 
+                const ref = showLineRef && refPricing && !isDecl
+                  ? referenceUnitPrice(m.name, r.category, refPricing)
+                  : null;
+                const refDiffPct = ref && r.price > 0
+                  ? Math.round(((r.price - ref.price) / ref.price) * 100)
+                  : null;
+
                 const borderColor = isDecl ? "#FCA5A5" : isSub ? "#FCD34D" : active ? accentColor + "50" : "#E4E9F0";
                 const bgColor     = isDecl ? "#FEF2F2" : isSub ? "#FFFBEB" : active ? accentColor + "08" : "#F8FAFC";
                 const seg = (label, mode, on, onColor) => (
@@ -353,6 +371,21 @@ export default function QuoteModal({
                       )}
                     </div>
 
+                    {/* DPWH reference price (Pro / Business) */}
+                    {ref && (
+                      <div style={{ fontSize: 11, color: "#64748B", marginTop: 8 }}>
+                        DPWH reference: <strong>{peso(ref.price)}/{ref.unit}</strong>
+                        {refDiffPct != null && (
+                          <span style={{
+                            marginLeft: 6, fontWeight: 700,
+                            color: refDiffPct > 10 ? "#B45309" : refDiffPct < -10 ? "#1D4ED8" : "#059669",
+                          }}>
+                            · your price is {refDiffPct > 0 ? `${refDiffPct}% above` : refDiffPct < 0 ? `${Math.abs(refDiffPct)}% below` : "on"} reference
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     {/* Substitute name */}
                     {isSub && (
                       <input
@@ -421,6 +454,27 @@ export default function QuoteModal({
               </div>
             </div>
           )}
+
+          {showBaselineWarning && baseline && total > 0 && (() => {
+            const base = baseline.materialsTotal || 0;
+            const diffPct = base > 0 ? Math.round(((total - base) / base) * 100) : 0;
+            const high = diffPct > 10, low = diffPct < -10;
+            const c = high
+              ? { bg: "#FEF3C7", bd: "#FCD34D", fg: "#92400E" }
+              : low
+                ? { bg: "#EFF6FF", bd: "#BFDBFE", fg: "#1D4ED8" }
+                : { bg: "#ECFDF5", bd: "#6EE7B7", fg: "#065F46" };
+            return (
+              <div style={{ fontSize: 12, color: c.fg, background: c.bg, border: `1px solid ${c.bd}`, borderRadius: 8, padding: "9px 12px", marginBottom: 12, lineHeight: 1.5 }}>
+                {high
+                  ? `Your quote is ${diffPct}% above the DPWH baseline of ${peso(base)} (materials).`
+                  : low
+                    ? `Your quote is ${Math.abs(diffPct)}% below the DPWH baseline of ${peso(base)} (materials).`
+                    : `Your quote is in line with the DPWH baseline (${peso(base)} materials).`}
+                {" "}Reference only — you decide the final price.
+              </div>
+            );
+          })()}
 
           {incomplete > 0 && (
             <div style={{ fontSize: 12, color: "#B45309", background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: 8, padding: "9px 12px", marginBottom: 12 }}>

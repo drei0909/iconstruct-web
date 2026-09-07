@@ -13,6 +13,8 @@ import PaymentForm  from "../../components/forms/Paymentform";
 import { auth, db } from "../../services/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import { getPlanConfig } from "../../config/planConfig";
+import { getRecommendationConfig } from "../../controllers/recommendationController";
+import { normalizeEngineDoc } from "../../utils/recommendationEngine";
 import PayMongoPaymentForm from "../../components/forms/PayMongoPaymentForm";
 import React from "react";
 import QuoteModal from "../../components/QuoteModal";
@@ -150,7 +152,7 @@ function Overview({ quotations, projects, quotaUsed, setActiveTab }) {
   );
 }
 
-function Projects({ projects, quotaUsed, setQuoteModal, setActiveTab, loading, quotations = [] }) {
+function Projects({ projects, quotaUsed, setQuoteModal, setActiveTab, loading, quotations = [], estimateConfig }) {
   return (
     <ShopProjectsPanel
       projects={projects}
@@ -162,6 +164,7 @@ function Projects({ projects, quotaUsed, setQuoteModal, setActiveTab, loading, q
       planLabel={`Basic: limited to ${PROJECT_LIMIT}`}
       showUpgradeBanner
       onUpgrade={() => setActiveTab("upgrade")}
+      estimateConfig={estimateConfig}
     />
   );
 }
@@ -332,8 +335,15 @@ export default function ShopDashboardBasic() {
   const [quoteModal, setQuoteModal]           = useState(null);
   const [submitting, setSubmitting]           = useState(false);
   const [chatQuote, setChatQuote]             = useState(null);
+  const [estimateConfig, setEstimateConfig]  = useState(null);
   const [showPlanActivatedModal, setShowPlanActivatedModal] = useState(false);
   const prevStatusRef = useRef(null);
+
+  useEffect(() => {
+    getRecommendationConfig()
+      .then(setEstimateConfig)
+      .catch(() => setEstimateConfig(normalizeEngineDoc({})));
+  }, []);
 
   const now = new Date();
   const quotaUsed = quotations.filter(q => {
@@ -401,7 +411,7 @@ export default function ShopDashboardBasic() {
     }
     switch (activeTab) {
       case "overview":   return <Overview quotations={quotations} projects={projects} quotaUsed={quotaUsed} setActiveTab={setActiveTab} />;
-      case "projects":   return <Projects projects={projects} quotations={quotations} quotaUsed={quotaUsed} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} loading={loading} />;
+      case "projects":   return <Projects projects={projects} quotations={quotations} quotaUsed={quotaUsed} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} loading={loading} estimateConfig={estimateConfig} />;
       case "quotations": return (
         <Quotations
           quotations={quotations}
@@ -563,6 +573,8 @@ export default function ShopDashboardBasic() {
           submitting={submitting}
           accentColor="#2C3E50"
           accentGradient="linear-gradient(180deg, #2C3E50 30%, #648DB6 100%)"
+          estimateConfig={estimateConfig}
+          plan="basic"
         />
       )}
 

@@ -5,8 +5,10 @@ import {
   TbChevronDown, TbSearch, TbX, TbCheck, TbRefresh,
 } from "react-icons/tb";
 import ListPagination, { paginate } from "../ui/ListPagination";
+import { estimateProjectBaseline } from "../../utils/recommendationEngine";
 
 const ACCENT = "#2C5282";
+const peso0 = (n) => `₱${Number(n || 0).toLocaleString("en-PH", { maximumFractionDigits: 0 })}`;
 const DEFAULT_PAGE_SIZE = 8;
 
 function toDate(ts) {
@@ -79,6 +81,7 @@ export default function ShopProjectsPanel({
   planLabel = "",
   onUpgrade,
   showUpgradeBanner = false,
+  estimateConfig = null,
 }) {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -352,6 +355,7 @@ export default function ShopProjectsPanel({
             const open = expandedId === p.id;
             const date = formatDate(p.postedAt || p.createdAt);
             const materials = p.materials || [];
+            const baseline = estimateConfig ? estimateProjectBaseline(p, estimateConfig) : null;
 
             return (
               <div
@@ -393,6 +397,11 @@ export default function ShopProjectsPanel({
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {p.totalAreaSqm != null && (
                         <Chip tone="blue"><TbRuler2 size={11} /> {p.totalAreaSqm} sqm</Chip>
+                      )}
+                      {baseline && (
+                        <Chip tone="brand" title="DPWH planning estimate (materials only)">
+                          DPWH est. {peso0(baseline.materialsTotal)}
+                        </Chip>
                       )}
                       {p.budget && (
                         <Chip tone="green"><TbCurrencyDollar size={11} /> {p.budget}</Chip>
@@ -462,44 +471,68 @@ export default function ShopProjectsPanel({
                   </div>
                 </div>
 
-                {open && materials.length > 0 && (
+                {open && (materials.length > 0 || baseline) && (
                   <div style={{
                     borderTop: "1px solid #F1F5F9",
                     background: "#FAFBFC",
                     padding: "14px 18px 16px",
                   }}>
-                    <div style={{
-                      fontSize: 10, fontWeight: 700, color: "#94A3B8",
-                      letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 10,
-                    }}>
-                      Materials needed
-                    </div>
-                    <div style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-                      gap: 8,
-                    }}>
-                      {materials.map((m, i) => (
-                        <div
-                          key={i}
-                          style={{
-                            background: "#fff",
-                            border: "1px solid #E2E8F0",
-                            borderRadius: 10,
-                            padding: "10px 12px",
-                          }}
-                        >
-                          <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>
-                            {m.name || "Material"}
-                          </div>
-                          <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
-                            {[m.category, m.quantity != null ? `${m.quantity} ${m.unit || ""}`.trim() : null, m.size]
-                              .filter(Boolean)
-                              .join(" · ") || "—"}
-                          </div>
+                    {baseline && (
+                      <div style={{
+                        marginBottom: materials.length > 0 ? 16 : 0,
+                        padding: "10px 12px", borderRadius: 10,
+                        background: "#EFF6FF", border: "1px solid #BFDBFE",
+                      }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#1D4ED8", marginBottom: 6 }}>
+                          DPWH planning estimate · {baseline.areaSqm} m²
                         </div>
-                      ))}
-                    </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 14px", fontSize: 11.5, color: "#334155" }}>
+                          {baseline.perMaterial.map((mat) => (
+                            <span key={mat.key}>{mat.label}: <strong>{peso0(mat.cost)}</strong></span>
+                          ))}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: "#1E40AF", marginTop: 6 }}>
+                          Materials {peso0(baseline.materialsTotal)} · with labor {peso0(baseline.grandTotal)} —
+                          reference only, your quote is the real price.
+                        </div>
+                      </div>
+                    )}
+                    {materials.length > 0 && (
+                      <>
+                        <div style={{
+                          fontSize: 10, fontWeight: 700, color: "#94A3B8",
+                          letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 10,
+                        }}>
+                          Materials needed
+                        </div>
+                        <div style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                          gap: 8,
+                        }}>
+                          {materials.map((m, i) => (
+                            <div
+                              key={i}
+                              style={{
+                                background: "#fff",
+                                border: "1px solid #E2E8F0",
+                                borderRadius: 10,
+                                padding: "10px 12px",
+                              }}
+                            >
+                              <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>
+                                {m.name || "Material"}
+                              </div>
+                              <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
+                                {[m.category, m.quantity != null ? `${m.quantity} ${m.unit || ""}`.trim() : null, m.size]
+                                  .filter(Boolean)
+                                  .join(" · ") || "—"}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

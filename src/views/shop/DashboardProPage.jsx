@@ -23,6 +23,8 @@ import ShopQuotationsPanel from "../../components/shop/ShopQuotationsPanel";
 import ShopMessagesPanel from "../../components/shop/ShopMessagesPanel";
 import PaidPlanAnalytics from "../../components/shop/PaidPlanAnalytics";
 import { getQuoteMoneyStats } from "../../utils/quoteAnalytics";
+import { getRecommendationConfig } from "../../controllers/recommendationController";
+import { normalizeEngineDoc } from "../../utils/recommendationEngine";
 import DashboardBrand from "../../components/ui/DashboardBrand";
 import ShopNotificationBell from "../../components/ui/ShopNotificationBell";
 import TopProductsCard from "../../components/shop/TopProductsCard";
@@ -161,13 +163,14 @@ function Overview({ shop, quotations, projects, accepted, pending, rejected, mon
   );
 }
 
-function AllProjects({ projects, quotations, setQuoteModal }) {
+function AllProjects({ projects, quotations, setQuoteModal, estimateConfig }) {
   return (
     <ShopProjectsPanel
       projects={projects}
       quotations={quotations}
       onQuote={setQuoteModal}
       planLabel="Pro · unlimited projects"
+      estimateConfig={estimateConfig}
     />
   );
 }
@@ -271,7 +274,14 @@ export default function ShopDashboardPro() {
   const [quoteModal, setQuoteModal] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [chatQuote, setChatQuote] = useState(null);
+  const [estimateConfig, setEstimateConfig] = useState(null);
   const [showPlanActivatedModal, setShowPlanActivatedModal] = useState(false);
+
+  useEffect(() => {
+    getRecommendationConfig()
+      .then(setEstimateConfig)
+      .catch(() => setEstimateConfig(normalizeEngineDoc({})));
+  }, []);
   const prevStatusRef = useRef(null);
 
   useEffect(() => {
@@ -486,7 +496,7 @@ export default function ShopDashboardPro() {
   const renderContent = () => {
     switch (activeTab) {
       case "overview":   return <Overview shop={shop} quotations={quotations} projects={projects} accepted={accepted} pending={pending} rejected={rejected} money={money} monthQuotes={monthQuotes} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} />;
-      case "projects":   return <AllProjects projects={projects} quotations={quotations} setQuoteModal={setQuoteModal} />;
+      case "projects":   return <AllProjects projects={projects} quotations={quotations} setQuoteModal={setQuoteModal} estimateConfig={estimateConfig} />;
       case "quotations": return (
         <Quotations
           quotations={quotations}
@@ -569,6 +579,8 @@ export default function ShopDashboardPro() {
           enableTemplates
           shopId={shop?.id || auth.currentUser?.uid}
           pricingGuide={money}
+          estimateConfig={estimateConfig}
+          plan="pro"
         />
       )}
 

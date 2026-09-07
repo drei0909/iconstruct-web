@@ -24,6 +24,8 @@ import {
   buildShopInsights,
 } from "../../utils/quoteAnalytics";
 import { loadQuoteTemplates, saveQuoteTemplates } from "../../utils/quoteTemplates";
+import { getRecommendationConfig } from "../../controllers/recommendationController";
+import { normalizeEngineDoc } from "../../utils/recommendationEngine";
 import DashboardBrand from "../../components/ui/DashboardBrand";
 import ShopNotificationBell from "../../components/ui/ShopNotificationBell";
 import TopProductsCard from "../../components/shop/TopProductsCard";
@@ -144,13 +146,14 @@ function Overview({ shop, quotations, projects, money, stale, insights, setQuote
   );
 }
 
-function AllProjects({ projects, quotations, setQuoteModal }) {
+function AllProjects({ projects, quotations, setQuoteModal, estimateConfig }) {
   return (
     <ShopProjectsPanel
       projects={projects}
       quotations={quotations}
       onQuote={setQuoteModal}
       planLabel="Business · unlimited projects"
+      estimateConfig={estimateConfig}
     />
   );
 }
@@ -313,8 +316,15 @@ export default function ShopDashboardBusiness() {
   const [quoteModal, setQuoteModal] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [chatQuote, setChatQuote] = useState(null);
+  const [estimateConfig, setEstimateConfig] = useState(null);
   const [showPlanActivatedModal, setShowPlanActivatedModal] = useState(false);
   const prevStatusRef = useRef(null);
+
+  useEffect(() => {
+    getRecommendationConfig()
+      .then(setEstimateConfig)
+      .catch(() => setEstimateConfig(normalizeEngineDoc({})));
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -522,7 +532,7 @@ export default function ShopDashboardBusiness() {
   const renderContent = () => {
     switch (activeTab) {
       case "overview":   return <Overview shop={shop} quotations={quotations} projects={projects} money={money} stale={stale} insights={insights} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} />;
-      case "projects":   return <AllProjects projects={projects} quotations={quotations} setQuoteModal={setQuoteModal} />;
+      case "projects":   return <AllProjects projects={projects} quotations={quotations} setQuoteModal={setQuoteModal} estimateConfig={estimateConfig} />;
       case "quotations": return (
         <QuotationsBusiness
           quotations={quotations}
@@ -607,6 +617,8 @@ export default function ShopDashboardBusiness() {
           enableTemplates
           shopId={shop?.id || auth.currentUser?.uid}
           pricingGuide={money}
+          estimateConfig={estimateConfig}
+          plan="business"
         />
       )}
 

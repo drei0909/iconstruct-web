@@ -169,6 +169,55 @@ export function estimateMaterials(areaSqm, config = {}) {
   };
 }
 
+/**
+ * Whole-project DPWH planning baseline from the builder's stated floor area.
+ * Returns null when the project has no usable area.
+ */
+export function estimateProjectBaseline(project = {}, config = {}) {
+  const area = Number(
+    project.totalAreaSqm ?? project.area ?? project.totalArea ?? project.total_area_sqm
+  );
+  if (!Number.isFinite(area) || area <= 0) return null;
+  try {
+    const r = estimateMaterials(area, config);
+    return {
+      areaSqm: area,
+      materialsTotal: r.materialsTotal,
+      labor: r.labor,
+      grandTotal: r.total,
+      perMaterial: r.items,
+      source: r.source,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Keyword → engine material, for per-line reference pricing in the quote form.
+const REF_MATCHERS = [
+  { re: /cement|portland/i,                                  priceKey: "cementPerBag", unit: "bag" },
+  { re: /\bsand\b/i,                                         priceKey: "sandPerCuM",   unit: "m³" },
+  { re: /gravel|aggregate|crushed stone/i,                   priceKey: "gravelPerCuM", unit: "m³" },
+  { re: /rebar|reinforc|steel bar|deformed bar|\brsb\b/i,    priceKey: "steelPerKg",   unit: "kg" },
+  { re: /\bchb\b|hollow block|concrete block/i,              priceKey: "chbPerPc",     unit: "pc" },
+];
+
+/**
+ * Best-effort DPWH reference unit price for a project line, by matching its
+ * name/category to one of the engine's known materials. null when no match.
+ */
+export function referenceUnitPrice(name = "", category = "", pricing = {}) {
+  const merged = mergePricing(pricing);
+  const hay = `${name} ${category}`.toLowerCase();
+  for (const m of REF_MATCHERS) {
+    if (m.re.test(hay)) {
+      const price = Number(merged[m.priceKey]);
+      if (Number.isFinite(price) && price > 0) return { price, unit: m.unit };
+    }
+  }
+  return null;
+}
+
 /** Normalize a Firestore document into { schemaVersion, formula, pricing, source }. */
 export function normalizeEngineDoc(data = {}) {
   return {
