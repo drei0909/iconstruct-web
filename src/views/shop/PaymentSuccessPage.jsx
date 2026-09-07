@@ -137,7 +137,7 @@ export default function PaymentSuccessPage() {
             type="button"
             onClick={async () => {
               await signOut(auth);
-              navigate("/login");
+              navigate("/login", { replace: true });
             }}
             style={styles.btn}
           >

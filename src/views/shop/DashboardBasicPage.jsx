@@ -500,7 +500,7 @@ export default function ShopDashboardBasic() {
             )}
           </div>
           {!sidebarCollapsed ? (
-            <button className="db-signout-btn" onClick={async () => { await logoutShop(); navigate("/login"); }}>
+            <button className="db-signout-btn" onClick={async () => { await logoutShop(); navigate("/login", { replace: true }); }}>
               Sign Out
             </button>
           ) : (
@@ -508,7 +508,7 @@ export default function ShopDashboardBasic() {
               type="button"
               className="db-signout-btn db-signout-btn--icon"
               title="Sign Out"
-              onClick={async () => { await logoutShop(); navigate("/login"); }}
+              onClick={async () => { await logoutShop(); navigate("/login", { replace: true }); }}
             >
               <TbLogout size={15} />
             </button>
@@ -549,7 +549,7 @@ export default function ShopDashboardBasic() {
         onClose={() => setMobileNavOpen(false)}
         accentColor="#2C5282"
         subtitle="Shop Manager"
-        onLogout={async () => { await logoutShop(); navigate("/login"); }}
+        onLogout={async () => { await logoutShop(); navigate("/login", { replace: true }); }}
       />
 
       {quoteModal && (
@@ -607,7 +607,7 @@ export default function ShopDashboardBasic() {
               <button onClick={() => setShowPlanActivatedModal(false)} style={{ flex:1, padding:"12px", borderRadius:10, border:"1.5px solid rgba(44,62,80,0.15)", background:"transparent", color:"rgba(44,62,80,0.6)", fontSize:13, fontWeight:500, cursor:"pointer" }}>
                 Remind Me Later
               </button>
-              <button onClick={async () => { await logoutShop(); navigate("/login"); }} style={{ flex:2, padding:"12px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#7C3AED,#6D28D9)", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", boxShadow:"0 4px 14px rgba(124,58,237,0.3)" }}>
+              <button onClick={async () => { await logoutShop(); navigate("/login", { replace: true }); }} style={{ flex:2, padding:"12px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#7C3AED,#6D28D9)", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", boxShadow:"0 4px 14px rgba(124,58,237,0.3)" }}>
                 Sign Out &amp; Log In Again →
               </button>
             </div>

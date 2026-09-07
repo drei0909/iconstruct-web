@@ -1,6 +1,9 @@
 // src/views/admin/AdminLoginPage.jsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { onAuthStateChanged } from "firebase/auth";
+import { getDoc, doc } from "firebase/firestore";
+import { auth, db } from "../../services/firebase";
 import { loginAdmin } from "../../controllers/adminController";
 import ForgotPassword from "../../components/forms/ForgotPassword";
 
@@ -12,6 +15,21 @@ export default function AdminLogin() {
   const [error, setError]     = useState("");
   const [showForgot, setShowForgot] = useState(false);
 
+  // Already signed in as an admin? Skip the login page (fixes browser Back
+  // from /admin/dashboard landing here while still authenticated).
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (!u || loading) return;
+      try {
+        const snap = await getDoc(doc(db, "admins", u.uid));
+        if (snap.exists()) navigate("/admin/dashboard", { replace: true });
+      } catch {
+        /* stay on login */
+      }
+    });
+    return () => unsub();
+  }, [navigate, loading]);
+
   const handleChange = (e) =>
     setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
 
@@ -21,7 +39,7 @@ export default function AdminLogin() {
     setError("");
     try {
       await loginAdmin(form.email, form.password);
-      navigate("/admin/dashboard");
+      navigate("/admin/dashboard", { replace: true });
     } catch (err) {
       setError(err.message || "Invalid credentials.");
     } finally {

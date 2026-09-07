@@ -1,6 +1,8 @@
 // src/components/forms/LoginForm.jsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "../../services/firebase";
 import { loginShop } from "../../controllers/authController";
 import ForgotPassword from "./ForgotPassword";
 import { requestNotificationPermission } from "../../services/fcmService";
@@ -12,6 +14,15 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [firebaseError, setFirebaseError] = useState("");
   const [showForgot, setShowForgot] = useState(false);
+
+  // Already signed in? Don't sit on the login page — go to the dashboard.
+  // (Fixes: browser Back from the dashboard landing on /login while logged in.)
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      if (u && !loading) navigate("/shop/dashboard", { replace: true });
+    });
+    return () => unsub();
+  }, [navigate, loading]);
 
   const handleChange = (e) => {
     let { name, value } = e.target;
@@ -33,7 +44,7 @@ function LoginForm() {
         console.warn("[Login] FCM setup skipped:", fcmErr?.message || fcmErr);
       }
 
-      navigate("/shop/dashboard");
+      navigate("/shop/dashboard", { replace: true });
     } catch (err) {
       const msg = {
         "auth/user-not-found": "No account found with this email.",

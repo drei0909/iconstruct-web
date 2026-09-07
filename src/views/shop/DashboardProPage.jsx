@@ -451,7 +451,7 @@ export default function ShopDashboardPro() {
           <button
             type="button"
             title="Sign Out"
-            onClick={async () => { await logoutShop(); navigate("/login"); }}
+            onClick={async () => { await logoutShop(); navigate("/login", { replace: true }); }}
             style={{
               width: 28,
               height: 28,
@@ -468,7 +468,7 @@ export default function ShopDashboardPro() {
             <SignOut size={14} />
           </button>
         ) : (
-          <button onClick={async () => { await logoutShop(); navigate("/login"); }} style={{ width: "100%", padding: "8px", borderRadius: 8, border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.1)", color: "#F87171", fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}>Sign Out</button>
+          <button onClick={async () => { await logoutShop(); navigate("/login", { replace: true }); }} style={{ width: "100%", padding: "8px", borderRadius: 8, border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.1)", color: "#F87171", fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}>Sign Out</button>
         )}
       </div>
     </aside>
@@ -557,7 +557,7 @@ export default function ShopDashboardPro() {
         onClose={() => setMobileNavOpen(false)}
         accentColor="#3B82F6"
         subtitle="Shop Manager · Pro"
-        onLogout={async () => { await logoutShop(); navigate("/login"); }}
+        onLogout={async () => { await logoutShop(); navigate("/login", { replace: true }); }}
       />
 
       {quoteModal && (
@@ -611,7 +611,7 @@ export default function ShopDashboardPro() {
             </div>
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={() => setShowPlanActivatedModal(false)} style={{ flex:1, padding:"12px", borderRadius:10, border:"1.5px solid rgba(44,62,80,0.15)", background:"transparent", color:"rgba(44,62,80,0.6)", fontSize:13, fontWeight:500, cursor:"pointer" }}>Remind Me Later</button>
-              <button onClick={async () => { await logoutShop(); navigate("/login"); }} style={{ flex:2, padding:"12px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#2C5282,#3B82F6)", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", boxShadow:"0 4px 14px rgba(44,82,130,0.3)" }}>
+              <button onClick={async () => { await logoutShop(); navigate("/login", { replace: true }); }} style={{ flex:2, padding:"12px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#2C5282,#3B82F6)", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", boxShadow:"0 4px 14px rgba(44,82,130,0.3)" }}>
                 Sign Out &amp; Log In Again →
               </button>
             </div>

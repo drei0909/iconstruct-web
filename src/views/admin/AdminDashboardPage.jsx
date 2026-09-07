@@ -386,7 +386,7 @@
     const handleLogout = async () => {
   try {
     await logoutAdmin();
-    navigate("/admin/admin"); // adjust to your actual admin login route
+    navigate("/admin", { replace: true });
   } catch (err) {
     console.warn(err);
     showToast("Failed to sign out. Try again.", "error");
