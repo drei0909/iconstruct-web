@@ -72,8 +72,6 @@ const DEFAULT_PLANS = ["basic", "pro", "business"].map((key) => {
       ? "Included on Registration"
       : `Get ${key === "pro" ? "Pro" : "Business"} — ${price}/mo`,
     ctaStyle: key === "pro" ? "filled" : "outline",
-    limitNote: p.productLimit === Infinity ? "No product cap" : `${p.productLimit} products max`,
-    limitPct: p.productLimit === Infinity ? 100 : key === "pro" ? 58 : 15,
     isPublic: true,
   };
 });
@@ -100,28 +98,10 @@ function firestorePlanToDisplay(key, plan) {
 
   const period = isBasic && priceNum === 0 ? "" : `/ ${billingCycle}`;
 
-  const productLimit =
-    plan.productLimit === -1
-      ? "Unlimited"
-      : String(
-          plan.productLimit ??
-            (staticPlan.productLimit === Infinity
-              ? "Unlimited"
-              : staticPlan.productLimit ?? 20)
-        );
   const features =
     Array.isArray(plan.features) && plan.features.length
       ? plan.features
       : staticPlan.features ?? [];
-
-  const limitPct =
-    plan.productLimit === -1
-      ? 100
-      : isPro
-        ? Math.round(Math.min((Number(plan.productLimit || 150) / 150) * 58, 58))
-        : isBasic
-          ? Math.round(Math.min((Number(plan.productLimit || 20) / 20) * 15, 15))
-          : 100;
 
   const displayName =
     plan.label ||
@@ -141,11 +121,6 @@ function firestorePlanToDisplay(key, plan) {
     features,
     cta: ctaText,
     ctaStyle: isPro ? "filled" : "outline",
-    limitNote:
-      plan.productLimit === -1
-        ? "No product cap"
-        : `${productLimit} products max`,
-    limitPct,
     isPublic: plan.isPublic !== false,
   };
 }
@@ -386,18 +361,6 @@ export default function Features() {
                   <div className="sp-plan-price">
                     <span className="sp-plan-amount">{plan.price}</span>
                     {plan.period && <span className="sp-plan-period">{plan.period}</span>}
-                  </div>
-                  <div className="sp-limit-box">
-                    <div className="sp-limit-header">
-                      <span className="sp-limit-label">Product listings</span>
-                      <span className="sp-limit-value">{plan.limitNote}</span>
-                    </div>
-                    <div className="sp-limit-bar">
-                      <div
-                        className={`sp-limit-fill ${plan.limitPct === 100 ? "sp-limit-fill--full" : ""}`}
-                        style={{ width: `${plan.limitPct}%` }}
-                      />
-                    </div>
                   </div>
                   <ul className="sp-plan-features">
                     {(plan.features ?? []).map((feat, j) => (
