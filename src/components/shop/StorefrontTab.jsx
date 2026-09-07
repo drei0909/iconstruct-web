@@ -21,6 +21,8 @@ export default function StorefrontTab({ shop, onShopUpdated, accentColor = "#2C5
   });
   const [cities, setCities] = useState([]);
   const [cityDraft, setCityDraft] = useState("");
+  const [selectedBrgy, setSelectedBrgy] = useState("");
+  const [sitioDraft, setSitioDraft] = useState("");
   const [showSug, setShowSug] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
@@ -35,19 +37,29 @@ export default function StorefrontTab({ shop, onShopUpdated, accentColor = "#2C5
     setCities(Array.isArray(shop.coverageCities) ? shop.coverageCities : []);
   }, [shop]);
 
-  const chosen = new Set(cities.map((c) => c.toLowerCase()));
   const q = cityDraft.trim().toLowerCase();
   const suggestions = LIPA_BARANGAYS
-    .filter((b) => !chosen.has(`${b}, ${LIPA_CITY}`.toLowerCase()))
     .filter((b) => !q || b.toLowerCase().includes(q))
     .slice(0, 8);
 
-  const addBarangay = (barangay) => {
-    const val = `${barangay}, ${LIPA_CITY}`;
+  const pickBarangay = (barangay) => {
+    setSelectedBrgy(barangay);
+    setCityDraft(barangay);
+    setShowSug(false);
+  };
+
+  const addArea = () => {
+    if (!selectedBrgy) return;
+    const sub = sitioDraft.trim();
+    const val = sub
+      ? `${sub}, ${selectedBrgy}, ${LIPA_CITY}`
+      : `${selectedBrgy}, ${LIPA_CITY}`;
     if (!cities.some((c) => c.toLowerCase() === val.toLowerCase())) {
       setCities((c) => [...c, val]);
     }
     setCityDraft("");
+    setSelectedBrgy("");
+    setSitioDraft("");
     setShowSug(false);
   };
 
@@ -119,21 +131,23 @@ export default function StorefrontTab({ shop, onShopUpdated, accentColor = "#2C5
           </div>
 
           <div>
-            <label style={labelStyle}>Coverage areas — barangays in Lipa City</label>
+            <label style={labelStyle}>Coverage areas you serve (Lipa City)</label>
+
+            {/* Step 1 — barangay from the official list */}
             <div style={{ position: "relative" }}>
               <input
                 value={cityDraft}
-                onChange={(e) => { setCityDraft(e.target.value); setShowSug(true); }}
+                onChange={(e) => { setCityDraft(e.target.value); setSelectedBrgy(""); setShowSug(true); }}
                 onFocus={() => setShowSug(true)}
                 onBlur={() => setTimeout(() => setShowSug(false), 150)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") { e.preventDefault(); if (suggestions[0]) addBarangay(suggestions[0]); }
+                  if (e.key === "Enter") { e.preventDefault(); if (suggestions[0]) pickBarangay(suggestions[0]); }
                   if (e.key === "Escape") setShowSug(false);
                 }}
-                placeholder="Type a barangay… e.g. Marauoy, San Jose, Poblacion"
-                style={inputStyle}
+                placeholder="1. Type a barangay… e.g. Marauoy, San Jose, Poblacion"
+                style={{ ...inputStyle, borderColor: selectedBrgy ? accentColor : "#E2E8F0" }}
               />
-              {showSug && (
+              {showSug && !selectedBrgy && (
                 <div style={{
                   position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 20,
                   background: "#fff", border: "1px solid #E2E8F0", borderRadius: 8,
@@ -148,7 +162,7 @@ export default function StorefrontTab({ shop, onShopUpdated, accentColor = "#2C5
                       <button
                         key={b}
                         type="button"
-                        onMouseDown={(e) => { e.preventDefault(); addBarangay(b); }}
+                        onMouseDown={(e) => { e.preventDefault(); pickBarangay(b); }}
                         style={{
                           display: "block", width: "100%", textAlign: "left",
                           padding: "9px 12px", border: "none", background: "transparent",
@@ -164,9 +178,36 @@ export default function StorefrontTab({ shop, onShopUpdated, accentColor = "#2C5
                 </div>
               )}
             </div>
-            <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 4 }}>
-              Pick from the list — Lipa City barangays only.
+
+            {/* Step 2 — optional purok / sitio (free text — no official list exists below barangay) */}
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <input
+                value={sitioDraft}
+                onChange={(e) => setSitioDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addArea(); } }}
+                disabled={!selectedBrgy}
+                placeholder={selectedBrgy ? `2. Purok / sitio / subdivision in ${selectedBrgy} (optional)` : "Pick a barangay first"}
+                style={{ ...inputStyle, background: selectedBrgy ? "#fff" : "#F8FAFC" }}
+              />
+              <button
+                type="button"
+                onClick={addArea}
+                disabled={!selectedBrgy}
+                style={{
+                  padding: "0 18px", borderRadius: 8, border: "none", flexShrink: 0,
+                  background: selectedBrgy ? accentColor : "#E2E8F0",
+                  color: selectedBrgy ? "#fff" : "#94A3B8",
+                  fontSize: 13, fontWeight: 700, cursor: selectedBrgy ? "pointer" : "not-allowed",
+                }}
+              >
+                Add
+              </button>
             </div>
+            <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 4 }}>
+              Barangay is picked from Lipa City's official list. Purok / sitio is optional and free text —
+              there's no standard list below barangay level.
+            </div>
+
             {cities.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
                 {cities.map((c) => (
