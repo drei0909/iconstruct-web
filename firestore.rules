@@ -342,17 +342,27 @@ service cloud.firestore {
         allow read: if isAdmin()
           || isConvParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data);
 
-        // A message carries text, an imageUrl, or both. Text (when present)
-        // is capped; a photo-only message is allowed.
+        // A message carries text, an imageUrl, or both. Text (when present) is
+        // a string <= 4000 chars; imageUrl (when present) is an https URL
+        // <= 2000 chars. At least one of the two must be a non-empty string.
         allow create: if signedIn()
           && isConvParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data)
           && request.resource.data.senderId == request.auth.uid
           && request.resource.data.senderRole in ['builder', 'shop']
           && (
-               (request.resource.data.text is string
-                && request.resource.data.text.size() > 0
-                && request.resource.data.text.size() <= 4000)
-               || request.resource.data.imageUrl is string
+               !('text' in request.resource.data)
+               || (request.resource.data.text is string
+                   && request.resource.data.text.size() <= 4000)
+             )
+          && (
+               !('imageUrl' in request.resource.data)
+               || (request.resource.data.imageUrl is string
+                   && request.resource.data.imageUrl.size() <= 2000
+                   && request.resource.data.imageUrl.matches('https://.*'))
+             )
+          && (
+               request.resource.data.get('text', '').size() > 0
+               || request.resource.data.get('imageUrl', '').size() > 0
              );
 
         allow update, delete: if false;

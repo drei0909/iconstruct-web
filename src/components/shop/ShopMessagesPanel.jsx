@@ -13,19 +13,34 @@ import {
 } from "../../controllers/chatController";
 
 const URL_RE = /(https?:\/\/[^\s<]+[^\s<.,:;"')\]}])/gi;
+const MAX_TEXT = 4000;
 
-/** Render message text with clickable links. */
+/** Return the string only if it's a well-formed http(s) URL — else null. */
+function safeHttpUrl(raw) {
+  if (typeof raw !== "string" || raw.length > 2048) return null;
+  try {
+    const u = new URL(raw);
+    return u.protocol === "http:" || u.protocol === "https:" ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Render message text with clickable links. Text is React-escaped; only
+ *  validated http(s) URLs become anchors. */
 function renderText(text, mine) {
-  const str = String(text || "");
+  const str = String(text == null ? "" : text).slice(0, MAX_TEXT);
   const parts = str.split(URL_RE);
   return parts.map((part, i) => {
     if (i % 2 === 1) {
+      const href = safeHttpUrl(part);
+      if (!href) return part; // not a safe URL → plain text
       return (
         <a
           key={i}
-          href={part}
+          href={href}
           target="_blank"
-          rel="noopener noreferrer"
+          rel="noopener noreferrer nofollow"
           style={{
             color: mine ? "#DBEAFE" : "#1D4ED8",
             textDecoration: "underline",
@@ -317,6 +332,7 @@ export default function ShopMessagesPanel({
                   })),
                 ].map((m) => {
                   const mine = m.senderRole === "shop";
+                  const imgSrc = safeHttpUrl(m.imageUrl);
                   const seenAt = active?.builderLastReadAt;
                   const seen =
                     mine && !m._pending && m.createdAt && seenAt &&
@@ -337,17 +353,24 @@ export default function ShopMessagesPanel({
                         opacity: m._pending ? 0.7 : 1,
                       }}
                     >
-                      {m.imageUrl ? (
+                      {imgSrc ? (
                         <img
-                          src={m.imageUrl}
+                          src={imgSrc}
                           alt="attachment"
-                          onClick={() => window.open(m.imageUrl, "_blank", "noopener")}
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => { e.currentTarget.style.display = "none"; }}
+                          onClick={() => window.open(imgSrc, "_blank", "noopener,noreferrer")}
                           style={{
                             display: "block", maxWidth: 220, maxHeight: 260,
                             borderRadius: 8, cursor: "pointer",
                             marginBottom: m.text ? 6 : 0,
                           }}
                         />
+                      ) : m.imageUrl ? (
+                        <div style={{ fontSize: 11, opacity: 0.7, fontStyle: "italic", marginBottom: m.text ? 6 : 0 }}>
+                          [attachment unavailable]
+                        </div>
                       ) : null}
                       {m.text ? (
                         <div style={{ fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
