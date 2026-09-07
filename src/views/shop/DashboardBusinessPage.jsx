@@ -6,7 +6,6 @@ import {
   getShopProfile, getShopQuotations, getPostedProjects,
   submitQuotation, logoutShop,
 } from "../../controllers/shopController";
-import ProductsTab from "../../components/ProductsTab";
 import { auth, db } from "../../services/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import PayMongoPaymentForm from "../../components/forms/PayMongoPaymentForm";
@@ -29,13 +28,15 @@ import { normalizeEngineDoc } from "../../utils/recommendationEngine";
 import DashboardBrand from "../../components/ui/DashboardBrand";
 import ShopNotificationBell from "../../components/ui/ShopNotificationBell";
 import TopProductsCard from "../../components/shop/TopProductsCard";
+import SupplyCoverageTab from "../../components/shop/SupplyCoverageTab";
+import StorefrontTab from "../../components/shop/StorefrontTab";
 
 import {
   TbConfetti, TbAlertTriangle, TbMenu2, TbLogout,
 } from "react-icons/tb";
 import {
   SquaresFour, Briefcase, Receipt, ChatCircleText, ChartLineUp,
-  Wrench, Package, CreditCard, GearSix,
+  Wrench, ListChecks, Storefront, CreditCard, GearSix,
 } from "@phosphor-icons/react";
 
 const NAV = [
@@ -45,7 +46,8 @@ const NAV = [
   { key: "messages",   label: "Messages",          icon: <ChatCircleText size={16} /> },
   { key: "analytics",  label: "Business Insights", icon: <ChartLineUp size={16} /> },
   { key: "tools",      label: "Bid Toolkit",       icon: <Wrench size={16} /> },
-  { key: "products",   label: "My Products",       icon: <Package size={16} /> },
+  { key: "supply",     label: "What We Supply",    icon: <ListChecks size={16} /> },
+  { key: "storefront", label: "My Storefront",     icon: <Storefront size={16} /> },
   { key: "billing",    label: "Billing",           icon: <CreditCard size={16} /> },
   { key: "settings",   label: "Settings",          icon: <GearSix size={16} /> },
 ];
@@ -146,7 +148,7 @@ function Overview({ shop, quotations, projects, money, stale, insights, setQuote
   );
 }
 
-function AllProjects({ projects, quotations, setQuoteModal, estimateConfig }) {
+function AllProjects({ projects, quotations, setQuoteModal, estimateConfig, suppliedCategories }) {
   return (
     <ShopProjectsPanel
       projects={projects}
@@ -154,6 +156,7 @@ function AllProjects({ projects, quotations, setQuoteModal, estimateConfig }) {
       onQuote={setQuoteModal}
       planLabel="Business · unlimited projects"
       estimateConfig={estimateConfig}
+      suppliedCategories={suppliedCategories}
     />
   );
 }
@@ -532,7 +535,7 @@ export default function ShopDashboardBusiness() {
   const renderContent = () => {
     switch (activeTab) {
       case "overview":   return <Overview shop={shop} quotations={quotations} projects={projects} money={money} stale={stale} insights={insights} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} />;
-      case "projects":   return <AllProjects projects={projects} quotations={quotations} setQuoteModal={setQuoteModal} estimateConfig={estimateConfig} />;
+      case "projects":   return <AllProjects projects={projects} quotations={quotations} setQuoteModal={setQuoteModal} estimateConfig={estimateConfig} suppliedCategories={shop?.suppliedCategories || []} />;
       case "quotations": return (
         <QuotationsBusiness
           quotations={quotations}
@@ -553,7 +556,8 @@ export default function ShopDashboardBusiness() {
       );
       case "analytics":  return <PaidPlanAnalytics quotations={quotations} tier="business" />;
       case "tools":      return <BidToolkit shopId={shop?.id || auth.currentUser?.uid} />;
-      case "products":   return <ProductsTab plan="business" />;
+      case "supply":     return <SupplyCoverageTab shop={shop} accentColor="#0D2E43" onShopUpdated={(next) => setShop((s) => ({ ...s, ...next }))} />;
+      case "storefront": return <StorefrontTab shop={shop} plan="business" accentColor="#0D2E43" onShopUpdated={(next) => setShop((s) => ({ ...s, ...next }))} />;
       case "billing":    return <BillingBusiness shop={shop} />;
       case "settings":
       case "profile":
@@ -619,6 +623,7 @@ export default function ShopDashboardBusiness() {
           pricingGuide={money}
           estimateConfig={estimateConfig}
           plan="business"
+          suppliedCategories={shop?.suppliedCategories || []}
         />
       )}
 

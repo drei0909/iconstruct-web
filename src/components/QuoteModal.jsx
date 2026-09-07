@@ -1,69 +1,15 @@
 // src/components/QuoteModal.jsx
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Package } from "@phosphor-icons/react";
-import { db } from "../services/firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
 import { estimateProjectBaseline, referenceUnitPrice } from "../utils/recommendationEngine";
+import { classifyMaterial } from "../utils/supplyCategories";
 
 const peso = (n) =>
   new Intl.NumberFormat("en-PH", {
     style: "currency", currency: "PHP", maximumFractionDigits: 0,
   }).format(n ?? 0);
 
-// Looks up product images from Firestore by matching material name
-async function fetchProductImages(materials) {
-  const imageMap = {}; // { materialName: imageUrl }
-
-  const names = [...new Set(materials.map(m => m.name).filter(Boolean))];
-  if (names.length === 0) return imageMap;
-
-  try {
-    // Firestore "in" query supports up to 10 items at a time
-    const chunks = [];
-    for (let i = 0; i < names.length; i += 10) {
-      chunks.push(names.slice(i, i + 10));
-    }
-
-    for (const chunk of chunks) {
-      const q = query(
-        collection(db, "products"),
-        where("name", "in", chunk)
-      );
-      const snap = await getDocs(q);
-      snap.docs.forEach(doc => {
-        const data = doc.data();
-        const img = data.imageUrl || data.imageBase64 || data.image || null;
-        if (img && data.name) {
-          imageMap[data.name] = img;
-        }
-      });
-    }
-  } catch (err) {
-    console.warn("Could not fetch product images:", err.message);
-  }
-
-  return imageMap;
-}
-
-function MaterialImage({ name, imageUrl, accentColor, active }) {
-  const [imgError, setImgError] = useState(false);
-
-  if (imageUrl && !imgError) {
-    return (
-      <img
-        src={imageUrl}
-        alt={name}
-        onError={() => setImgError(true)}
-        style={{
-          width: 44, height: 44, borderRadius: 8,
-          objectFit: "cover", flexShrink: 0,
-          border: `1px solid ${active ? accentColor + "30" : "#E4E9F0"}`,
-        }}
-      />
-    );
-  }
-
-  // Fallback — Phosphor icon
+function MaterialImage({ accentColor, active }) {
   return (
     <div style={{
       width: 44, height: 44, borderRadius: 8,
@@ -87,6 +33,7 @@ export default function QuoteModal({
   accentGradient = "linear-gradient(180deg, #2C3E50 30%, #648DB6 100%)",
   estimateConfig = null,
   plan = "basic",
+  suppliedCategories = [],
 }) {
   const materials = Array.isArray(project.materials) ? project.materials : [];
 
@@ -97,26 +44,26 @@ export default function QuoteModal({
   const showBaselineWarning = plan === "business";
   const refPricing = estimateConfig?.pricing || null;
 
+  // When the shop has declared its supply categories, a project line that
+  // clearly belongs to a category the shop did NOT tick starts pre-marked
+  // "Unavailable" (still editable). Unrecognised lines are left as "quote".
+  const coverage = Array.isArray(suppliedCategories) ? suppliedCategories : [];
+  const outOfCoverage = (m) => {
+    if (coverage.length === 0) return false;
+    const cat = classifyMaterial(m.name, m.category);
+    return cat !== "other" && !coverage.includes(cat);
+  };
+
   // Each line starts as "quote" with an empty price. The shop can flip a line to
   // "substitute" (offer a different item it does carry) or "decline" (can't supply).
   const [lines, setLines] = useState(() =>
-    materials.map(() => ({ mode: "quote", price: "", note: "", subName: "" }))
+    materials.map((m) =>
+      outOfCoverage(m)
+        ? { mode: "decline", price: "", note: "Outside our supply categories", subName: "" }
+        : { mode: "quote", price: "", note: "", subName: "" }
+    )
   );
   const [note, setNote] = useState("");
-
-  const [imageMap, setImageMap] = useState({});
-  const [imagesLoading, setImagesLoading] = useState(true);
-
-  useEffect(() => {
-    if (materials.length === 0) {
-      setImagesLoading(false);
-      return;
-    }
-    fetchProductImages(materials).then(map => {
-      setImageMap(map);
-      setImagesLoading(false);
-    });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const patchLine = (index, patch) =>
     setLines(prev => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)));
@@ -287,7 +234,6 @@ export default function QuoteModal({
                 const isSub   = r.mode === "substitute";
                 const isDecl  = r.mode === "decline";
                 const active  = (isQuote || isSub) && r.price > 0;
-                const imgUrl  = imagesLoading ? null : (imageMap[m.name] || null);
 
                 const ref = showLineRef && refPricing && !isDecl
                   ? referenceUnitPrice(m.name, r.category, refPricing)
@@ -322,7 +268,7 @@ export default function QuoteModal({
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
 
-                      <MaterialImage name={m.name} imageUrl={imgUrl} accentColor={accentColor} active={active} />
+                      <MaterialImage accentColor={accentColor} active={active} />
 
                       <div style={{ flex: "1 1 140px", minWidth: 0 }}>
                         <div style={{ fontSize: 13.5, fontWeight: 700, color: isDecl ? "#B91C1C" : "#0F172A", textDecoration: isDecl ? "line-through" : "none", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>

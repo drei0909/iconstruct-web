@@ -6,9 +6,15 @@ import {
 } from "react-icons/tb";
 import ListPagination, { paginate } from "../ui/ListPagination";
 import { estimateProjectBaseline } from "../../utils/recommendationEngine";
+import { scoreProjectFit } from "../../utils/supplyCategories";
 
 const ACCENT = "#2C5282";
 const peso0 = (n) => `₱${Number(n || 0).toLocaleString("en-PH", { maximumFractionDigits: 0 })}`;
+const FIT_META = {
+  good: { tone: "green", label: "Great match" },
+  ok:   { tone: "brand", label: "Partial match" },
+  poor: { tone: "slate", label: "Low match" },
+};
 const DEFAULT_PAGE_SIZE = 8;
 
 function toDate(ts) {
@@ -82,10 +88,12 @@ export default function ShopProjectsPanel({
   onUpgrade,
   showUpgradeBanner = false,
   estimateConfig = null,
+  suppliedCategories = [],
 }) {
+  const hasCoverage = Array.isArray(suppliedCategories) && suppliedCategories.length > 0;
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("newest");
+  const [sortBy, setSortBy] = useState(hasCoverage ? "best_match" : "newest");
   const [scope, setScope] = useState("all"); // all | not_quoted | quoted
   const [expandedId, setExpandedId] = useState(null);
   const [page, setPage] = useState(1);
@@ -127,6 +135,14 @@ export default function ShopProjectsPanel({
     });
 
     list = [...list].sort((a, b) => {
+      if (sortBy === "best_match") {
+        const fa = scoreProjectFit(a, suppliedCategories).coverage;
+        const fb = scoreProjectFit(b, suppliedCategories).coverage;
+        if (fb !== fa) return fb - fa;
+        const ta0 = toDate(a.postedAt || a.createdAt)?.getTime() || 0;
+        const tb0 = toDate(b.postedAt || b.createdAt)?.getTime() || 0;
+        return tb0 - ta0;
+      }
       if (sortBy === "name") {
         return (a.projectName || "").localeCompare(b.projectName || "");
       }
@@ -143,7 +159,7 @@ export default function ShopProjectsPanel({
     });
 
     return list;
-  }, [projects, search, typeFilter, sortBy, scope, quotedIds]);
+  }, [projects, search, typeFilter, sortBy, scope, quotedIds, suppliedCategories]);
 
   // Reset to first page when filters change
   useEffect(() => {
@@ -235,6 +251,7 @@ export default function ShopProjectsPanel({
             style={selectStyle(sortBy !== "newest")}
             title="Sort projects"
           >
+            {hasCoverage && <option value="best_match">Best match</option>}
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
             <option value="bids">Most bids</option>
@@ -356,6 +373,8 @@ export default function ShopProjectsPanel({
             const date = formatDate(p.postedAt || p.createdAt);
             const materials = p.materials || [];
             const baseline = estimateConfig ? estimateProjectBaseline(p, estimateConfig) : null;
+            const fit = hasCoverage ? scoreProjectFit(p, suppliedCategories) : null;
+            const fitMeta = fit && fit.fit !== "unknown" ? FIT_META[fit.fit] : null;
 
             return (
               <div
@@ -395,6 +414,12 @@ export default function ShopProjectsPanel({
                       {date ? ` · Posted ${date}` : ""}
                     </div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {fitMeta && (
+                        <Chip tone={fitMeta.tone}>
+                          <TbCheck size={11} /> {fitMeta.label}
+                          {fit.matched > 0 ? ` · ${fit.matched}/${fit.total}` : ""}
+                        </Chip>
+                      )}
                       {p.totalAreaSqm != null && (
                         <Chip tone="blue"><TbRuler2 size={11} /> {p.totalAreaSqm} sqm</Chip>
                       )}

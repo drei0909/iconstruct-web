@@ -8,7 +8,6 @@ import {
   getShopProfile, getShopQuotations, getPostedProjects,
   submitQuotation, logoutShop, getMyPaymentRequest,
 } from "../../controllers/shopController";
-import ProductsTab  from "../../components/ProductsTab";
 import PaymentForm  from "../../components/forms/Paymentform";
 import { auth, db } from "../../services/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -26,13 +25,15 @@ import ShopMessagesPanel from "../../components/shop/ShopMessagesPanel";
 import DashboardBrand from "../../components/ui/DashboardBrand";
 import ShopNotificationBell from "../../components/ui/ShopNotificationBell";
 import TopProductsCard from "../../components/shop/TopProductsCard";
+import SupplyCoverageTab from "../../components/shop/SupplyCoverageTab";
+import StorefrontTab from "../../components/shop/StorefrontTab";
 
 import {
   TbBolt, TbConfetti, TbAlertTriangle, TbCreditCard, TbBuildingBank,
   TbMenu2, TbLogout,
 } from "react-icons/tb";
 import {
-  SquaresFour, Briefcase, Receipt, ChatCircleText, Package,
+  SquaresFour, Briefcase, Receipt, ChatCircleText, ListChecks, Storefront,
   CreditCard as CreditCardIcon, GearSix,
 } from "@phosphor-icons/react";
 
@@ -44,10 +45,11 @@ const NAV = [
   { key: "overview",   label: "Dashboard",    icon: <SquaresFour size={16} /> },
   { key: "projects",   label: "Projects",     icon: <Briefcase size={16} /> },
   { key: "quotations", label: "Quotations",   icon: <Receipt size={16} /> },
-  { key: "messages",   label: "Messages",     icon: <ChatCircleText size={16} /> },
-  { key: "products",   label: "My Products",  icon: <Package size={16} /> },
-  { key: "upgrade",    label: "Upgrade Plan", icon: <CreditCardIcon size={16} />, isUpgrade: true },
-  { key: "settings",   label: "Settings",     icon: <GearSix size={16} /> },
+  { key: "messages",   label: "Messages",       icon: <ChatCircleText size={16} /> },
+  { key: "supply",     label: "What We Supply", icon: <ListChecks size={16} /> },
+  { key: "storefront", label: "My Storefront",  icon: <Storefront size={16} /> },
+  { key: "upgrade",    label: "Upgrade Plan",   icon: <CreditCardIcon size={16} />, isUpgrade: true },
+  { key: "settings",   label: "Settings",       icon: <GearSix size={16} /> },
 ];
 
 const LOCKED = [
@@ -152,7 +154,7 @@ function Overview({ quotations, projects, quotaUsed, setActiveTab }) {
   );
 }
 
-function Projects({ projects, quotaUsed, setQuoteModal, setActiveTab, loading, quotations = [], estimateConfig }) {
+function Projects({ projects, quotaUsed, setQuoteModal, setActiveTab, loading, quotations = [], estimateConfig, suppliedCategories }) {
   return (
     <ShopProjectsPanel
       projects={projects}
@@ -165,6 +167,7 @@ function Projects({ projects, quotaUsed, setQuoteModal, setActiveTab, loading, q
       showUpgradeBanner
       onUpgrade={() => setActiveTab("upgrade")}
       estimateConfig={estimateConfig}
+      suppliedCategories={suppliedCategories}
     />
   );
 }
@@ -411,7 +414,7 @@ export default function ShopDashboardBasic() {
     }
     switch (activeTab) {
       case "overview":   return <Overview quotations={quotations} projects={projects} quotaUsed={quotaUsed} setActiveTab={setActiveTab} />;
-      case "projects":   return <Projects projects={projects} quotations={quotations} quotaUsed={quotaUsed} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} loading={loading} estimateConfig={estimateConfig} />;
+      case "projects":   return <Projects projects={projects} quotations={quotations} quotaUsed={quotaUsed} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} loading={loading} estimateConfig={estimateConfig} suppliedCategories={shop?.suppliedCategories || []} />;
       case "quotations": return (
         <Quotations
           quotations={quotations}
@@ -429,7 +432,8 @@ export default function ShopDashboardBasic() {
           onBootstrapped={() => setChatQuote(null)}
         />
       );
-      case "products":   return <ProductsTab plan="basic" />;
+      case "supply":     return <SupplyCoverageTab shop={shop} accentColor="#2C5282" onShopUpdated={(next) => setShop((s) => ({ ...s, ...next }))} />;
+      case "storefront": return <StorefrontTab shop={shop} plan="basic" accentColor="#2C5282" onShopUpdated={(next) => setShop((s) => ({ ...s, ...next }))} />;
       case "upgrade":    return <Upgrade existingPayment={existingPayment} onPaymentSuccess={handlePaymentSuccess} />;
       case "settings":
       case "profile":
@@ -575,6 +579,7 @@ export default function ShopDashboardBasic() {
           accentGradient="linear-gradient(180deg, #2C3E50 30%, #648DB6 100%)"
           estimateConfig={estimateConfig}
           plan="basic"
+          suppliedCategories={shop?.suppliedCategories || []}
         />
       )}
 

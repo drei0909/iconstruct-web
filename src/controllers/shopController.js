@@ -11,11 +11,6 @@ import {
   fetchLatestPaymentByShop,
   fetchPendingPaymentByShop,
   insertPaymentRequest,
-  fetchProductsByShop,
-  insertProduct,
-  updateProductAvailability,
-  updateProduct,
-  removeProduct,
 } from "../models/shopModel";
 import { getDoc, doc } from "firebase/firestore";
 import { db } from "../services/firebase";
@@ -141,58 +136,4 @@ export async function getQuotationAnalytics() {
 
 export async function logoutShop() {
   await signOut(auth);
-}
-
-// ── Products (NEW) ────────────────────────────────────────────────────────────
-// When a shop owner adds a product here, the mobile app reads it from Firestore.
-// Both use the same Firebase project — no extra server needed.
-
-// Get all products for the logged-in shop
-export async function getMyProducts() {
-  const user = auth.currentUser;
-  if (!user) throw new Error("Not authenticated");
-  return fetchProductsByShop(user.uid);
-}
-
-// Add a new product (shows up in app immediately via Firestore real-time)
-// AFTER — add sizes param and pass it through
-export async function addProduct({
-  name, description, price, unit, category, imageBase64, sizes,
-}) {
-  const { user, shop } = await requireApprovedShop();
-
-  if (!name || !name.trim()) throw new Error("Product name is required.");
-  if (!price || isNaN(parseFloat(price))) throw new Error("Valid price is required.");
-
-  const productId = await insertProduct({
-    shopId:      user.uid,
-    shopName:    shop.shopName,
-    name:        name.trim(),
-    description: description || "",
-    price,
-    unit:        unit     || "piece",
-    category:    category || "general",
-    imageBase64: imageBase64 || "",
-    sizes:       sizes || [],        // ← NEW: array of strings e.g. ["S","M","L"]
-  });
-
-  return productId;
-}
-
-// Toggle product availability (in stock / out of stock)
-export async function toggleProductAvailability(productId, available) {
-  await requireApprovedShop();
-  await updateProductAvailability(productId, available);
-}
-
-// Edit product details
-export async function editProduct(productId, data) {
-  await requireApprovedShop();
-  await updateProduct(productId, data);
-}
-
-// Remove a product from the catalog
-export async function deleteProduct(productId) {
-  await requireApprovedShop();
-  await removeProduct(productId);
 }
