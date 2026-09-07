@@ -3,9 +3,9 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
-import { auth, db } from "../services/firebase";
+import { db } from "../services/firebase";
+import { useAuth } from "../context/AuthContext";
 import { logoutShop } from "../controllers/shopController";
 import {
   evaluateShopLoginAccess,
@@ -62,6 +62,7 @@ async function showSubscriptionAlert({ planName, shopName, onConfirm, onLater })
 
 export default function ShopDashboardRouter() {
   const navigate = useNavigate();
+  const { user, initializing } = useAuth();
   // null = loading | false = blocked/redirect | plan string = ok
   const [plan, setPlan] = useState(null);
   const [shopId, setShopId] = useState(null);
@@ -73,18 +74,16 @@ export default function ShopDashboardRouter() {
   const unsubRef = useRef(null);
 
   useEffect(() => {
-    const unsubAuth = onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        setPlan(false);
-        setShopId(null);
-        navigate("/login", { replace: true });
-        return;
-      }
-      deniedOnceRef.current = false;
-      setShopId(user.uid);
-    });
-    return () => unsubAuth();
-  }, [navigate]);
+    if (initializing) return;
+    if (!user) {
+      setPlan(false);
+      setShopId(null);
+      navigate("/login", { replace: true });
+      return;
+    }
+    deniedOnceRef.current = false;
+    setShopId(user.uid);
+  }, [user, initializing, navigate]);
 
   useEffect(() => {
     if (!shopId) return;

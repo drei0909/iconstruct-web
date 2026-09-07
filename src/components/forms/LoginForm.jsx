@@ -1,11 +1,12 @@
 // src/components/forms/LoginForm.jsx
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "../../services/firebase";
 import { loginShop } from "../../controllers/authController";
 import ForgotPassword from "./ForgotPassword";
 import { requestNotificationPermission } from "../../services/fcmService";
+
+// Already-signed-in visitors are redirected away from /login by the
+// <GuestOnly> route guard (see App.jsx / context/AuthContext).
 
 function LoginForm() {
   const navigate = useNavigate();
@@ -14,15 +15,6 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [firebaseError, setFirebaseError] = useState("");
   const [showForgot, setShowForgot] = useState(false);
-
-  // Already signed in? Don't sit on the login page — go to the dashboard.
-  // (Fixes: browser Back from the dashboard landing on /login while logged in.)
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      if (u && !loading) navigate("/shop/dashboard", { replace: true });
-    });
-    return () => unsub();
-  }, [navigate, loading]);
 
   const handleChange = (e) => {
     let { name, value } = e.target;

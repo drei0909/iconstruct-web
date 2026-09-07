@@ -1,11 +1,11 @@
 // src/views/admin/AdminLoginPage.jsx
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { onAuthStateChanged } from "firebase/auth";
-import { getDoc, doc } from "firebase/firestore";
-import { auth, db } from "../../services/firebase";
 import { loginAdmin } from "../../controllers/adminController";
 import ForgotPassword from "../../components/forms/ForgotPassword";
+
+// Already-signed-in admins are redirected away from /admin by the
+// <GuestOnly adminAware> route guard (see App.jsx / context/AuthContext).
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -14,21 +14,6 @@ export default function AdminLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
   const [showForgot, setShowForgot] = useState(false);
-
-  // Already signed in as an admin? Skip the login page (fixes browser Back
-  // from /admin/dashboard landing here while still authenticated).
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
-      if (!u || loading) return;
-      try {
-        const snap = await getDoc(doc(db, "admins", u.uid));
-        if (snap.exists()) navigate("/admin/dashboard", { replace: true });
-      } catch {
-        /* stay on login */
-      }
-    });
-    return () => unsub();
-  }, [navigate, loading]);
 
   const handleChange = (e) =>
     setForm((p) => ({ ...p, [e.target.name]: e.target.value }));

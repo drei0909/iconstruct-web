@@ -1,31 +1,14 @@
-// src/views/AdminRoute.jsx
-import { useEffect, useState } from "react";
+// src/routes/AdminRoute.jsx
+// Gate for /admin/dashboard. Auth + admin status come from the single
+// AuthProvider (context/AuthContext) — no per-route auth subscription.
+
 import { Navigate } from "react-router-dom";
-import { onAuthStateChanged } from "firebase/auth";
-import { getDoc, doc } from "firebase/firestore";
-import { auth, db } from "../services/firebase";
+import { useAuth } from "../context/AuthContext";
 
 export default function AdminRoute({ children }) {
-  const [status, setStatus] = useState("checking"); // checking | allowed | denied
+  const { user, isAdmin, initializing } = useAuth();
 
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        setStatus("denied");
-        return;
-      }
-      try {
-        // Check if this user's UID exists in the "admins" collection
-        const adminDoc = await getDoc(doc(db, "admins", user.uid));
-        setStatus(adminDoc.exists() ? "allowed" : "denied");
-      } catch {
-        setStatus("denied");
-      }
-    });
-    return () => unsub();
-  }, []);
-
-  if (status === "checking") {
+  if (initializing) {
     return (
       <div style={{
         minHeight: "100vh", display: "flex", alignItems: "center",
@@ -49,7 +32,7 @@ export default function AdminRoute({ children }) {
     );
   }
 
-  if (status === "denied") {
+  if (!user || !isAdmin) {
     return <Navigate to="/admin" replace />;
   }
 
