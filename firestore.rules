@@ -327,11 +327,14 @@ service cloud.firestore {
         && request.resource.data.status == 'open'
         && acceptedQuoteForConv();
 
+      // Participants may update the thread summary and their own read marker.
+      // shopLastReadAt / builderLastReadAt back the Sent / Seen indicators.
       allow update: if isAdmin()
         || (isConvParticipant(resource.data)
             && request.resource.data.shopId == resource.data.shopId
             && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['lastMessage', 'lastMessageAt', 'lastSenderId', 'updatedAt', 'status']));
+                 .hasOnly(['lastMessage', 'lastMessageAt', 'lastSenderId', 'updatedAt', 'status',
+                           'shopLastReadAt', 'builderLastReadAt']));
 
       allow delete: if isAdmin();
 
@@ -339,13 +342,18 @@ service cloud.firestore {
         allow read: if isAdmin()
           || isConvParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data);
 
+        // A message carries text, an imageUrl, or both. Text (when present)
+        // is capped; a photo-only message is allowed.
         allow create: if signedIn()
           && isConvParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data)
           && request.resource.data.senderId == request.auth.uid
-          && request.resource.data.text is string
-          && request.resource.data.text.size() > 0
-          && request.resource.data.text.size() <= 4000
-          && request.resource.data.senderRole in ['builder', 'shop'];
+          && request.resource.data.senderRole in ['builder', 'shop']
+          && (
+               (request.resource.data.text is string
+                && request.resource.data.text.size() > 0
+                && request.resource.data.text.size() <= 4000)
+               || request.resource.data.imageUrl is string
+             );
 
         allow update, delete: if false;
       }
