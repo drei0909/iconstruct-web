@@ -2,10 +2,12 @@
 // Shop ↔ builder chat for accepted quotations.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { TbMessage, TbSend, TbMessages } from "react-icons/tb";
+import { TbMessage, TbSend, TbMessages, TbPhoto } from "react-icons/tb";
 import {
   openChatForAcceptedQuote,
   sendShopChatMessage,
+  uploadChatImage,
+  markShopConversationRead,
   subscribeShopConversations,
   subscribeConversationMessages,
 } from "../../controllers/chatController";
@@ -77,6 +79,7 @@ export default function ShopMessagesPanel({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const bottomRef = useRef(null);
+  const fileRef = useRef(null);
 
   useEffect(() => {
     setLoading(true);
@@ -131,6 +134,7 @@ export default function ShopMessagesPanel({
       setMessages([]);
       return undefined;
     }
+    markShopConversationRead(activeId);
     const unsub = subscribeConversationMessages(
       activeId,
       (list) => setMessages(list),
@@ -139,6 +143,13 @@ export default function ShopMessagesPanel({
     return () => unsub?.();
   }, [activeId]);
 
+  // Re-stamp the read marker whenever the builder sends something while open.
+  useEffect(() => {
+    if (!activeId || messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    if (last?.senderRole === "builder") markShopConversationRead(activeId);
+  }, [messages, activeId]);
+
   // Drop an optimistic bubble once its real message lands in the snapshot.
   useEffect(() => {
     if (pending.length === 0) return;
@@ -146,7 +157,10 @@ export default function ShopMessagesPanel({
       p.filter(
         (pm) =>
           !messages.some(
-            (m) => m.senderRole === "shop" && m.text === pm.text && m.createdAt
+            (m) =>
+              m.senderRole === "shop" &&
+              m.createdAt &&
+              (pm.imageUrl ? m.imageUrl === pm.imageUrl : m.text === pm.text)
           )
       )
     );
@@ -171,11 +185,30 @@ export default function ShopMessagesPanel({
     setPending((p) => [...p, { tempId, text: body }]);
     setText("");
     try {
-      await sendShopChatMessage(activeId, body);
+      await sendShopChatMessage(activeId, { text: body });
     } catch (err) {
       setPending((p) => p.filter((pm) => pm.tempId !== tempId));
       setText(body);
       setError(err.message || "Failed to send.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handlePhoto = async (e) => {
+    const file = e.target.files?.[0];
+    if (fileRef.current) fileRef.current.value = "";
+    if (!file || !activeId || sending) return;
+    const tempId = `pending_${Date.now()}`;
+    setSending(true);
+    setError("");
+    try {
+      const url = await uploadChatImage(activeId, file);
+      setPending((p) => [...p, { tempId, text: "", imageUrl: url }]);
+      await sendShopChatMessage(activeId, { imageUrl: url });
+    } catch (err) {
+      setPending((p) => p.filter((pm) => pm.tempId !== tempId));
+      setError(err.message || "Failed to send photo.");
     } finally {
       setSending(false);
     }
@@ -278,11 +311,17 @@ export default function ShopMessagesPanel({
                     id: p.tempId,
                     senderRole: "shop",
                     text: p.text,
+                    imageUrl: p.imageUrl || "",
                     createdAt: null,
                     _pending: true,
                   })),
                 ].map((m) => {
                   const mine = m.senderRole === "shop";
+                  const seenAt = active?.builderLastReadAt;
+                  const seen =
+                    mine && !m._pending && m.createdAt && seenAt &&
+                    (typeof seenAt.toMillis === "function" ? seenAt.toMillis() : (seenAt.seconds || 0) * 1000) >=
+                      (typeof m.createdAt.toMillis === "function" ? m.createdAt.toMillis() : (m.createdAt.seconds || 0) * 1000);
                   return (
                     <div
                       key={m.id}
@@ -298,14 +337,28 @@ export default function ShopMessagesPanel({
                         opacity: m._pending ? 0.7 : 1,
                       }}
                     >
-                      <div style={{ fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                        {renderText(m.text, mine)}
-                      </div>
+                      {m.imageUrl ? (
+                        <img
+                          src={m.imageUrl}
+                          alt="attachment"
+                          onClick={() => window.open(m.imageUrl, "_blank", "noopener")}
+                          style={{
+                            display: "block", maxWidth: 220, maxHeight: 260,
+                            borderRadius: 8, cursor: "pointer",
+                            marginBottom: m.text ? 6 : 0,
+                          }}
+                        />
+                      ) : null}
+                      {m.text ? (
+                        <div style={{ fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                          {renderText(m.text, mine)}
+                        </div>
+                      ) : null}
                       <div style={{ fontSize: 10, opacity: 0.7, marginTop: 4, textAlign: mine ? "right" : "left" }}>
                         {m._pending
                           ? "Sending…"
                           : mine
-                            ? `${formatTime(m.createdAt)} · Sent`
+                            ? `${formatTime(m.createdAt)} · ${seen ? "Seen" : "Sent"}`
                             : formatTime(m.createdAt)}
                       </div>
                     </div>
@@ -329,8 +382,30 @@ export default function ShopMessagesPanel({
                 padding: "12px 14px",
                 borderTop: "1px solid #E2E8F0",
                 background: "#fff",
+                alignItems: "center",
               }}
             >
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePhoto}
+                style={{ display: "none" }}
+              />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={sending}
+                title="Attach a photo"
+                style={{
+                  width: 40, height: 44, flexShrink: 0,
+                  border: "1.5px solid #E2E8F0", borderRadius: 10,
+                  background: "#F8FAFC", cursor: sending ? "not-allowed" : "pointer",
+                  color: "#64748B", display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                <TbPhoto size={18} />
+              </button>
               <input
                 value={text}
                 onChange={(e) => setText(e.target.value)}

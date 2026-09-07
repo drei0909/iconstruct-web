@@ -1,13 +1,15 @@
 // src/controllers/chatController.js
 // Shop-side chat after a builder accepts the shop's quotation.
 
-import { auth } from "../services/firebase";
+import { auth, storage } from "../services/firebase";
 import { getDoc, doc } from "firebase/firestore";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db } from "../services/firebase";
 import {
   conversationIdFor,
   upsertConversation,
   insertChatMessage,
+  markConversationRead,
   listenShopConversations,
   listenConversationMessages,
   fetchConversation,
@@ -71,7 +73,7 @@ export async function openChatForAcceptedQuote(quotation) {
   return conversationId;
 }
 
-export async function sendShopChatMessage(conversationId, text) {
+export async function sendShopChatMessage(conversationId, { text = "", imageUrl = "" } = {}) {
   const { user } = await requireApprovedShop();
   const conv = await fetchConversation(conversationId);
   if (!conv) throw new Error("Conversation not found.");
@@ -83,7 +85,31 @@ export async function sendShopChatMessage(conversationId, text) {
     senderId: user.uid,
     senderRole: "shop",
     text,
+    imageUrl,
   });
+}
+
+/** Upload a chat photo to chat_images/{conversationId}/… and return its URL. */
+export async function uploadChatImage(conversationId, file) {
+  await requireApprovedShop();
+  if (!file || !/^image\//.test(file.type)) throw new Error("Please choose an image file.");
+  if (file.size > 5 * 1024 * 1024) throw new Error("Image must be under 5 MB.");
+  const ext = (file.name?.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const path = `chat_images/${conversationId}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const r = storageRef(storage, path);
+  await uploadBytes(r, file, { contentType: file.type });
+  return getDownloadURL(r);
+}
+
+/** Stamp the shop's read marker so the builder can see "Seen". */
+export async function markShopConversationRead(conversationId) {
+  const user = auth.currentUser;
+  if (!user || !conversationId) return;
+  try {
+    await markConversationRead(conversationId, "shop");
+  } catch {
+    /* non-critical */
+  }
 }
 
 export function subscribeShopConversations(onData, onError) {

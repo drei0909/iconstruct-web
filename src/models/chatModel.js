@@ -95,9 +95,10 @@ export async function upsertConversation({
   return conversationId;
 }
 
-export async function insertChatMessage(conversationId, { senderId, senderRole, text }) {
+export async function insertChatMessage(conversationId, { senderId, senderRole, text, imageUrl }) {
   const trimmed = String(text || "").trim();
-  if (!trimmed) throw new Error("Message cannot be empty.");
+  const img = String(imageUrl || "").trim();
+  if (!trimmed && !img) throw new Error("Message cannot be empty.");
 
   const messagesRef = collection(db, "conversations", conversationId, "messages");
   const msg = {
@@ -106,13 +107,22 @@ export async function insertChatMessage(conversationId, { senderId, senderRole, 
     text: trimmed.slice(0, 4000),
     createdAt: serverTimestamp(),
   };
+  if (img) msg.imageUrl = img;
   await addDoc(messagesRef, msg);
 
   await updateDoc(doc(db, "conversations", conversationId), {
-    lastMessage: trimmed.slice(0, 200),
+    lastMessage: (trimmed || "📷 Photo").slice(0, 200),
     lastMessageAt: serverTimestamp(),
     lastSenderId: String(senderId),
     updatedAt: serverTimestamp(),
+  });
+}
+
+/** Stamp the caller's read marker on a thread (backs the Sent / Seen state). */
+export async function markConversationRead(conversationId, role) {
+  const field = role === "builder" ? "builderLastReadAt" : "shopLastReadAt";
+  await updateDoc(doc(db, "conversations", conversationId), {
+    [field]: serverTimestamp(),
   });
 }
 
