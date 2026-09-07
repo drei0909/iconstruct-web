@@ -6,6 +6,7 @@ import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "../../services/firebase";
 import { Storefront, MapPin, Clock, Phone, X } from "@phosphor-icons/react";
 import { categoryLabel } from "../../utils/supplyCategories";
+import { LIPA_BARANGAYS, LIPA_CITY } from "../../utils/lipaBarangays";
 
 const initials = (name = "") =>
   name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "S";
@@ -20,6 +21,7 @@ export default function StorefrontTab({ shop, onShopUpdated, accentColor = "#2C5
   });
   const [cities, setCities] = useState([]);
   const [cityDraft, setCityDraft] = useState("");
+  const [showSug, setShowSug] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
 
@@ -33,12 +35,20 @@ export default function StorefrontTab({ shop, onShopUpdated, accentColor = "#2C5
     setCities(Array.isArray(shop.coverageCities) ? shop.coverageCities : []);
   }, [shop]);
 
-  const addCity = () => {
-    const v = cityDraft.trim();
-    if (v && !cities.some((c) => c.toLowerCase() === v.toLowerCase())) {
-      setCities((c) => [...c, v]);
+  const chosen = new Set(cities.map((c) => c.toLowerCase()));
+  const q = cityDraft.trim().toLowerCase();
+  const suggestions = LIPA_BARANGAYS
+    .filter((b) => !chosen.has(`${b}, ${LIPA_CITY}`.toLowerCase()))
+    .filter((b) => !q || b.toLowerCase().includes(q))
+    .slice(0, 8);
+
+  const addBarangay = (barangay) => {
+    const val = `${barangay}, ${LIPA_CITY}`;
+    if (!cities.some((c) => c.toLowerCase() === val.toLowerCase())) {
+      setCities((c) => [...c, val]);
     }
     setCityDraft("");
+    setShowSug(false);
   };
 
   const save = async () => {
@@ -109,19 +119,53 @@ export default function StorefrontTab({ shop, onShopUpdated, accentColor = "#2C5
           </div>
 
           <div>
-            <label style={labelStyle}>Coverage areas (cities / towns you serve)</label>
-            <div style={{ display: "flex", gap: 8 }}>
+            <label style={labelStyle}>Coverage areas — barangays in Lipa City</label>
+            <div style={{ position: "relative" }}>
               <input
                 value={cityDraft}
-                onChange={(e) => setCityDraft(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCity(); } }}
-                placeholder="Type a city and press Enter"
+                onChange={(e) => { setCityDraft(e.target.value); setShowSug(true); }}
+                onFocus={() => setShowSug(true)}
+                onBlur={() => setTimeout(() => setShowSug(false), 150)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); if (suggestions[0]) addBarangay(suggestions[0]); }
+                  if (e.key === "Escape") setShowSug(false);
+                }}
+                placeholder="Type a barangay… e.g. Marauoy, San Jose, Poblacion"
                 style={inputStyle}
               />
-              <button type="button" onClick={addCity} style={{
-                padding: "0 16px", borderRadius: 8, border: "none", background: accentColor,
-                color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0,
-              }}>Add</button>
+              {showSug && (
+                <div style={{
+                  position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 20,
+                  background: "#fff", border: "1px solid #E2E8F0", borderRadius: 8,
+                  boxShadow: "0 10px 30px rgba(15,23,42,0.12)", maxHeight: 240, overflowY: "auto",
+                }}>
+                  {suggestions.length === 0 ? (
+                    <div style={{ padding: "10px 12px", fontSize: 12.5, color: "#94A3B8" }}>
+                      No Lipa City barangay matches “{cityDraft.trim()}”.
+                    </div>
+                  ) : (
+                    suggestions.map((b) => (
+                      <button
+                        key={b}
+                        type="button"
+                        onMouseDown={(e) => { e.preventDefault(); addBarangay(b); }}
+                        style={{
+                          display: "block", width: "100%", textAlign: "left",
+                          padding: "9px 12px", border: "none", background: "transparent",
+                          fontSize: 13, color: "#334155", cursor: "pointer", fontFamily: "inherit",
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "#F1F5F9")}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                      >
+                        {b}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 4 }}>
+              Pick from the list — Lipa City barangays only.
             </div>
             {cities.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
@@ -131,7 +175,7 @@ export default function StorefrontTab({ shop, onShopUpdated, accentColor = "#2C5
                     fontSize: 12, fontWeight: 600, color: "#334155",
                     background: "#F1F5F9", border: "1px solid #E2E8F0", borderRadius: 16, padding: "3px 6px 3px 10px",
                   }}>
-                    {c}
+                    {c.replace(/,\s*Lipa City$/i, "")}
                     <button type="button" onClick={() => setCities((x) => x.filter((y) => y !== c))}
                       style={{ border: "none", background: "none", cursor: "pointer", color: "#94A3B8", display: "flex", padding: 2 }}>
                       <X size={12} />
@@ -226,7 +270,8 @@ export default function StorefrontTab({ shop, onShopUpdated, accentColor = "#2C5
               )}
               {cities.length > 0 && (
                 <div style={{ fontSize: 12, color: "#475569", display: "flex", alignItems: "flex-start", gap: 6 }}>
-                  <MapPin size={13} color="#94A3B8" style={{ marginTop: 1, flexShrink: 0 }} /> Serves {cities.join(", ")}
+                  <MapPin size={13} color="#94A3B8" style={{ marginTop: 1, flexShrink: 0 }} />
+                  Serves {cities.map((c) => c.replace(/,\s*Lipa City$/i, "")).join(", ")} · Lipa City
                 </div>
               )}
               {shop?.phone && (
