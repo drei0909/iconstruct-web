@@ -10,6 +10,34 @@ import {
   subscribeConversationMessages,
 } from "../../controllers/chatController";
 
+const URL_RE = /(https?:\/\/[^\s<]+[^\s<.,:;"')\]}])/gi;
+
+/** Render message text with clickable links. */
+function renderText(text, mine) {
+  const str = String(text || "");
+  const parts = str.split(URL_RE);
+  return parts.map((part, i) => {
+    if (i % 2 === 1) {
+      return (
+        <a
+          key={i}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            color: mine ? "#DBEAFE" : "#1D4ED8",
+            textDecoration: "underline",
+            wordBreak: "break-all",
+          }}
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+}
+
 function formatTime(ts) {
   if (!ts) return "";
   const d =
@@ -43,6 +71,7 @@ export default function ShopMessagesPanel({
   const [conversations, setConversations] = useState([]);
   const [activeId, setActiveId] = useState(initialConversationId);
   const [messages, setMessages] = useState([]);
+  const [pending, setPending] = useState([]); // optimistic "Sending…" bubbles
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -97,6 +126,7 @@ export default function ShopMessagesPanel({
   }, [initialConversationId]);
 
   useEffect(() => {
+    setPending([]);
     if (!activeId) {
       setMessages([]);
       return undefined;
@@ -109,6 +139,19 @@ export default function ShopMessagesPanel({
     return () => unsub?.();
   }, [activeId]);
 
+  // Drop an optimistic bubble once its real message lands in the snapshot.
+  useEffect(() => {
+    if (pending.length === 0) return;
+    setPending((p) =>
+      p.filter(
+        (pm) =>
+          !messages.some(
+            (m) => m.senderRole === "shop" && m.text === pm.text && m.createdAt
+          )
+      )
+    );
+  }, [messages]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, activeId]);
@@ -120,13 +163,18 @@ export default function ShopMessagesPanel({
 
   const handleSend = async (e) => {
     e?.preventDefault?.();
-    if (!activeId || !text.trim() || sending) return;
+    const body = text.trim();
+    if (!activeId || !body || sending) return;
+    const tempId = `pending_${Date.now()}`;
     setSending(true);
     setError("");
+    setPending((p) => [...p, { tempId, text: body }]);
+    setText("");
     try {
-      await sendShopChatMessage(activeId, text);
-      setText("");
+      await sendShopChatMessage(activeId, body);
     } catch (err) {
+      setPending((p) => p.filter((pm) => pm.tempId !== tempId));
+      setText(body);
       setError(err.message || "Failed to send.");
     } finally {
       setSending(false);
@@ -219,12 +267,21 @@ export default function ShopMessagesPanel({
             </div>
 
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10, background: "#F8FAFC" }}>
-              {messages.length === 0 ? (
+              {messages.length === 0 && pending.length === 0 ? (
                 <div style={{ textAlign: "center", color: "#94A3B8", fontSize: 12, marginTop: 40 }}>
                   Say hello — coordinate delivery, pricing details, or pickup.
                 </div>
               ) : (
-                messages.map((m) => {
+                [
+                  ...messages.map((m) => ({ ...m, _pending: false })),
+                  ...pending.map((p) => ({
+                    id: p.tempId,
+                    senderRole: "shop",
+                    text: p.text,
+                    createdAt: null,
+                    _pending: true,
+                  })),
+                ].map((m) => {
                   const mine = m.senderRole === "shop";
                   return (
                     <div
@@ -238,13 +295,18 @@ export default function ShopMessagesPanel({
                         borderRadius: mine ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
                         padding: "10px 12px",
                         boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
+                        opacity: m._pending ? 0.7 : 1,
                       }}
                     >
                       <div style={{ fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                        {m.text}
+                        {renderText(m.text, mine)}
                       </div>
                       <div style={{ fontSize: 10, opacity: 0.7, marginTop: 4, textAlign: mine ? "right" : "left" }}>
-                        {formatTime(m.createdAt)}
+                        {m._pending
+                          ? "Sending…"
+                          : mine
+                            ? `${formatTime(m.createdAt)} · Sent`
+                            : formatTime(m.createdAt)}
                       </div>
                     </div>
                   );
