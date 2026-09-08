@@ -161,13 +161,16 @@ function AllProjects({ projects, quotations, setQuoteModal, estimateConfig, supp
   );
 }
 
-function QuotationsBusiness({ quotations, setActiveTab, accentColor = "#2C5282", onMessageBuilder }) {
+function QuotationsBusiness({ quotations, setActiveTab, accentColor = "#2C5282", onMessageBuilder, shop, projects, estimateConfig }) {
   return (
     <ShopQuotationsPanel
       quotations={quotations}
       accentColor={accentColor}
       onGoProjects={() => setActiveTab("projects")}
       onMessageBuilder={onMessageBuilder}
+      shop={shop}
+      projects={projects}
+      estimateConfig={estimateConfig}
     />
   );
 }
@@ -541,6 +544,9 @@ export default function ShopDashboardBusiness() {
           quotations={quotations}
           setActiveTab={setActiveTab}
           accentColor="#2C5282"
+          shop={shop}
+          projects={projects}
+          estimateConfig={estimateConfig}
           onMessageBuilder={(q) => {
             setChatQuote(q);
             setActiveTab("messages");

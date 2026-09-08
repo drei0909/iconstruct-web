@@ -1,8 +1,9 @@
 // Shared Quotations list for Basic / Pro / Business dashboards
 import { useEffect, useMemo, useState } from "react";
-import { TbClipboardList, TbSearch, TbX, TbRefresh, TbChevronDown } from "react-icons/tb";
+import { TbClipboardList, TbSearch, TbX, TbRefresh, TbChevronDown, TbFileDownload } from "react-icons/tb";
 import ListPagination, { paginate } from "../ui/ListPagination";
 import { getAcceptanceSummary } from "../../utils/quoteAnalytics";
+import { openQuotePdf } from "../../utils/quotePdf";
 
 const ACCENT = "#2C5282";
 const DEFAULT_PAGE_SIZE = 8;
@@ -56,13 +57,35 @@ function selectStyle(active) {
  * @param {function} [props.onGoProjects] - navigate to projects tab
  * @param {function} [props.onMessageBuilder] - open chat for accepted quote
  * @param {string} [props.accentColor]
+ * @param {object} [props.shop] - shop profile, for the PDF header
+ * @param {Array} [props.projects] - posted projects, matched by id for the PDF's DPWH baseline
+ * @param {object} [props.estimateConfig] - recommendation-engine config for the PDF's DPWH baseline
  */
 export default function ShopQuotationsPanel({
   quotations = [],
   onGoProjects,
   onMessageBuilder,
   accentColor = ACCENT,
+  shop = null,
+  projects = [],
+  estimateConfig = null,
 }) {
+  const projectsById = useMemo(() => {
+    const m = new Map();
+    (projects || []).forEach((p) => p?.id && m.set(String(p.id), p));
+    return m;
+  }, [projects]);
+
+  const handleExportPdf = (q) => {
+    const ok = openQuotePdf(q, {
+      shop,
+      project: projectsById.get(String(q.projectId)) || null,
+      estimateConfig,
+    });
+    if (!ok) {
+      window.alert("Please allow pop-ups for this site, then try Download PDF again.");
+    }
+  };
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
@@ -557,30 +580,56 @@ export default function ShopQuotationsPanel({
                       </div>
                     )}
 
-                    {canMessage && typeof onMessageBuilder === "function" && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          onMessageBuilder(q);
+                          handleExportPdf(q);
                         }}
                         style={{
-                          marginTop: 14,
-                          width: "100%",
+                          flex: canMessage && typeof onMessageBuilder === "function" ? "0 0 auto" : "1 1 100%",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 6,
                           padding: "11px 16px",
                           borderRadius: 10,
-                          border: "none",
-                          background: accentColor,
-                          color: "#fff",
+                          border: `1.5px solid ${accentColor}`,
+                          background: "#fff",
+                          color: accentColor,
                           fontSize: 13,
                           fontWeight: 700,
                           cursor: "pointer",
                           fontFamily: "inherit",
                         }}
                       >
-                        Message builder →
+                        <TbFileDownload size={16} /> Download PDF
                       </button>
-                    )}
+                      {canMessage && typeof onMessageBuilder === "function" && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onMessageBuilder(q);
+                          }}
+                          style={{
+                            flex: "1 1 auto",
+                            padding: "11px 16px",
+                            borderRadius: 10,
+                            border: "none",
+                            background: accentColor,
+                            color: "#fff",
+                            fontSize: 13,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          Message builder →
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

@@ -172,12 +172,15 @@ function Projects({ projects, quotaUsed, setQuoteModal, setActiveTab, loading, q
   );
 }
 
-function Quotations({ quotations, setActiveTab, onMessageBuilder }) {
+function Quotations({ quotations, setActiveTab, onMessageBuilder, shop, projects, estimateConfig }) {
   return (
     <ShopQuotationsPanel
       quotations={quotations}
       onGoProjects={() => setActiveTab("projects")}
       onMessageBuilder={onMessageBuilder}
+      shop={shop}
+      projects={projects}
+      estimateConfig={estimateConfig}
     />
   );
 }
@@ -419,6 +422,9 @@ export default function ShopDashboardBasic() {
         <Quotations
           quotations={quotations}
           setActiveTab={setActiveTab}
+          shop={shop}
+          projects={projects}
+          estimateConfig={estimateConfig}
           onMessageBuilder={(q) => {
             setChatQuote(q);
             setActiveTab("messages");
