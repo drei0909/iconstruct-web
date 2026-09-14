@@ -90,16 +90,14 @@ function subscriptionRenewLine(shop) {
 function Overview({ shop, quotations, projects, accepted, pending, rejected, money, monthQuotes, setQuoteModal, setActiveTab }) {
   return (
     <div>
-      <div style={{ background:"linear-gradient(135deg,#2C5282,#3B82F6)", borderRadius:14, padding:"20px 24px", marginBottom:24, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+      <div className="db-status-bar">
         <div>
-          <div style={{ fontSize:14, fontWeight:700, color:"#fff", marginBottom:3, display:"flex", alignItems:"center", gap:6 }}>
-            <Lightning size={14} weight="fill" /> Pro Plan Active
+          <div className="db-status-bar-title" onClick={() => setActiveTab("quotations")}>
+            <Lightning size={14} weight="fill" /> {pending} quote{pending === 1 ? "" : "s"} awaiting reply
           </div>
-          <div style={{ fontSize:12, color:"rgba(255,255,255,0.7)" }}>
-            {subscriptionRenewLine(shop)} · {pending} quote{pending === 1 ? "" : "s"} awaiting reply
-          </div>
+          <div className="db-status-bar-sub">{subscriptionRenewLine(shop)}</div>
         </div>
-        <button onClick={() => setActiveTab("billing")} style={{ background:"rgba(255,255,255,0.15)", border:"1px solid rgba(255,255,255,0.3)", borderRadius:8, padding:"8px 16px", fontSize:11.5, fontWeight:600, color:"#fff", cursor:"pointer" }}>Manage Billing →</button>
+        <button className="db-status-bar-link" onClick={() => setActiveTab("billing")}>Manage billing →</button>
       </div>
 
       <div className="db-stat-grid-4" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:24 }}>

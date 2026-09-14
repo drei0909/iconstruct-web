@@ -4803,52 +4803,54 @@
         }
 
         /* ── Upgrade banner ── */
-        .db-upgrade-banner {
-          background: linear-gradient(135deg, #1A2332 0%, #2C3E50 60%, #1A2332 100%);
+        /* Slim functional status line — replaces the old gradient upgrade ad-banner.
+           Same actionable info (quota / renewal / follow-ups), styled like the
+           rest of the dashboard instead of a promo block. */
+        .db-status-bar {
+          background: var(--db-surface);
           border-radius: var(--db-radius);
-          padding: 20px 24px;
+          padding: 14px 20px;
           margin-bottom: 22px;
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 16px;
-          border: 1px solid rgba(59,130,246,0.2);
-          box-shadow: 0 4px 20px rgba(26,35,50,0.25);
+          border: 1px solid var(--db-border);
         }
 
-        .db-upgrade-banner-title {
-          font-family: var(--db-font-display);
-          font-size: 13.5px;
+        .db-status-bar-title {
+          font-size: 13px;
           font-weight: 700;
-          color: #F1F5F9;
-          margin-bottom: 4px;
+          color: var(--db-ink);
+          margin-bottom: 3px;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          cursor: pointer;
         }
 
-        .db-upgrade-banner-sub {
+        .db-status-bar-title:hover { color: var(--db-accent); }
+
+        .db-status-bar-sub {
           font-size: 12px;
-          color: rgba(241,245,249,0.6);
+          color: var(--db-ink-3);
           line-height: 1.5;
         }
 
-        .db-upgrade-cta-btn {
-          background: #F59E0B;
-          color: #1A2332;
+        .db-status-bar-link {
+          background: none;
           border: none;
-          border-radius: var(--db-radius-sm);
-          padding: 10px 20px;
+          color: var(--db-accent);
           font-size: 12px;
           font-weight: 700;
           cursor: pointer;
           font-family: var(--db-font-body);
-          transition: all 0.15s;
           white-space: nowrap;
           flex-shrink: 0;
+          padding: 6px 4px;
         }
 
-        .db-upgrade-cta-btn:hover {
-          background: #D97706;
-          transform: translateY(-1px);
-        }
+        .db-status-bar-link:hover { text-decoration: underline; }
 
         /* ── Cards / panels ── */
         .db-card {

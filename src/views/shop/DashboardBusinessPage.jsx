@@ -85,14 +85,14 @@ function subscriptionRenewLine(shop) {
 function Overview({ shop, quotations, projects, money, stale, insights, setQuoteModal, setActiveTab }) {
   return (
     <div>
-      <div style={{ background:"linear-gradient(135deg,#0D2E43,#2D6A8F)", borderRadius:14, padding:"22px 26px", marginBottom:24, display:"flex", alignItems:"center", justifyContent:"space-between", boxShadow:"0 8px 32px rgba(13,46,67,0.25)" }}>
+      <div className="db-status-bar">
         <div>
-          <div style={{ fontSize:14, fontWeight:700, color:"#fff", marginBottom:4 }}>Business Plan Active</div>
-          <div style={{ fontSize:12, color:"rgba(255,255,255,0.75)", lineHeight:1.6 }}>
-            {subscriptionRenewLine(shop)} · {stale.length} follow-up{stale.length === 1 ? "" : "s"} due
+          <div className="db-status-bar-title" onClick={() => setActiveTab("quotations")}>
+            <TbAlertTriangle size={14} /> {stale.length} follow-up{stale.length === 1 ? "" : "s"} due
           </div>
+          <div className="db-status-bar-sub">{subscriptionRenewLine(shop)}</div>
         </div>
-        <button onClick={() => setActiveTab("billing")} style={{ background:"rgba(255,255,255,0.12)", border:"1px solid rgba(255,255,255,0.28)", borderRadius:8, padding:"8px 16px", fontSize:11.5, fontWeight:600, color:"#fff", cursor:"pointer", whiteSpace:"nowrap" }}>Manage Billing →</button>
+        <button className="db-status-bar-link" onClick={() => setActiveTab("billing")}>Manage billing →</button>
       </div>
 
       <div className="db-stat-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12, marginBottom:24 }}>

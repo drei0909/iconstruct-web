@@ -29,7 +29,7 @@ import SupplyCoverageTab from "../../components/shop/SupplyCoverageTab";
 import StorefrontTab from "../../components/shop/StorefrontTab";
 
 import {
-  TbBolt, TbConfetti, TbAlertTriangle, TbCreditCard, TbBuildingBank,
+  TbConfetti, TbAlertTriangle, TbCreditCard, TbBuildingBank,
   TbMenu2, TbLogout,
 } from "react-icons/tb";
 import {
@@ -90,16 +90,16 @@ function Overview({ quotations, projects, quotaUsed, setActiveTab }) {
   const openCount  = projects.length;
   return (
     <div>
-      <div className="db-upgrade-banner">
+      <div className="db-status-bar">
         <div>
-          <div className="db-upgrade-banner-title" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <TbBolt size={14} /> You're on the Free Plan
+          <div className="db-status-bar-title" onClick={() => setActiveTab("projects")}>
+            <Briefcase size={14} /> {openCount} open project{openCount === 1 ? "" : "s"} ready to bid
           </div>
-          <div className="db-upgrade-banner-sub">
-            {quotesLeft} of {QUOTA_LIMIT} quotations left this month · {openCount} open project{openCount === 1 ? "" : "s"} to bid on
+          <div className="db-status-bar-sub">
+            {quotesLeft} of {QUOTA_LIMIT} quotations left this month
           </div>
         </div>
-        <button className="db-upgrade-cta-btn" onClick={() => setActiveTab("upgrade")}>Upgrade Now →</button>
+        <button className="db-status-bar-link" onClick={() => setActiveTab("upgrade")}>Upgrade for unlimited →</button>
       </div>
       <div className="db-quota-card">
         <div className="db-quota-header">

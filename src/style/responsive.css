@@ -434,14 +434,12 @@ img, video, iframe { max-width: 100%; height: auto; }
   /* Plan grids */
   .db-plan-grid { grid-template-columns: 1fr; }
 
-  /* Upgrade banner */
-  .db-upgrade-banner {
+  /* Status bar */
+  .db-status-bar {
     flex-direction: column;
     align-items: flex-start;
-    gap: 10px;
+    gap: 6px;
   }
-
-  .db-upgrade-cta-btn { width: 100%; }
 
   /* Modal */
   .db-modal-overlay { padding: 12px; }
