@@ -1082,12 +1082,14 @@ const handleSavePlan = async () => {
                   <div key={key} style={{ background: T.surface, borderRadius: 12, border: `1.5px solid ${T.border}`, overflow: "hidden", transition: "box-shadow 0.15s" }}
                     onMouseEnter={e => e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)"}
                     onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}>
-                    <div style={{ height: 4, background: color }} />
                     <div style={{ padding: "16px 18px" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                         <div>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: T.text, textTransform: "capitalize" }}>{key}</div>
-                          <div style={{ fontSize: 12, color: T.textMuted }}>₱{plan.price || 0}/{plan.billingCycle || "month"}</div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span style={{ width: 7, height: 7, borderRadius: "50%", background: color, flexShrink: 0 }} />
+                            <span style={{ fontSize: 14, fontWeight: 700, color: T.text, textTransform: "capitalize" }}>{key}</span>
+                          </div>
+                          <div style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>₱{plan.price || 0}/{plan.billingCycle || "month"}</div>
                         </div>
                         <span style={{ fontSize: 9, fontWeight: 700, padding: "3px 8px", borderRadius: 10, background: plan.isPublic ? T.successLight : "#F1F5F9", color: plan.isPublic ? T.success : T.textMuted }}>
                           {plan.isPublic ? "Public" : "Hidden"}

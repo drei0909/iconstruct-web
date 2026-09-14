@@ -15,37 +15,37 @@ const features = [
     tag: "Visibility",
     title: "Get Found by Nearby Builders",
     description:
-      "iConstruct surfaces your shop through proximity-based listings and supplier matching — connecting you directly with homeowners, contractors, and builders in Lipa City actively planning their projects.",
+      "iConstruct surfaces your shop through proximity-based listings and supplier matching, connecting you directly with homeowners, contractors, and builders in Lipa City who are actively planning their projects.",
   },
   {
     tag: "Estimation",
     title: "Integrated Material Estimation",
     description:
-      "Builders compute material requirements inside iConstruct using automated calculation based on project dimensions. Your shop appears as a recommended supplier — no extra effort needed.",
+      "Builders compute material requirements inside iConstruct using automated calculation based on project dimensions, and your shop appears as a recommended supplier with no extra effort on your part.",
   },
   {
     tag: "Costing",
     title: "Localized Cost Computation",
     description:
-      "Project cost estimates are generated using live unit prices from registered shops in Lipa City — giving builders accurate, locally grounded budget figures tied directly to your inventory.",
+      "Project cost estimates are generated using live unit prices from registered shops in Lipa City, so builders get accurate, locally grounded budget figures tied directly to your inventory.",
   },
   {
     tag: "Growth",
     title: "Tools That Help You Win More Bids",
     description:
-      "Pro and Business plans unlock unlimited bidding, revenue analytics, CSV export, pricing guides, and reusable bid templates — so every peso of subscription helps you close more supply work.",
+      "Pro and Business plans unlock unlimited bidding, revenue analytics, CSV export, pricing guides, and reusable bid templates, all built to help every peso of your subscription close more supply work.",
   },
   {
     tag: "Trust",
     title: "Verified Business Platform",
     description:
-      "Every shop undergoes admin verification of uploaded business permits (e.g., Mayor's Permit) before being listed — ensuring iConstruct remains a trusted network of legitimate, compliant hardware businesses.",
+      "Every shop undergoes admin verification of uploaded business permits (e.g., Mayor's Permit) before being listed, keeping iConstruct a trusted network of legitimate, compliant hardware businesses.",
   },
   {
     tag: "Management",
     title: "Unified Shop Manager Dashboard",
     description:
-      "Review posted projects, quote line by line, set what you supply, manage your storefront, and track bidding history — all from one centralized web dashboard built for hardware shop owners.",
+      "Review posted projects, quote line by line, set what you supply, manage your storefront, and track bidding history. It's all in one centralized web dashboard built for hardware shop owners.",
   },
 ];
 
@@ -228,7 +228,7 @@ export default function Features() {
           </div>
           <p className="ft-head-right">
             Slow down for a moment. Six reasons hardware shops in Lipa
-            choose iConstruct — one at a time.
+            choose iConstruct, one at a time.
           </p>
         </div>
 
@@ -385,7 +385,7 @@ export default function Features() {
                   )}
                   {plan.key === "business" && (
                     <p className="sp-plan-note">
-                      If downgraded, listings beyond your new plan's limit are hidden — not deleted.
+                      If downgraded, listings beyond your new plan's limit are hidden, not deleted.
                     </p>
                   )}
                 </div>

@@ -4729,13 +4729,6 @@
           box-shadow: var(--db-shadow-md);
         }
 
-        .db-stat-card-accent {
-          position: absolute;
-          top: 0; left: 0; right: 0;
-          height: 3px;
-          border-radius: var(--db-radius) var(--db-radius) 0 0;
-        }
-
         .db-stat-value {
           font-family: var(--db-font-display);
           font-size: 30px;

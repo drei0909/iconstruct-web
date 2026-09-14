@@ -96,7 +96,7 @@ export default function ContactUs() {
               <h5 className="ct-note-title">We're here to help</h5>
               <p className="ct-note-text">
                 Whether you're a contractor looking to estimate materials
-                or a hardware shop owner wanting to join the platform —
+                or a hardware shop owner wanting to join the platform,
                 our team is ready to assist you.
               </p>
             </div>

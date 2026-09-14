@@ -18,7 +18,7 @@ export default function Footer() {
                 <img src={logo} alt="iConstruct" className="fo-logo" />
                 <p className="fo-brand-text">
                   Smart Construction Support System for modern project
-                  planning — estimate materials, manage costs, and connect
+                  planning: estimate materials, manage costs, and connect
                   with trusted hardware suppliers.
                 </p>
                 {/* <div className="fo-socials">

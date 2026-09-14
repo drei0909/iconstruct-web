@@ -73,7 +73,6 @@ function StatusBadge({ status }) {
 function StatCard({ label, value, color, sub }) {
   return (
     <div className="db-stat-card">
-      <div className="db-stat-card-accent" style={{ background: color }} />
       <div className="db-stat-value" style={{ color }}>{value}</div>
       <div className="db-stat-label">{label}</div>
       <div className="db-stat-sub">{sub}</div>

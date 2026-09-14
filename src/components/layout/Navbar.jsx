@@ -162,7 +162,7 @@ function Navbar({ forceScrolled = false, hideBar = false }) {
               <p className="nb-modal-text">
                 Download the iConstruct mobile app and start connecting
                 your hardware shop, estimating materials, and managing
-                projects — all from your phone.
+                projects, all from your phone.
               </p>
               <div className="nb-modal-btns">
                 <a

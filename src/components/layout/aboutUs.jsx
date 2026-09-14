@@ -57,7 +57,7 @@ export default function AboutUs() {
             </h1>
             <p className="about-hero-text">
               iConstruct is a smart construction support system designed to
-              help builders plan projects more efficiently — from material
+              help builders plan projects more efficiently: from material
               estimation to trusted supplier connections.
             </p>
           </div>
@@ -77,8 +77,8 @@ export default function AboutUs() {
             <div className="about-card-num">01</div>
             <h3 className="about-card-title">Our Mission</h3>
             <p className="about-card-text">
-              To empower Filipino builders, contractors, and hardware shop
-              owners with a reliable digital platform that simplifies
+              To give Filipino builders, contractors, and hardware shop
+              owners a reliable digital platform that simplifies
               construction planning, reduces material waste, and builds
               stronger supplier relationships across the industry.
             </p>
@@ -89,7 +89,7 @@ export default function AboutUs() {
             <h3 className="about-card-title">Our Vision</h3>
             <p className="about-card-text">
               To become the leading construction support platform in the
-              Philippines — a trusted bridge between builders and suppliers
+              Philippines: a trusted bridge between builders and suppliers
               that drives smarter, faster, and more cost-effective
               construction projects nationwide.
             </p>

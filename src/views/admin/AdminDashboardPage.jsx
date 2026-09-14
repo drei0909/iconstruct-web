@@ -84,7 +84,7 @@
     const colors = ["#3B5998","#E8643A","#6366F1","#0891B2","#7C3AED","#B45309"];
     const color = colors[(name.charCodeAt(0) || 0) % colors.length];
     return (
-      <span style={{ width:size, height:size, borderRadius:"50%", background:color, color:"#fff", display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:size*0.36, fontWeight:700, fontFamily:"'Inter',sans-serif", flexShrink:0, letterSpacing:"0.02em" }}>
+      <span style={{ width:size, height:size, borderRadius:"50%", background:color, color:"#fff", display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:size*0.36, fontWeight:700, fontFamily:"var(--font-ui)", flexShrink:0, letterSpacing:"0.02em" }}>
         {initials}
       </span>
     );
@@ -124,8 +124,7 @@
             { label:"Confirmed", value:payStats.confirmed, color:"#10B981" },
             { label:"Rejected",  value:payStats.rejected,  color:"#EF4444" },
           ].map((c, i) => (
-            <div key={i} style={{ background:"#fff", borderRadius:12, border:c.urgent?`1px solid ${c.color}40`:"1px solid #E2E8F0", padding:"16px 18px", position:"relative", overflow:"hidden" }}>
-              <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:c.color }} />
+            <div key={i} style={{ background:"#fff", borderRadius:12, border:c.urgent?`1px solid ${c.color}40`:"1px solid #E2E8F0", padding:"16px 18px" }}>
               <div style={{ fontFamily:"'Lora',Georgia,serif", fontSize:26, fontWeight:900, color:c.color }}>{c.value}</div>
               <div style={{ fontSize:11.5, color:"#64748B", marginTop:2 }}>{c.label}</div>
             </div>
@@ -141,7 +140,7 @@
         />
         <div style={{ display:"flex", gap:6, marginBottom:14 }}>
           {["all","pending","confirmed","rejected"].map(f => (
-            <button key={f} onClick={() => setPayFilter(f)} style={{ padding:"7px 14px", borderRadius:8, fontSize:11.5, fontWeight:500, cursor:"pointer", fontFamily:"'Inter',sans-serif", ...(payFilter===f?{background:"#0F172A",color:"#fff",border:"1px solid #0F172A"}:{background:"#fff",color:"#64748B",border:"1px solid #E2E8F0"}) }}>
+            <button key={f} onClick={() => setPayFilter(f)} style={{ padding:"7px 14px", borderRadius:8, fontSize:11.5, fontWeight:500, cursor:"pointer", fontFamily:"var(--font-ui)", ...(payFilter===f?{background:"#0F172A",color:"#fff",border:"1px solid #0F172A"}:{background:"#fff",color:"#64748B",border:"1px solid #E2E8F0"}) }}>
               {f==="all"?"All":f.charAt(0).toUpperCase()+f.slice(1)}
             </button>
           ))}
@@ -189,7 +188,7 @@
                     </td>
                     <td style={{ padding:"12px 14px" }}><StatusBadge status={p.status} /></td>
                     <td style={{ padding:"12px 14px" }}>
-                      <button onClick={() => setSelectedPayment(p)} style={{ padding:"5px 12px", borderRadius:7, border:"1px solid #E2E8F0", background:"#fff", fontSize:11.5, fontWeight:600, color:"#334155", cursor:"pointer", fontFamily:"'Inter',sans-serif" }}
+                      <button onClick={() => setSelectedPayment(p)} style={{ padding:"5px 12px", borderRadius:7, border:"1px solid #E2E8F0", background:"#fff", fontSize:11.5, fontWeight:600, color:"#334155", cursor:"pointer", fontFamily:"var(--font-ui)" }}
                         onMouseEnter={e => { e.currentTarget.style.background="#0F172A"; e.currentTarget.style.color="#fff"; }}
                         onMouseLeave={e => { e.currentTarget.style.background="#fff"; e.currentTarget.style.color="#334155"; }}>
                         Review
@@ -535,7 +534,7 @@
                   borderLeft: isActive ? "2px solid #3B82F6" : "2px solid transparent",
                   cursor: "pointer",
                   color: isActive ? "#93C5FD" : "rgba(148,163,184,0.65)",
-                  fontFamily: "'Inter',sans-serif",
+                  fontFamily: "var(--font-ui)",
                   fontSize: 13,
                   fontWeight: isActive ? 600 : 400,
                 }}
@@ -633,8 +632,7 @@
     return (
       <>
         <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&display=swap');
-          *{box-sizing:border-box;margin:0;padding:0;}body{font-family:'Inter',sans-serif;}
+          *{box-sizing:border-box;margin:0;padding:0;}
           @keyframes spin{to{transform:rotate(360deg)}}
         `}</style>
         <div style={{ display:"flex", minHeight:"100vh", background:"#F1F5F9" }}>
@@ -900,7 +898,7 @@
                   </button>
                 ))}
               </div>
-              <textarea placeholder="e.g. Submitted documents are incomplete." value={rejectReason} onChange={e => setRejectReason(e.target.value)} style={{ width:"100%", minHeight:96, padding:"11px 14px", borderRadius:8, border:"1.5px solid #E2E8F0", fontSize:12.5, fontFamily:"'Inter',sans-serif", color:"#0F172A", resize:"none", outline:"none", background:"#F8FAFC", marginBottom:16 }} />
+              <textarea placeholder="e.g. Submitted documents are incomplete." value={rejectReason} onChange={e => setRejectReason(e.target.value)} style={{ width:"100%", minHeight:96, padding:"11px 14px", borderRadius:8, border:"1.5px solid #E2E8F0", fontSize:12.5, fontFamily:"var(--font-ui)", color:"#0F172A", resize:"none", outline:"none", background:"#F8FAFC", marginBottom:16 }} />
               <div style={{ display:"flex", gap:10 }}>
                 <button onClick={() => { setRejectModal(false); setRejectReason(""); }} style={{ padding:"11px 20px", borderRadius:8, border:"1px solid #E2E8F0", background:"#F8FAFC", fontSize:12.5, fontWeight:500, color:"#64748B", cursor:"pointer" }}>Cancel</button>
                 <button disabled={!rejectReason.trim()||actionLoading} onClick={handleReject} style={{ flex:1, padding:"11px", borderRadius:8, border:"none", background:rejectReason.trim()?"linear-gradient(135deg,#DC2626,#EF4444)":"#F1F5F9", color:rejectReason.trim()?"#fff":"#94A3B8", fontSize:12.5, fontWeight:600, cursor:rejectReason.trim()?"pointer":"not-allowed" }}>
@@ -919,7 +917,7 @@
               <p style={{ fontSize:12.5, color:"#64748B", lineHeight:1.6, marginBottom:18 }}>
                 Reason for rejecting payment from <strong style={{ color:"#0F172A" }}>{selectedPayment?.shopName}</strong>:
               </p>
-              <textarea placeholder="e.g. Reference number could not be verified." value={payRejectReason} onChange={e => setPayRejectReason(e.target.value)} style={{ width:"100%", minHeight:88, padding:"11px 14px", borderRadius:8, border:"1.5px solid #E2E8F0", fontSize:12.5, fontFamily:"'Inter',sans-serif", color:"#0F172A", resize:"none", outline:"none", background:"#F8FAFC", marginBottom:16 }} />
+              <textarea placeholder="e.g. Reference number could not be verified." value={payRejectReason} onChange={e => setPayRejectReason(e.target.value)} style={{ width:"100%", minHeight:88, padding:"11px 14px", borderRadius:8, border:"1.5px solid #E2E8F0", fontSize:12.5, fontFamily:"var(--font-ui)", color:"#0F172A", resize:"none", outline:"none", background:"#F8FAFC", marginBottom:16 }} />
               <div style={{ display:"flex", gap:10 }}>
                 <button onClick={() => { setPayRejectModal(false); setPayRejectReason(""); }} style={{ padding:"11px 20px", borderRadius:8, border:"1px solid #E2E8F0", background:"#F8FAFC", fontSize:12.5, fontWeight:500, color:"#64748B", cursor:"pointer" }}>Cancel</button>
                 <button disabled={!payRejectReason.trim()||actionLoading} onClick={handleRejectPayment} style={{ flex:1, padding:"11px", borderRadius:8, border:"none", background:payRejectReason.trim()?"linear-gradient(135deg,#DC2626,#EF4444)":"#F1F5F9", color:payRejectReason.trim()?"#fff":"#94A3B8", fontSize:12.5, fontWeight:600, cursor:payRejectReason.trim()?"pointer":"not-allowed" }}>

@@ -10,8 +10,7 @@ import {
 
 function StatCard({ label, value, color, sub }) {
   return (
-    <div style={{ background: "#fff", borderRadius: 14, padding: "18px 20px", border: "1px solid #E2E8F0", position: "relative", overflow: "hidden" }}>
-      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: color, borderRadius: "14px 14px 0 0" }} />
+    <div style={{ background: "#fff", borderRadius: 14, padding: "18px 20px", border: "1px solid #E2E8F0" }}>
       <div style={{ fontSize: 22, fontWeight: 900, color, fontFamily: "var(--font-display)", lineHeight: 1.1, marginBottom: 4 }}>{value}</div>
       <div style={{ fontSize: 12, fontWeight: 600, color: "#0F172A", marginBottom: 2 }}>{label}</div>
       <div style={{ fontSize: 11, color: "#94A3B8" }}>{sub}</div>

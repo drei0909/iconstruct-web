@@ -86,13 +86,8 @@ function StatPill({ label, value, color, active, onClick }) {
         padding: "12px 14px",
         cursor: "pointer",
         fontFamily: "inherit",
-        position: "relative",
-        overflow: "hidden",
       }}
     >
-      {!active && (
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: color }} />
-      )}
       <div
         style={{
           fontFamily: "var(--font-display)",

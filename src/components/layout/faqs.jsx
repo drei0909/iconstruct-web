@@ -5,7 +5,7 @@ const faqs = [
     category: "General",
     question: "What is iConstruct?",
     answer:
-      "iConstruct is a smart construction support system that helps builders estimate materials, manage project costs, and connect with nearby verified hardware suppliers — all in one platform.",
+      "iConstruct is a smart construction support system that helps builders estimate materials, manage project costs, and connect with nearby verified hardware suppliers, all in one platform.",
   },
   {
     category: "General",
@@ -35,7 +35,7 @@ const faqs = [
     category: "Hardware Shops",
     question: "Is there a fee for registering my shop?",
     answer:
-      "Registration is currently free for all hardware shops. We believe in building a trusted network first — you can list your shop and connect with contractors at no cost.",
+      "Registration is currently free for all hardware shops. We believe in building a trusted network first, so you can list your shop and connect with contractors at no cost.",
   },
   {
     category: "Estimation",

@@ -60,12 +60,11 @@ function PlanBadge() {
   );
 }
 
-function StatCard({ label, value, color, sub, featured }) {
+function StatCard({ label, value, color, sub }) {
   return (
-    <div style={{ background:featured?`linear-gradient(135deg,${color}15,${color}08)`:"#fff", borderRadius:14, padding:"20px 22px", border:featured?`1px solid ${color}30`:"1px solid #E2E8F0", position:"relative", overflow:"hidden" }}
-      onMouseEnter={e => { e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow=`0 8px 24px ${color}20`; }}
+    <div style={{ background:"#fff", borderRadius:14, padding:"20px 22px", border:"1px solid #E2E8F0" }}
+      onMouseEnter={e => { e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 8px 24px rgba(15,23,42,0.08)"; }}
       onMouseLeave={e => { e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}>
-      <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${color},${color}80)`, borderRadius:"14px 14px 0 0" }} />
       <div style={{ fontSize:22, fontWeight:900, color, fontFamily:"var(--font-display)", lineHeight:1.1, marginBottom:4 }}>{value}</div>
       <div style={{ fontSize:12, fontWeight:600, color:"#0F172A", marginBottom:2 }}>{label}</div>
       <div style={{ fontSize:11, color:"#94A3B8" }}>{sub}</div>
@@ -97,10 +96,10 @@ function Overview({ shop, quotations, projects, money, stale, insights, setQuote
       </div>
 
       <div className="db-stat-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12, marginBottom:24 }}>
-        <StatCard label="Revenue won"     value={money.format.revenueWon} color="#10B981" sub="Accepted totals" featured />
+        <StatCard label="Revenue won"     value={money.format.revenueWon} color="#10B981" sub="Accepted totals" />
         <StatCard label="Open pipeline"   value={money.format.pipeline}   color="#F59E0B" sub="Pending value" />
         <StatCard label="Win rate"        value={`${money.winRate}%`}     color="#3B82F6" sub="Acceptance" />
-        <StatCard label="Follow-ups"      value={stale.length}            color="#EF4444" sub="Pending &gt; 3 days" featured />
+        <StatCard label="Follow-ups"      value={stale.length}            color="#EF4444" sub="Pending &gt; 3 days" />
         <StatCard label="Open projects"   value={projects.length}         color="#0F172A" sub="Ready to bid" />
       </div>
 
