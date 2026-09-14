@@ -241,13 +241,24 @@ async function activateShopSubscription(shopId, planId, opts = {}) {
     }
     const data = shopSnap.data() || {};
 
-    // Renew reliability: stack +30 days from later of (now | current expiry)
+    // Only stack onto the remaining time when this is a genuine early renewal
+    // of the SAME plan while it's still active — that preserves paid days the
+    // shop hasn't used yet. A first-time subscribe, a plan switch (e.g. Basic
+    // -> Pro, Pro -> Business), or renewing after it already expired must all
+    // start the 30 days fresh from today; otherwise a leftover expiry from a
+    // different plan (or an old test payment) gets silently added on top.
+    const isSamePlanActiveRenewal =
+      data.subscriptionPlan === planId &&
+      String(data.subscriptionStatus || "").toLowerCase() === "active";
+
     let baseMs = Date.now();
-    const exp = data.subscriptionExpiry;
-    if (exp) {
-      const d = typeof exp.toDate === "function" ? exp.toDate() : new Date(exp);
-      if (!Number.isNaN(d.getTime()) && d.getTime() > baseMs) {
-        baseMs = d.getTime();
+    if (isSamePlanActiveRenewal) {
+      const exp = data.subscriptionExpiry;
+      if (exp) {
+        const d = typeof exp.toDate === "function" ? exp.toDate() : new Date(exp);
+        if (!Number.isNaN(d.getTime()) && d.getTime() > baseMs) {
+          baseMs = d.getTime();
+        }
       }
     }
     const newExpiry = new Date(baseMs + 30 * 24 * 60 * 60 * 1000);
