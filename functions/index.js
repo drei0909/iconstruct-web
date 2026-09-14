@@ -741,7 +741,7 @@ exports.enforceSubscriptionExpiry = onSchedule(
 
 /** Manual/admin trigger (needs Firebase Auth admin token) for testing expiry now. */
 exports.runSubscriptionExpiryNow = onRequest(
-  { cors: true },
+  { cors: true, invoker: "public" },
   async (req, res) => {
     if (req.method === "OPTIONS") return res.status(204).send("");
     if (req.method !== "POST") {
@@ -768,7 +768,7 @@ exports.runSubscriptionExpiryNow = onRequest(
 
 // CORS helpers + auth so SPA (localhost) can call these
 exports.createCheckoutSession = onRequest(
-  { cors: [/^http:\/\/localhost:\d+$/, /^https:\/\/.*\.web\.app$/, /^https:\/\/.*\.firebaseapp\.com$/, true], secrets: [paymongoSecret] },
+  { cors: [/^http:\/\/localhost:\d+$/, /^https:\/\/.*\.web\.app$/, /^https:\/\/.*\.firebaseapp\.com$/, true], secrets: [paymongoSecret], invoker: "public" },
   async (req, res) => {
     if (handlePreflight(req, res)) return;
     applyCors(req, res);
@@ -890,7 +890,7 @@ exports.createCheckoutSession = onRequest(
 );
 
 exports.verifyPaymentSession = onRequest(
-  { cors: [/^http:\/\/localhost:\d+$/, true], secrets: [paymongoSecret] },
+  { cors: [/^http:\/\/localhost:\d+$/, true], secrets: [paymongoSecret], invoker: "public" },
   async (req, res) => {
     if (handlePreflight(req, res)) return;
     applyCors(req, res);

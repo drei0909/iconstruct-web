@@ -2,7 +2,7 @@
   "functions": [
     {
       "source": "functions",
-      "codebase": "default",
+      "codebase": "webshop",
       "disallowLegacyRuntimeConfig": true,
       "ignore": [
         "node_modules",
