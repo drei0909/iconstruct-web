@@ -31,6 +31,39 @@ function formatDate(ts) {
   return d.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function humanizeKey(key) {
+  return String(key)
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^./, (c) => c.toUpperCase());
+}
+
+/**
+ * siteDetails' shape isn't fixed on the builder side yet — normalize whatever
+ * comes in (string / array / plain object) into something renderable, or
+ * null when there's nothing to show.
+ */
+function normalizeSiteDetails(details) {
+  if (details == null) return null;
+  if (typeof details === "string") {
+    const s = details.trim();
+    return s ? { kind: "text", value: s } : null;
+  }
+  if (Array.isArray(details)) {
+    const items = details.filter((v) => v != null && String(v).trim());
+    return items.length ? { kind: "list", value: items } : null;
+  }
+  if (typeof details === "object") {
+    const entries = Object.entries(details).filter(
+      ([, v]) => v != null && String(v).trim() !== ""
+    );
+    return entries.length ? { kind: "entries", value: entries } : null;
+  }
+  return { kind: "text", value: String(details) };
+}
+
 function Chip({ children, tone = "neutral" }) {
   const styles = {
     blue:    { background: "#EFF6FF", color: "#1D4ED8", border: "1px solid #BFDBFE" },
@@ -93,6 +126,7 @@ export default function ShopProjectsPanel({
   const hasCoverage = Array.isArray(suppliedCategories) && suppliedCategories.length > 0;
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [scopeFilter, setScopeFilter] = useState("all"); // projectScope value, e.g. "Structural"
   const [sortBy, setSortBy] = useState(hasCoverage ? "best_match" : "newest");
   const [scope, setScope] = useState("all"); // all | not_quoted | quoted
   const [expandedId, setExpandedId] = useState(null);
@@ -116,6 +150,18 @@ export default function ShopProjectsPanel({
     return [...map.entries()].sort((a, b) => b[1] - a[1]);
   }, [projects]);
 
+  // projectScope: "Cosmetic" | "Structural" | "Functional" on new posts, still
+  // "Full Renovation" | "Extension" on older ones — both read fine here since
+  // this just lists whatever distinct values actually show up in the data.
+  const scopes = useMemo(() => {
+    const map = new Map();
+    projects.forEach((p) => {
+      const s = (p.projectScope || "").trim();
+      if (s) map.set(s, (map.get(s) || 0) + 1);
+    });
+    return [...map.entries()].sort((a, b) => b[1] - a[1]);
+  }, [projects]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     let list = projects.filter((p) => {
@@ -123,10 +169,12 @@ export default function ShopProjectsPanel({
       if (scope === "quoted" && !already) return false;
       if (scope === "not_quoted" && already) return false;
       if (typeFilter !== "all" && (p.projectType || "") !== typeFilter) return false;
+      if (scopeFilter !== "all" && (p.projectScope || "") !== scopeFilter) return false;
       if (!q) return true;
       const hay = [
         p.projectName,
         p.projectType,
+        p.projectScope,
         p.locationCity,
         p.budget,
         ...(p.materials || []).map((m) => m.name || m),
@@ -159,12 +207,12 @@ export default function ShopProjectsPanel({
     });
 
     return list;
-  }, [projects, search, typeFilter, sortBy, scope, quotedIds, suppliedCategories]);
+  }, [projects, search, typeFilter, scopeFilter, sortBy, scope, quotedIds, suppliedCategories]);
 
   // Reset to first page when filters change
   useEffect(() => {
     setPage(1);
-  }, [search, typeFilter, sortBy, scope, projects.length]);
+  }, [search, typeFilter, scopeFilter, sortBy, scope, projects.length]);
 
   const { slice: pageItems, page: safePage, total: filteredTotal } = useMemo(
     () => paginate(filtered, page, pageSize),
@@ -177,12 +225,13 @@ export default function ShopProjectsPanel({
   const clearFilters = () => {
     setSearch("");
     setTypeFilter("all");
+    setScopeFilter("all");
     setSortBy("newest");
     setScope("all");
   };
 
   const hasActiveFilters =
-    search || typeFilter !== "all" || sortBy !== "newest" || scope !== "all";
+    search || typeFilter !== "all" || scopeFilter !== "all" || sortBy !== "newest" || scope !== "all";
 
   return (
     <div>
@@ -335,6 +384,38 @@ export default function ShopProjectsPanel({
         </div>
       )}
 
+      {/* Scope chips */}
+      {scopes.length > 0 && (
+        <div style={{
+          display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16, alignItems: "center",
+        }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8" }}>Scope:</span>
+          <button
+            type="button"
+            onClick={() => setScopeFilter("all")}
+            style={{
+              ...selectStyle(scopeFilter === "all"),
+              borderRadius: 20, padding: "4px 12px", fontSize: 11,
+            }}
+          >
+            All
+          </button>
+          {scopes.slice(0, 8).map(([sc, count]) => (
+            <button
+              key={sc}
+              type="button"
+              onClick={() => setScopeFilter(scopeFilter === sc ? "all" : sc)}
+              style={{
+                ...selectStyle(scopeFilter === sc),
+                borderRadius: 20, padding: "4px 12px", fontSize: 11,
+              }}
+            >
+              {sc} ({count})
+            </button>
+          ))}
+        </div>
+      )}
+
       <div style={{ fontSize: 12, color: "#94A3B8", marginBottom: 12 }}>
         Showing <strong style={{ color: "#334155" }}>{filteredTotal}</strong> of {projects.length} projects
         {filteredTotal > pageSize ? " (paged)" : ""}
@@ -372,6 +453,7 @@ export default function ShopProjectsPanel({
             const open = expandedId === p.id;
             const date = formatDate(p.postedAt || p.createdAt);
             const materials = p.materials || [];
+            const siteDetails = normalizeSiteDetails(p.siteDetails);
             const baseline = estimateConfig ? estimateProjectBaseline(p, estimateConfig) : null;
             const fit = hasCoverage ? scoreProjectFit(p, suppliedCategories) : null;
             const fitMeta = fit && fit.fit !== "unknown" ? FIT_META[fit.fit] : null;
@@ -420,6 +502,9 @@ export default function ShopProjectsPanel({
                           {fit.matched > 0 ? ` · ${fit.matched}/${fit.total}` : ""}
                         </Chip>
                       )}
+                      {p.projectScope && (
+                        <Chip tone="slate">Scope: {p.projectScope}</Chip>
+                      )}
                       {p.totalAreaSqm != null && (
                         <Chip tone="blue"><TbRuler2 size={11} /> {p.totalAreaSqm} sqm</Chip>
                       )}
@@ -449,7 +534,7 @@ export default function ShopProjectsPanel({
                     display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center",
                     flexShrink: 0,
                   }}>
-                    {materials.length > 0 && (
+                    {(materials.length > 0 || siteDetails) && (
                       <button
                         type="button"
                         onClick={() => setExpandedId(open ? null : p.id)}
@@ -496,12 +581,52 @@ export default function ShopProjectsPanel({
                   </div>
                 </div>
 
-                {open && (materials.length > 0 || baseline) && (
+                {open && (materials.length > 0 || baseline || siteDetails) && (
                   <div style={{
                     borderTop: "1px solid #F1F5F9",
                     background: "#FAFBFC",
                     padding: "14px 18px 16px",
                   }}>
+                    {siteDetails && (
+                      <div style={{
+                        marginBottom: (materials.length > 0 || baseline) ? 16 : 0,
+                        padding: "10px 12px", borderRadius: 10,
+                        background: "#fff", border: "1px solid #E2E8F0",
+                      }}>
+                        <div style={{
+                          fontSize: 10, fontWeight: 700, color: "#94A3B8",
+                          letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8,
+                        }}>
+                          Site details
+                        </div>
+                        {siteDetails.kind === "text" && (
+                          <p style={{ fontSize: 12.5, color: "#334155", lineHeight: 1.6, margin: 0 }}>
+                            {siteDetails.value}
+                          </p>
+                        )}
+                        {siteDetails.kind === "list" && (
+                          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: "#334155", lineHeight: 1.7 }}>
+                            {siteDetails.value.map((item, i) => (
+                              <li key={i}>{String(item)}</li>
+                            ))}
+                          </ul>
+                        )}
+                        {siteDetails.kind === "entries" && (
+                          <div style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                            gap: "4px 16px",
+                          }}>
+                            {siteDetails.value.map(([key, val]) => (
+                              <div key={key} style={{ fontSize: 12, color: "#334155" }}>
+                                <span style={{ color: "#94A3B8" }}>{humanizeKey(key)}: </span>
+                                <strong>{typeof val === "object" ? JSON.stringify(val) : String(val)}</strong>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {baseline && (
                       <div style={{
                         marginBottom: materials.length > 0 ? 16 : 0,
