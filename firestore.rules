@@ -233,31 +233,37 @@ service cloud.firestore {
             || request.auth.uid == quotationId
           ));
 
+        // Matches the real payload written by insertQuotation(): shopId,
+        // projectId, amount, status:"pending", items[]. The old version of
+        // this rule required estimatedTotal/postId/status:"submitted" and an
+        // auto-generated doc id equal to the shop's uid — fields the app has
+        // never written, so every quote submission was silently rejected.
         allow create: if signedIn()
-          && request.resource.data.keys().hasAll(["shopId"])
           && request.resource.data.shopId == request.auth.uid
-          && request.auth.uid == quotationId
           && shopIsApproved(request.auth.uid)
-          && request.resource.data.estimatedTotal is number
-          && request.resource.data.estimatedTotal >= 0
-          && request.resource.data.postId == postId
-          && request.resource.data.status == 'submitted';
+          && request.resource.data.projectId == postId
+          && request.resource.data.amount is number
+          && request.resource.data.amount >= 0
+          && request.resource.data.status == 'pending';
 
+        // Only the builder who posted the project decides a quote — full
+        // accept, reject, or partial accept (per-line items[].accepted +
+        // acceptedTotal, written by the builder app). Shops never update
+        // their own quote once submitted; no web feature does this, and
+        // allowing it would let a shop self-approve its own bid.
         allow update: if isAdmin()
-          || (signedIn()
-              && resource.data.shopId == request.auth.uid
-              && shopIsApproved(request.auth.uid)
-              && request.resource.data.shopId == resource.data.shopId
-              && request.resource.data.postId == resource.data.postId)
           || (ownsPostedEstimate(postId)
               && request.resource.data.diff(resource.data).affectedKeys()
-                   .hasOnly(['status', 'acceptedAt'])
-              && request.resource.data.status in ['accepted', 'rejected']);
+                   .hasOnly(['status', 'acceptedAt', 'items', 'acceptedTotal'])
+              && request.resource.data.status in ['accepted', 'rejected', 'partially_accepted']
+              && request.resource.data.shopId == resource.data.shopId
+              && request.resource.data.projectId == resource.data.projectId);
 
         allow delete: if isAdmin()
           || (signedIn()
               && resource.data.shopId == request.auth.uid
-              && shopIsApproved(request.auth.uid));
+              && shopIsApproved(request.auth.uid)
+              && resource.data.status == 'pending');
       }
 
       match /acceptance/{acceptanceId} {
