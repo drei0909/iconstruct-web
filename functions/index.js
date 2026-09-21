@@ -1817,8 +1817,12 @@ exports.onQuotationAccepted = onDocumentUpdated(
     const postId = event.params.postId;
     const quotationId = event.params.quotationId;
 
-    const wasAccepted = String(before.status || "").toLowerCase() === "accepted";
-    const isAccepted = String(after.status || "").toLowerCase() === "accepted";
+    // A partial acceptance (builder took some lines) also unlocks the chat.
+    const WON = ["accepted", "partially_accepted"];
+    const wasAccepted = WON.includes(String(before.status || "").toLowerCase());
+    const afterStatus = String(after.status || "").toLowerCase();
+    const isAccepted = WON.includes(afterStatus);
+    const isPartial = afterStatus === "partially_accepted";
     if (wasAccepted || !isAccepted) return;
 
     const shopId = after.shopId;
@@ -1890,8 +1894,10 @@ exports.onQuotationAccepted = onDocumentUpdated(
         if (shopTokens.length) {
           await admin.messaging().sendEachForMulticast({
             notification: {
-              title: "✅ Your quote was accepted!",
-              body: `A builder accepted your quotation for "${projectTitle}". Open Messages to chat.`,
+              title: isPartial ? "✅ Your quote was partially accepted" : "✅ Your quote was accepted!",
+              body: isPartial
+                ? `A builder accepted some items in your quotation for "${projectTitle}". Open Messages to chat.`
+                : `A builder accepted your quotation for "${projectTitle}". Open Messages to chat.`,
             },
             data: {
               type: "quotation_accepted",

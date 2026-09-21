@@ -36,7 +36,7 @@ export async function openChatForAcceptedQuote(quotation) {
   if (!quotation?.projectId) throw new Error("Missing project on quotation.");
 
   const status = String(quotation.status || "").toLowerCase();
-  if (status !== "accepted") {
+  if (status !== "accepted" && status !== "partially_accepted") {
     throw new Error("Chat unlocks only after the builder accepts your quote.");
   }
   if (String(quotation.shopId) !== user.uid) {

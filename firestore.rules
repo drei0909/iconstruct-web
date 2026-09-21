@@ -309,7 +309,7 @@ service cloud.firestore {
         return request.resource.data.projectId is string
           && request.resource.data.quotationId is string
           && exists(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)/quotations/$(request.resource.data.quotationId))
-          && get(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)/quotations/$(request.resource.data.quotationId)).data.status == 'accepted'
+          && get(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)/quotations/$(request.resource.data.quotationId)).data.status in ['accepted', 'partially_accepted']
           && (
                get(/databases/$(database)/documents/projectPosts/$(request.resource.data.projectId)/quotations/$(request.resource.data.quotationId)).data.shopId == request.resource.data.shopId
                || request.resource.data.quotationId == request.resource.data.shopId
