@@ -55,8 +55,12 @@ export function getDocCompleteness(shop) {
     docs.map((d) => String(d.docType || d.type || "").toLowerCase()).filter(Boolean)
   );
   // Also accept generic image uploads without typed docType as "other"
+  // "validId" is camelCase in REQUIRED_DOC_GROUPS but presentTypes is all
+  // lowercase (from d.docType.toLowerCase()) — without lowering `t` too,
+  // "validId" !== "validid" and that document group could never match,
+  // even though the shop's actual valid-ID upload was right there.
   const groups = REQUIRED_DOC_GROUPS.map((g) => {
-    const found = g.types.some((t) => presentTypes.has(t));
+    const found = g.types.some((t) => presentTypes.has(t.toLowerCase()));
     return { ...g, found };
   });
   const foundCount = groups.filter((g) => g.found).length;

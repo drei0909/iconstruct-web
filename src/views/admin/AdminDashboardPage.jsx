@@ -60,6 +60,16 @@
     { value: "other",    label: "Other Document" },
   ];
 
+  /** KYC uploads are frequently PDFs, not just photos — an <img> tag can't
+   *  render those. Used to pick a real thumbnail/preview vs. a file tile. */
+  function isImageDoc(d) {
+    return Boolean(
+      d?.type?.startsWith("image")
+      || /\.(jpe?g|png|webp|gif)$/i.test(d?.url || "")
+      || /\.(jpe?g|png|webp|gif)$/i.test(d?.name || "")
+    );
+  }
+
   const TABS = [
     { key:"dashboard", label:"Dashboard", icon: <SquaresFour size={16} /> },
     { key:"applications",  label:"Shop Applications",  icon: <Storefront size={16} /> },
@@ -764,7 +774,7 @@
                         <div key={i} onClick={() => setPreviewModal(docItem)} style={{ borderRadius:10, overflow:"hidden", border:"1px solid #E2E8F0", cursor:"pointer" }}
                           onMouseEnter={e => e.currentTarget.style.borderColor="#3B82F6"}
                           onMouseLeave={e => e.currentTarget.style.borderColor="#E2E8F0"}>
-                          {docItem.type?.startsWith("image") || /\.(jpe?g|png|webp|gif)$/i.test(docItem.url||"") || /\.(jpe?g|png|webp|gif)$/i.test(docItem.name||"") ? (
+                          {isImageDoc(docItem) ? (
                             <img src={docItem.url} alt={docItem.name} style={{ width:"100%", height:110, objectFit:"cover", display:"block", background:"#F8FAFC" }} />
                           ) : (
                             <div style={{ height:110, background:"#F8FAFC", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:6 }}>
@@ -776,7 +786,7 @@
                             <div style={{ fontSize:10, fontWeight:600, color:"#334155", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
                               {DOCUMENT_TYPES.find(t => t.value === docItem.docType)?.label || docItem.docType || "Document"}
                             </div>
-                            <div style={{ fontSize:9, color:"#94A3B8" }}>Click to enlarge</div>
+                            <div style={{ fontSize:9, color:"#94A3B8" }}>{isImageDoc(docItem) ? "Click to enlarge" : "Click to open"}</div>
                           </div>
                         </div>
                       ))}
@@ -936,7 +946,24 @@
               <button onClick={() => setPreviewModal(null)} style={{ position:"absolute", top:-16, right:-16, width:36, height:36, borderRadius:"50%", background:"#fff", border:"none", fontSize:20, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 12px rgba(0,0,0,0.3)", zIndex:1 }}>
                 <X size={18} weight="bold" />
               </button>
-              <img src={previewModal.url} alt={previewModal.name} style={{ width:"100%", maxHeight:"85vh", objectFit:"contain", borderRadius:12, display:"block", background:"#111" }} />
+              {isImageDoc(previewModal) ? (
+                <img src={previewModal.url} alt={previewModal.name} style={{ width:"100%", maxHeight:"85vh", objectFit:"contain", borderRadius:12, display:"block", background:"#111" }} />
+              ) : (
+                <div style={{ width:"100%", minHeight:280, borderRadius:12, background:"#1A2332", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:14, padding:32 }}>
+                  <FileText size={48} weight="thin" color="#94A3B8" />
+                  <div style={{ color:"#fff", fontSize:13, textAlign:"center" }}>
+                    This file type can't be previewed here.
+                  </div>
+                  <a
+                    href={previewModal.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ padding:"10px 20px", borderRadius:8, background:"#3B82F6", color:"#fff", fontSize:12.5, fontWeight:600, textDecoration:"none" }}
+                  >
+                    Open {previewModal.name || "file"} in a new tab
+                  </a>
+                </div>
+              )}
               <div style={{ textAlign:"center", marginTop:10, color:"rgba(255,255,255,0.6)", fontSize:12 }}>{previewModal.name}</div>
             </div>
           </div>
