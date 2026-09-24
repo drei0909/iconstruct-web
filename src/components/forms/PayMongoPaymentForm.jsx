@@ -113,7 +113,7 @@ export default function PayMongoPaymentForm({ defaultPlan = null, onCancel }) {
                 />
               </div>
               <ul style={{ margin: 0, paddingLeft: 16, fontSize: 11.5, color: "#64748B", lineHeight: 1.55 }}>
-                {(plan.features || []).slice(0, 5).map((f, i) => (
+                {(plan.features || []).map((f, i) => (
                   <li key={i}>{f}</li>
                 ))}
               </ul>
