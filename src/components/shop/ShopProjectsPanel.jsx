@@ -40,10 +40,31 @@ function humanizeKey(key) {
     .replace(/^./, (c) => c.toUpperCase());
 }
 
+/** "dryRoom" -> "Dry Room"; leaves normal sentences/phrases alone. */
+function formatScalar(v) {
+  if (typeof v === "boolean") return v ? "Yes" : "No";
+  if (v == null || v === "") return "—";
+  if (typeof v === "string" && /^[a-z][a-zA-Z0-9]*$/.test(v)) return humanizeKey(v);
+  return String(v);
+}
+
+const isPlainValue = (v) => v == null || typeof v !== "object";
+
+/** One object's own fields as "Key A, Key B" — used for array items and nested objects. */
+function summarizeObject(obj) {
+  return Object.entries(obj)
+    .filter(([, v]) => v != null && String(v).trim() !== "")
+    .map(([k, v]) => `${humanizeKey(k)} ${formatScalar(v)}`)
+    .join(" · ");
+}
+
 /**
  * siteDetails' shape isn't fixed on the builder side yet — normalize whatever
- * comes in (string / array / plain object) into something renderable, or
- * null when there's nothing to show.
+ * comes in (string / array / plain object, arbitrarily nested) into something
+ * renderable, or null when there's nothing to show. Each entry is tagged
+ * "simple" (short scalar — fits a compact grid cell) or "complex" (a nested
+ * object/array — rendered on its own full-width row instead of squeezed into
+ * one, which is what was overlapping and unreadable before).
  */
 function normalizeSiteDetails(details) {
   if (details == null) return null;
@@ -56,9 +77,20 @@ function normalizeSiteDetails(details) {
     return items.length ? { kind: "list", value: items } : null;
   }
   if (typeof details === "object") {
-    const entries = Object.entries(details).filter(
-      ([, v]) => v != null && String(v).trim() !== ""
-    );
+    const entries = Object.entries(details)
+      .filter(([, v]) => v != null && String(v).trim() !== "")
+      .map(([key, v]) => {
+        if (Array.isArray(v)) {
+          const rows = v.every(isPlainValue)
+            ? [v.map(formatScalar).join(", ")]
+            : v.map((item) => (isPlainValue(item) ? formatScalar(item) : summarizeObject(item)));
+          return { key, kind: "complex", rows };
+        }
+        if (typeof v === "object") {
+          return { key, kind: "complex", rows: [summarizeObject(v)] };
+        }
+        return { key, kind: "simple", text: formatScalar(v) };
+      });
     return entries.length ? { kind: "entries", value: entries } : null;
   }
   return { kind: "text", value: String(details) };
@@ -615,12 +647,27 @@ export default function ShopProjectsPanel({
                           <div style={{
                             display: "grid",
                             gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-                            gap: "4px 16px",
+                            gap: "6px 16px",
                           }}>
-                            {siteDetails.value.map(([key, val]) => (
-                              <div key={key} style={{ fontSize: 12, color: "#334155" }}>
-                                <span style={{ color: "#94A3B8" }}>{humanizeKey(key)}: </span>
-                                <strong>{typeof val === "object" ? JSON.stringify(val) : String(val)}</strong>
+                            {siteDetails.value.map((entry) => (
+                              <div
+                                key={entry.key}
+                                style={{
+                                  fontSize: 12, color: "#334155", lineHeight: 1.6,
+                                  wordBreak: "break-word",
+                                  gridColumn: entry.kind === "complex" ? "1 / -1" : "auto",
+                                }}
+                              >
+                                <span style={{ color: "#94A3B8" }}>{humanizeKey(entry.key)}: </span>
+                                {entry.kind === "simple" ? (
+                                  <strong>{entry.text}</strong>
+                                ) : entry.rows.length > 1 ? (
+                                  <ul style={{ margin: "2px 0 0", paddingLeft: 18 }}>
+                                    {entry.rows.map((row, i) => <li key={i}>{row}</li>)}
+                                  </ul>
+                                ) : (
+                                  <strong>{entry.rows[0] || "—"}</strong>
+                                )}
                               </div>
                             ))}
                           </div>
