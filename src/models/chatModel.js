@@ -69,23 +69,27 @@ export async function upsertConversation({
 }) {
   const ref = doc(db, "conversations", conversationId);
   const existing = await getDoc(ref);
-  const base = {
-    projectId: String(projectId),
-    quotationId: String(quotationId || ""),
-    shopId: String(shopId),
-    shopName: shopName || "",
-    builderId: String(builderId),
-    builderName: builderName || "Builder",
-    projectTitle: projectTitle || "Project",
-    status: "open",
-    updatedAt: serverTimestamp(),
-  };
 
   if (existing.exists()) {
-    await updateDoc(ref, base);
+    // Rules only allow participants to touch the thread-summary fields on an
+    // existing conversation (see conversations/{id} `allow update`), not the
+    // identity fields below — those are set once at creation. Re-sending them
+    // here used to get rejected the moment any of them drifted even slightly
+    // from what the Cloud Function originally stored (e.g. the shop renamed
+    // itself after quoting), breaking "Message builder" with a permission
+    // error. Just refresh status; nothing else needs to change on reopen.
+    await updateDoc(ref, { status: "open", updatedAt: serverTimestamp() });
   } else {
     await setDoc(ref, {
-      ...base,
+      projectId: String(projectId),
+      quotationId: String(quotationId || ""),
+      shopId: String(shopId),
+      shopName: shopName || "",
+      builderId: String(builderId),
+      builderName: builderName || "Builder",
+      projectTitle: projectTitle || "Project",
+      status: "open",
+      updatedAt: serverTimestamp(),
       lastMessage: "Quote accepted — you can now message each other.",
       lastMessageAt: serverTimestamp(),
       lastSenderId: "",

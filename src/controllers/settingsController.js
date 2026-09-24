@@ -1,8 +1,7 @@
 // src/controllers/settingsController.js
 
-import { auth, db } from "../services/firebase";
+import { auth, db, createUserOnSecondaryApp } from "../services/firebase";
 import {
-  createUserWithEmailAndPassword,
   updatePassword,
   reauthenticateWithCredential,
   EmailAuthProvider,
@@ -50,13 +49,16 @@ export async function getCurrentAdminProfile() {
 // ── Create Admin ────────────────────────────────────────────────────────────
 
 export async function createAdmin({ email, password, displayName, role = "admin" }) {
-  const cred = await createUserWithEmailAndPassword(auth, email, password);
-  await setDoc(doc(db, "admins", cred.user.uid), {
+  // Uses a secondary app instance so this doesn't sign the calling admin out
+  // (see createUserOnSecondaryApp) — the write below needs their session
+  // intact, since only an existing admin can create the new admins/{uid} doc.
+  const uid = await createUserOnSecondaryApp(email, password);
+  await setDoc(doc(db, "admins", uid), {
     email, displayName, role,
     createdAt: serverTimestamp(),
   });
   await writeLog("success", `New admin account created: ${email} (${role})`);
-  return cred.user;
+  return uid;
 }
 
 // ── Update Admin Profile ─────────────────────────────────────────────────────

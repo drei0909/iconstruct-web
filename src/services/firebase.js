@@ -1,12 +1,12 @@
 // src/services/firebase.js
-import { initializeApp } from "firebase/app";
+import { initializeApp, deleteApp } from "firebase/app";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 import {
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
 } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 import { getMessaging, isSupported } from "firebase/messaging";
 
@@ -64,3 +64,23 @@ export const auth     = getAuth(app);
 export const messaging = isSupported().then((supported) =>
   supported ? getMessaging(app) : null
 );
+
+/**
+ * Create a new Firebase Auth user WITHOUT touching the caller's own session.
+ * createUserWithEmailAndPassword on the primary `auth` instance signs the
+ * client in as the newly created user, replacing whoever was already signed
+ * in — fatal when an admin uses this to invite another admin, since it both
+ * kicks them out mid-flow and leaves them unable to write the new admin's
+ * Firestore doc (their own admin session is gone, and the brand-new user
+ * isn't an admin yet). A throwaway secondary App instance sidesteps this.
+ */
+export async function createUserOnSecondaryApp(email, password) {
+  const secondaryApp = initializeApp(firebaseConfig, `secondary-${Date.now()}`);
+  try {
+    const secondaryAuth = getAuth(secondaryApp);
+    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+    return cred.user.uid;
+  } finally {
+    await deleteApp(secondaryApp);
+  }
+}
