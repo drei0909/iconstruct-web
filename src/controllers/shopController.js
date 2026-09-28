@@ -9,6 +9,8 @@ import {
   fetchQuotationsByShop,
   subscribeToShopQuotations,
   insertQuotation,
+  respondToAcceptedQuote,
+  proposeItemRenegotiation,
   fetchLatestPaymentByShop,
   fetchPendingPaymentByShop,
   insertPaymentRequest,
@@ -96,6 +98,25 @@ export async function submitQuotation({ projectId, amount, note, items, quotedCo
       : list.filter((i) => i.status === "declined").length,
     builderId,
   });
+}
+
+/** Shop confirms or declines the builder's accepted total. Confirming
+ *  finalizes the deal (unlocks chat/rating); declining ends the whole
+ *  project deal, not just the disputed items. */
+export async function confirmQuotation({ postId, quotationId, decision }) {
+  await requireApprovedShop();
+  if (!postId || !quotationId) throw new Error("Project and quotation are required.");
+  if (!["confirm", "decline"].includes(decision)) throw new Error("Invalid decision.");
+  return respondToAcceptedQuote({ postId, quotationId, decision });
+}
+
+/** Shop proposes a new price on one item the builder declined as overpriced. */
+export async function renegotiateQuoteItem({ postId, quotationId, itemIndex, newPrice }) {
+  await requireApprovedShop();
+  if (!postId || !quotationId) throw new Error("Project and quotation are required.");
+  const price = Number(newPrice);
+  if (!Number.isFinite(price) || price <= 0) throw new Error("Enter a valid price.");
+  return proposeItemRenegotiation({ postId, quotationId, itemIndex, newPrice: price });
 }
 
 // ── Payments ──────────────────────────────────────────────────────────────────

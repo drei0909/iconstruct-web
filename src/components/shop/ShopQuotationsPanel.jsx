@@ -4,6 +4,7 @@ import { TbClipboardList, TbSearch, TbX, TbRefresh, TbChevronDown, TbFileDownloa
 import ListPagination, { paginate } from "../ui/ListPagination";
 import { getAcceptanceSummary } from "../../utils/quoteAnalytics";
 import { openQuotePdf } from "../../utils/quotePdf";
+import { confirmQuotation, renegotiateQuoteItem } from "../../controllers/shopController";
 
 const ACCENT = "#2C5282";
 const DEFAULT_PAGE_SIZE = 8;
@@ -92,6 +93,43 @@ export default function ShopQuotationsPanel({
   const [expandedId, setExpandedId] = useState(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+
+  const [confirmBusy, setConfirmBusy] = useState(null);
+  const [confirmError, setConfirmError] = useState({});
+  const [negoBusy, setNegoBusy] = useState(null);
+  const [negoInputs, setNegoInputs] = useState({});
+  const [negoError, setNegoError] = useState({});
+
+  const handleConfirmDecision = async (q, decision) => {
+    setConfirmBusy(q.id);
+    setConfirmError((e) => ({ ...e, [q.id]: null }));
+    try {
+      await confirmQuotation({ postId: q.projectId, quotationId: q.id, decision });
+    } catch (err) {
+      setConfirmError((e) => ({ ...e, [q.id]: err.message || "Failed. Try again." }));
+    } finally {
+      setConfirmBusy(null);
+    }
+  };
+
+  const handleRenegotiate = async (q, itemIndex) => {
+    const key = `${q.id}:${itemIndex}`;
+    const price = parseFloat(negoInputs[key]);
+    if (!Number.isFinite(price) || price <= 0) {
+      setNegoError((e) => ({ ...e, [key]: "Enter a valid price." }));
+      return;
+    }
+    setNegoBusy(key);
+    setNegoError((e) => ({ ...e, [key]: null }));
+    try {
+      await renegotiateQuoteItem({ postId: q.projectId, quotationId: q.id, itemIndex, newPrice: price });
+      setNegoInputs((v) => ({ ...v, [key]: "" }));
+    } catch (err) {
+      setNegoError((e) => ({ ...e, [key]: err.message || "Failed. Try again." }));
+    } finally {
+      setNegoBusy(null);
+    }
+  };
 
   const counts = useMemo(() => {
     const c = { all: quotations.length, pending: 0, accepted: 0, rejected: 0 };
@@ -349,11 +387,20 @@ export default function ShopQuotationsPanel({
             const sKey = (q.status || "pending").toLowerCase();
             const sc = STATUS_META[sKey] || STATUS_META.pending;
             const items = q.items || [];
+            // Kept as plain references (not spread/cloned) into `items` so
+            // takenSet.has(item) below and items.indexOf(item) for the
+            // renegotiation call both stay reference-accurate.
             const supplyItems = items.filter((it) => it.status !== "declined");
             const declinedItems = items.filter((it) => it.status === "declined");
             const acc = getAcceptanceSummary(q);
             const takenSet = new Set(acc.takenItems);
-            const canMessage = sKey === "accepted" || sKey === "partially_accepted";
+            // Quotations from before this confirmation step existed have no
+            // shopConfirmation field at all — treat those as already final
+            // so nothing that was already working suddenly looks locked.
+            const isGrandfathered = acc.isClosed && q.shopConfirmation == null;
+            const isConfirmed = q.shopConfirmation === "confirmed" || isGrandfathered;
+            const needsConfirmation = acc.isClosed && q.shopConfirmation === "pending";
+            const canMessage = (sKey === "accepted" || sKey === "partially_accepted") && isConfirmed;
 
             return (
               <div
@@ -428,18 +475,61 @@ export default function ShopQuotationsPanel({
                     {acc.isClosed && (
                       <div style={{
                         marginBottom: 14, padding: "10px 14px", borderRadius: 10,
-                        background: acc.isPartial ? "#FFFBEB" : "#ECFDF5",
-                        border: `1px solid ${acc.isPartial ? "#FCD34D" : "#6EE7B7"}`,
+                        background: needsConfirmation ? "#EFF6FF" : acc.isPartial ? "#FFFBEB" : "#ECFDF5",
+                        border: `1px solid ${needsConfirmation ? "#BFDBFE" : acc.isPartial ? "#FCD34D" : "#6EE7B7"}`,
                       }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: acc.isPartial ? "#92400E" : "#065F46" }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: needsConfirmation ? "#1D4ED8" : acc.isPartial ? "#92400E" : "#065F46" }}>
                           {acc.isPartial
                             ? `Builder accepted ${acc.takenCount} of ${acc.lineCount} items`
                             : "Builder accepted this quote"}
                         </div>
-                        <div style={{ fontSize: 11.5, color: acc.isPartial ? "#B45309" : "#047857", marginTop: 2 }}>
+                        <div style={{ fontSize: 11.5, color: needsConfirmation ? "#1D4ED8" : acc.isPartial ? "#B45309" : "#047857", marginTop: 2 }}>
                           Accepted total {peso(acc.acceptedTotal)}
                           {acc.isPartial ? ` · you quoted ${peso(acc.quotedTotal)}` : ""}
                         </div>
+
+                        {needsConfirmation && (
+                          <div style={{ marginTop: 10 }}>
+                            <div style={{ fontSize: 11.5, color: "#1D4ED8", marginBottom: 8 }}>
+                              Confirm you can fulfill this before the builder can chat with you or rate you.
+                            </div>
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                              <button
+                                type="button"
+                                disabled={confirmBusy === q.id}
+                                onClick={(e) => { e.stopPropagation(); handleConfirmDecision(q, "confirm"); }}
+                                style={{
+                                  padding: "8px 16px", borderRadius: 8, border: "none",
+                                  background: "#059669", color: "#fff", fontSize: 12.5, fontWeight: 700,
+                                  cursor: confirmBusy === q.id ? "wait" : "pointer", opacity: confirmBusy === q.id ? 0.7 : 1,
+                                }}
+                              >
+                                {confirmBusy === q.id ? "Working..." : "Accept"}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={confirmBusy === q.id}
+                                onClick={(e) => { e.stopPropagation(); handleConfirmDecision(q, "decline"); }}
+                                style={{
+                                  padding: "8px 16px", borderRadius: 8, border: "1.5px solid #DC2626",
+                                  background: "#fff", color: "#DC2626", fontSize: 12.5, fontWeight: 700,
+                                  cursor: confirmBusy === q.id ? "wait" : "pointer", opacity: confirmBusy === q.id ? 0.7 : 1,
+                                }}
+                              >
+                                Reject
+                              </button>
+                            </div>
+                            {confirmError[q.id] && (
+                              <div style={{ fontSize: 11.5, color: "#B91C1C", marginTop: 6 }}>{confirmError[q.id]}</div>
+                            )}
+                          </div>
+                        )}
+
+                        {q.shopConfirmation === "confirmed" && (
+                          <div style={{ fontSize: 11.5, color: "#065F46", marginTop: 6, fontWeight: 600 }}>
+                            ✓ You confirmed this order — chat and rating are unlocked.
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -455,53 +545,105 @@ export default function ShopQuotationsPanel({
                           {supplyItems.map((item, i) => {
                             const isSub = item.status === "substituted";
                             const taken = acc.isClosed ? takenSet.has(item) : null;
+                            // Builder unchecked this item and said it's overpriced —
+                            // eligible for a one-off counter-price from the shop.
+                            const overpriced = taken === false && item.declineReason === "overpriced";
+                            const negotiation = item.negotiation || null;
+                            const negoKey = `${q.id}:${items.indexOf(item)}`;
+                            const canProposeNew = overpriced && (!negotiation || negotiation.status !== "pending") && (Number(negotiation?.round) || 0) < 2;
                             return (
                               <div
                                 key={i}
                                 style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "space-between",
-                                  gap: 12,
                                   background: "#fff",
-                                  border: `1px solid ${isSub ? "#FCD34D" : "#E2E8F0"}`,
+                                  border: `1px solid ${isSub ? "#FCD34D" : overpriced ? "#BFDBFE" : "#E2E8F0"}`,
                                   borderRadius: 10,
                                   padding: "10px 14px",
-                                  opacity: taken === false ? 0.55 : 1,
+                                  opacity: taken === false && !overpriced ? 0.55 : 1,
                                 }}
                               >
-                                <div style={{ minWidth: 0 }}>
-                                  <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                                    {item.productName || "Item"}
-                                    {isSub && (
-                                      <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.05em", color: "#B45309", background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: 5, padding: "1px 5px" }}>
-                                        SUBSTITUTE
-                                      </span>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                                  <div style={{ minWidth: 0 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                      {item.productName || "Item"}
+                                      {isSub && (
+                                        <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.05em", color: "#B45309", background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: 5, padding: "1px 5px" }}>
+                                          SUBSTITUTE
+                                        </span>
+                                      )}
+                                      {taken === true && (
+                                        <span style={{ fontSize: 9, fontWeight: 800, color: "#065F46", background: "#D1FAE5", border: "1px solid #6EE7B7", borderRadius: 5, padding: "1px 5px" }}>TAKEN</span>
+                                      )}
+                                      {taken === false && (
+                                        <span style={{ fontSize: 9, fontWeight: 800, color: "#64748B", background: "#F1F5F9", border: "1px solid #E2E8F0", borderRadius: 5, padding: "1px 5px" }}>NOT TAKEN</span>
+                                      )}
+                                      {overpriced && (
+                                        <span style={{ fontSize: 9, fontWeight: 800, color: "#1D4ED8", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 5, padding: "1px 5px" }}>SAID OVERPRICED</span>
+                                      )}
+                                    </div>
+                                    {isSub && item.requestedName ? (
+                                      <div style={{ fontSize: 11, color: "#B45309", marginTop: 2 }}>
+                                        instead of {item.requestedName}
+                                      </div>
+                                    ) : null}
+                                    <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
+                                      {item.qty} {item.unit || ""} × {peso(item.price)}
+                                    </div>
+                                    {item.lineNote ? (
+                                      <div style={{ fontSize: 11, color: "#64748B", marginTop: 4, fontStyle: "italic" }}>
+                                        “{item.lineNote}”
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                  <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", flexShrink: 0 }}>
+                                    {peso(item.subtotal ?? (item.qty * item.price))}
+                                  </div>
+                                </div>
+
+                                {overpriced && (
+                                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed #BFDBFE" }}>
+                                    {negotiation?.status === "pending" && (
+                                      <div style={{ fontSize: 11.5, color: "#1D4ED8" }}>
+                                        You proposed {peso(negotiation.shopOfferedPrice)} — waiting on the builder.
+                                      </div>
                                     )}
-                                    {taken === true && (
-                                      <span style={{ fontSize: 9, fontWeight: 800, color: "#065F46", background: "#D1FAE5", border: "1px solid #6EE7B7", borderRadius: 5, padding: "1px 5px" }}>TAKEN</span>
+                                    {negotiation?.status === "declined" && (
+                                      <div style={{ fontSize: 11.5, color: "#B91C1C", marginBottom: canProposeNew ? 8 : 0 }}>
+                                        Builder declined your {peso(negotiation.shopOfferedPrice)} offer
+                                        {canProposeNew ? " — you can try once more." : "."}
+                                      </div>
                                     )}
-                                    {taken === false && (
-                                      <span style={{ fontSize: 9, fontWeight: 800, color: "#64748B", background: "#F1F5F9", border: "1px solid #E2E8F0", borderRadius: 5, padding: "1px 5px" }}>NOT TAKEN</span>
+                                    {canProposeNew && (
+                                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                        <input
+                                          type="number" min="0" placeholder="New price"
+                                          value={negoInputs[negoKey] || ""}
+                                          onChange={(e) => setNegoInputs((v) => ({ ...v, [negoKey]: e.target.value }))}
+                                          onClick={(e) => e.stopPropagation()}
+                                          style={{
+                                            width: 100, padding: "6px 8px", border: "1.5px solid #BFDBFE",
+                                            borderRadius: 7, fontSize: 12.5, fontWeight: 600, outline: "none",
+                                          }}
+                                        />
+                                        <button
+                                          type="button"
+                                          disabled={negoBusy === negoKey}
+                                          onClick={(e) => { e.stopPropagation(); handleRenegotiate(q, items.indexOf(item)); }}
+                                          style={{
+                                            padding: "7px 14px", borderRadius: 7, border: "none",
+                                            background: "#1D4ED8", color: "#fff", fontSize: 12, fontWeight: 700,
+                                            cursor: negoBusy === negoKey ? "wait" : "pointer", opacity: negoBusy === negoKey ? 0.7 : 1,
+                                          }}
+                                        >
+                                          {negoBusy === negoKey ? "Sending..." : "Propose new price"}
+                                        </button>
+                                      </div>
+                                    )}
+                                    {negoError[negoKey] && (
+                                      <div style={{ fontSize: 11, color: "#B91C1C", marginTop: 6 }}>{negoError[negoKey]}</div>
                                     )}
                                   </div>
-                                  {isSub && item.requestedName ? (
-                                    <div style={{ fontSize: 11, color: "#B45309", marginTop: 2 }}>
-                                      instead of {item.requestedName}
-                                    </div>
-                                  ) : null}
-                                  <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
-                                    {item.qty} {item.unit || ""} × {peso(item.price)}
-                                  </div>
-                                  {item.lineNote ? (
-                                    <div style={{ fontSize: 11, color: "#64748B", marginTop: 4, fontStyle: "italic" }}>
-                                      “{item.lineNote}”
-                                    </div>
-                                  ) : null}
-                                </div>
-                                <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", flexShrink: 0 }}>
-                                  {peso(item.subtotal ?? (item.qty * item.price))}
-                                </div>
+                                )}
                               </div>
                             );
                           })}

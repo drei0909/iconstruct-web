@@ -68,6 +68,15 @@ async function resolvePlanPrice(planId) {
   return { ...fallback };
 }
 
+// Lets a handler throw with a specific HTTP status from deep inside a
+// transaction, instead of returning sentinel values up through every layer.
+class HttpError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
 // In-memory rate limit (per Cloud Function instance)
 const rateBuckets = new Map();
 
@@ -1792,6 +1801,200 @@ exports.submitQuotation = onRequest(
   }
 );
 
+/**
+ * respondToAcceptedQuote — the shop's final say on the builder's accepted
+ * total. Nothing is considered final until the shop confirms: onQuotationAccepted
+ * (below) sets shopConfirmation to "pending" whenever the builder's response
+ * changes, and this is the only path that can move it to "confirmed" or
+ * "declined". The onShopConfirmedQuotation trigger reacts to that write —
+ * creating the chat / notifying the builder — so this function only needs to
+ * validate and record the shop's decision.
+ */
+exports.respondToAcceptedQuote = onRequest(
+  { cors: [/^http:\/\/localhost:\d+$/, true], invoker: "public", timeoutSeconds: 30 },
+  async (req, res) => {
+    if (handlePreflight(req, res)) return;
+    applyCors(req, res);
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+
+    const decoded = await requireAuth(req, res);
+    if (!decoded) return;
+    const shopId = decoded.uid;
+
+    const limit = rateLimit(`respond-quote:${shopId}`, { max: 30, windowMs: 15 * 60 * 1000 });
+    if (!limit.ok) {
+      return res.status(429).json({ error: `Too many requests. Retry in ${limit.retryAfterSec}s.` });
+    }
+
+    const { postId, quotationId, decision } = req.body || {};
+    if (!postId || typeof postId !== "string" || !quotationId || typeof quotationId !== "string") {
+      return res.status(400).json({ error: "Project and quotation are required." });
+    }
+    if (!["confirm", "decline"].includes(decision)) {
+      return res.status(400).json({ error: "Decision must be 'confirm' or 'decline'." });
+    }
+
+    try {
+      const quotationRef = db
+        .collection("projectPosts").doc(postId)
+        .collection("quotations").doc(quotationId);
+
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(quotationRef);
+        if (!snap.exists) throw new HttpError(404, "Quotation not found.");
+        const data = snap.data() || {};
+        if (data.shopId !== shopId) throw new HttpError(403, "Not your quotation.");
+        const status = String(data.status || "").toLowerCase();
+        if (!["accepted", "partially_accepted"].includes(status)) {
+          throw new HttpError(409, "Nothing to confirm yet — waiting on the builder.");
+        }
+        if (data.shopConfirmation !== "pending") {
+          throw new HttpError(409, "This quote has already been responded to.");
+        }
+
+        if (decision === "confirm") {
+          tx.update(quotationRef, {
+            shopConfirmation: "confirmed",
+            shopConfirmedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        } else {
+          tx.update(quotationRef, {
+            shopConfirmation: "declined",
+            shopConfirmedAt: admin.firestore.FieldValue.serverTimestamp(),
+            status: "rejected",
+          });
+        }
+      });
+
+      return res.status(200).json({ success: true });
+    } catch (err) {
+      if (err instanceof HttpError) {
+        return res.status(err.status).json({ error: err.message });
+      }
+      logger.error("respondToAcceptedQuote error", err);
+      return res.status(500).json({ error: "Failed to record your response." });
+    }
+  }
+);
+
+/**
+ * proposeItemRenegotiation — the shop counters the price on ONE line item
+ * that the builder declined specifically for being overpriced (item.status
+ * === "declined" && item.declineReason === "overpriced", set by the builder
+ * app). Capped at 2 rounds per item so it can't loop forever. The builder's
+ * accept/decline of this counter happens through their existing items/
+ * acceptedTotal update path — no separate endpoint needed for that side.
+ */
+exports.proposeItemRenegotiation = onRequest(
+  { cors: [/^http:\/\/localhost:\d+$/, true], invoker: "public", timeoutSeconds: 30 },
+  async (req, res) => {
+    if (handlePreflight(req, res)) return;
+    applyCors(req, res);
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+
+    const decoded = await requireAuth(req, res);
+    if (!decoded) return;
+    const shopId = decoded.uid;
+
+    const limit = rateLimit(`renegotiate:${shopId}`, { max: 60, windowMs: 15 * 60 * 1000 });
+    if (!limit.ok) {
+      return res.status(429).json({ error: `Too many requests. Retry in ${limit.retryAfterSec}s.` });
+    }
+
+    const { postId, quotationId, itemIndex, newPrice } = req.body || {};
+    const idx = Number(itemIndex);
+    const price = Number(newPrice);
+    if (!postId || typeof postId !== "string" || !quotationId || typeof quotationId !== "string") {
+      return res.status(400).json({ error: "Project and quotation are required." });
+    }
+    if (!Number.isInteger(idx) || idx < 0) {
+      return res.status(400).json({ error: "Invalid item." });
+    }
+    if (!Number.isFinite(price) || price <= 0) {
+      return res.status(400).json({ error: "Enter a valid price." });
+    }
+
+    try {
+      const quotationRef = db
+        .collection("projectPosts").doc(postId)
+        .collection("quotations").doc(quotationId);
+      let itemName = "";
+
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(quotationRef);
+        if (!snap.exists) throw new HttpError(404, "Quotation not found.");
+        const data = snap.data() || {};
+        if (data.shopId !== shopId) throw new HttpError(403, "Not your quotation.");
+
+        const items = Array.isArray(data.items) ? [...data.items] : [];
+        if (idx >= items.length) throw new HttpError(400, "Item not found.");
+        const item = items[idx] || {};
+        if (item.status === "declined" || item.accepted !== false || item.declineReason !== "overpriced") {
+          throw new HttpError(409, "This item isn't open for renegotiation.");
+        }
+        const existing = item.negotiation || {};
+        if (existing.status === "pending") {
+          throw new HttpError(409, "Waiting on the builder's response to your last offer.");
+        }
+        const round = Number(existing.round) || 0;
+        if (round >= 2) {
+          throw new HttpError(409, "Maximum renegotiation attempts reached for this item.");
+        }
+
+        itemName = item.productName || "item";
+        // Array elements can't hold a serverTimestamp() sentinel — Firestore
+        // only resolves those for top-level/map fields. Timestamp.now() runs
+        // on Google's servers here, so it's just as reliable for this purpose.
+        items[idx] = {
+          ...item,
+          negotiation: {
+            shopOfferedPrice: price,
+            shopOfferedAt: admin.firestore.Timestamp.now(),
+            status: "pending",
+            round: round + 1,
+          },
+        };
+        tx.update(quotationRef, { items, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      });
+
+      // Best-effort notify — the shop's action already succeeded either way.
+      try {
+        const postSnap = await db.collection("projectPosts").doc(postId).get();
+        const post = postSnap.exists ? postSnap.data() : {};
+        const builderId = post.userId || post.builderId || post.ownerId || post.postedBy;
+        if (builderId) {
+          const userSnap = await db.collection("users").doc(builderId).get();
+          const tokens = [...new Set((userSnap.data()?.fcmTokens || []).filter(Boolean))];
+          if (tokens.length) {
+            await admin.messaging().sendEachForMulticast({
+              notification: {
+                title: "New price proposed",
+                body: `The shop proposed ₱${price} for "${itemName}" — take a look.`,
+              },
+              data: { type: "item_renegotiated", postId, quotationId, itemIndex: String(idx) },
+              tokens,
+            });
+          }
+        }
+      } catch (err) {
+        logger.warn("[FCM] renegotiation notify failed:", err.message);
+      }
+
+      return res.status(200).json({ success: true });
+    } catch (err) {
+      if (err instanceof HttpError) {
+        return res.status(err.status).json({ error: err.message });
+      }
+      logger.error("proposeItemRenegotiation error", err);
+      return res.status(500).json({ error: "Failed to send your offer." });
+    }
+  }
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // FCM DIRECTION 1:
 // Builder posts a project → notify ALL approved shops
@@ -1993,6 +2196,15 @@ async function sendBuilderNotification({ userId, postId, projectName, countAfter
 // QUOTE ACCEPTED → open shop↔builder chat + notify both sides
 // Trigger: projectPosts/{postId}/quotations/{quotationId} status → accepted
 // ─────────────────────────────────────────────────────────────────────────────
+/**
+ * The builder accepting/changing items no longer finalizes the deal by
+ * itself — the shop has to confirm (see respondToAcceptedQuote). This
+ * trigger's only job is flagging that there's something for the shop to
+ * review: it sets shopConfirmation to "pending" the first time the builder
+ * responds, and again any time that response later changes (e.g. after the
+ * builder accepts a renegotiated item), so a stale confirmation can never
+ * quietly stand in for a fresh one.
+ */
 exports.onQuotationAccepted = onDocumentUpdated(
   "projectPosts/{postId}/quotations/{quotationId}",
   async (event) => {
@@ -2001,125 +2213,159 @@ exports.onQuotationAccepted = onDocumentUpdated(
     const postId = event.params.postId;
     const quotationId = event.params.quotationId;
 
-    // A partial acceptance (builder took some lines) also unlocks the chat.
     const WON = ["accepted", "partially_accepted"];
-    const wasAccepted = WON.includes(String(before.status || "").toLowerCase());
+    const beforeStatus = String(before.status || "").toLowerCase();
     const afterStatus = String(after.status || "").toLowerCase();
-    const isAccepted = WON.includes(afterStatus);
-    const isPartial = afterStatus === "partially_accepted";
-    if (wasAccepted || !isAccepted) return;
+    if (!WON.includes(afterStatus)) return;
+
+    const itemsChanged = JSON.stringify(before.items || []) !== JSON.stringify(after.items || []);
+    const totalChanged = (before.acceptedTotal ?? null) !== (after.acceptedTotal ?? null);
+    const statusChanged = beforeStatus !== afterStatus;
+    if (!(statusChanged || itemsChanged || totalChanged)) return;
+    if (after.shopConfirmation === "pending") return; // already flagged, avoid retrigger loop
+
+    try {
+      await event.data.after.ref.update({
+        shopConfirmation: "pending",
+        shopConfirmedAt: admin.firestore.FieldValue.delete(),
+      });
+    } catch (err) {
+      logger.error("[Confirm] failed to reset shopConfirmation:", err);
+    }
+
+    try {
+      const shopId = after.shopId;
+      if (!shopId) return;
+      const shopSnap = await db.collection("shops").doc(shopId).get();
+      const shopTokens = [...new Set((shopSnap.data()?.fcmTokens || []).filter(Boolean))];
+      if (!shopTokens.length) return;
+      const projectTitle = after.projectTitle || "your project";
+      const isPartial = afterStatus === "partially_accepted";
+      await admin.messaging().sendEachForMulticast({
+        notification: {
+          title: isPartial ? "Builder partially accepted your quote" : "Builder accepted your quote",
+          body: `Review and confirm the accepted total for "${projectTitle}".`,
+        },
+        data: { type: "quotation_needs_confirmation", postId, quotationId },
+        tokens: shopTokens,
+      });
+    } catch (err) {
+      logger.warn("[FCM] shop review-needed notify failed:", err.message);
+    }
+  }
+);
+
+/**
+ * The deal only becomes real once the shop confirms — that's when chat
+ * unlocks (moved here from the old onQuotationAccepted, which used to do
+ * this the instant the builder accepted, before the shop had any say). A
+ * decline instead ends it outright, so the builder just gets told.
+ */
+exports.onShopConfirmedQuotation = onDocumentUpdated(
+  "projectPosts/{postId}/quotations/{quotationId}",
+  async (event) => {
+    const before = event.data.before.data() || {};
+    const after = event.data.after.data() || {};
+    const postId = event.params.postId;
+    const quotationId = event.params.quotationId;
+
+    const justConfirmed = before.shopConfirmation !== "confirmed" && after.shopConfirmation === "confirmed";
+    const justDeclined = before.shopConfirmation !== "declined" && after.shopConfirmation === "declined";
+    if (!justConfirmed && !justDeclined) return;
 
     const shopId = after.shopId;
-    if (!shopId) {
-      logger.warn(`[Chat] Accepted quote ${quotationId} missing shopId`);
-      return;
-    }
+    const isPartial = String(after.status || "").toLowerCase() === "partially_accepted";
 
     try {
       const postSnap = await db.collection("projectPosts").doc(postId).get();
       const post = postSnap.exists ? postSnap.data() : {};
       const builderId =
-        after.builderId ||
-        post.userId ||
-        post.builderId ||
-        post.ownerId ||
-        post.postedBy;
-
+        after.builderId || post.userId || post.builderId || post.ownerId || post.postedBy;
       if (!builderId) {
-        logger.warn(`[Chat] No builderId for post ${postId} — cannot create conversation`);
+        logger.warn(`[Confirm] No builderId for post ${postId} — cannot notify`);
         return;
       }
+      const projectTitle = after.projectTitle || post.projectName || post.title || "Project";
+      const shopName = after.shopName || "a shop";
 
-      const conversationId = `${postId}_${shopId}`;
-      const projectTitle =
-        after.projectTitle || post.projectName || post.title || "Project";
-      const shopName = after.shopName || "";
-      const builderName =
-        post.ownerName || post.builderName || post.userName || "Builder";
-
-      const convRef = db.collection("conversations").doc(conversationId);
-      const convSnap = await convRef.get();
-      const payload = {
-        projectId: postId,
-        quotationId,
-        shopId,
-        shopName,
-        builderId,
-        builderName,
-        projectTitle,
-        status: "open",
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      };
-
-      if (!convSnap.exists) {
-        await convRef.set({
-          ...payload,
-          lastMessage: "Quote accepted — you can now message each other.",
-          lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-          lastSenderId: "",
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        await convRef.collection("messages").add({
-          senderId: "system",
-          senderRole: "system",
-          text: `Quotation accepted for "${projectTitle}". You can now coordinate in this chat.`,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-      } else {
-        await convRef.set(payload, { merge: true });
-      }
-
-      logger.info(`[Chat] Conversation ${conversationId} ready after accept`);
-
-      // Notify shop
-      try {
-        const shopSnap = await db.collection("shops").doc(shopId).get();
-        const shopTokens = [...new Set((shopSnap.data()?.fcmTokens || []).filter(Boolean))];
-        if (shopTokens.length) {
-          await admin.messaging().sendEachForMulticast({
-            notification: {
-              title: isPartial ? "✅ Your quote was partially accepted" : "✅ Your quote was accepted!",
-              body: isPartial
-                ? `A builder accepted some items in your quotation for "${projectTitle}". Open Messages to chat.`
-                : `A builder accepted your quotation for "${projectTitle}". Open Messages to chat.`,
-            },
-            data: {
-              type: "quotation_accepted",
-              conversationId,
-              postId,
-              quotationId,
-            },
-            tokens: shopTokens,
-          });
+      if (justConfirmed) {
+        if (!shopId) {
+          logger.warn(`[Chat] Confirmed quote ${quotationId} missing shopId`);
+          return;
         }
-      } catch (err) {
-        logger.warn("[FCM] shop accept notify failed:", err.message);
-      }
+        const conversationId = `${postId}_${shopId}`;
+        const builderName = post.ownerName || post.builderName || post.userName || "Builder";
+        const convRef = db.collection("conversations").doc(conversationId);
+        const convSnap = await convRef.get();
+        const payload = {
+          projectId: postId,
+          quotationId,
+          shopId,
+          shopName,
+          builderId,
+          builderName,
+          projectTitle,
+          status: "open",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
 
-      // Notify builder — chat unlocked
-      try {
-        const userSnap = await db.collection("users").doc(builderId).get();
-        const tokens = [...new Set((userSnap.data()?.fcmTokens || []).filter(Boolean))];
-        if (tokens.length) {
-          await admin.messaging().sendEachForMulticast({
-            notification: {
-              title: "💬 Chat unlocked",
-              body: `You accepted ${shopName || "a shop"}'s quote for "${projectTitle}". You can message them now.`,
-            },
-            data: {
-              type: "chat_unlocked",
-              conversationId,
-              postId,
-              quotationId,
-            },
-            tokens,
+        if (!convSnap.exists) {
+          await convRef.set({
+            ...payload,
+            lastMessage: "Quote confirmed — you can now message each other.",
+            lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+            lastSenderId: "",
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
           });
+          await convRef.collection("messages").add({
+            senderId: "system",
+            senderRole: "system",
+            text: `Quotation confirmed for "${projectTitle}". You can now coordinate in this chat.`,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        } else {
+          await convRef.set(payload, { merge: true });
         }
-      } catch (err) {
-        logger.warn("[FCM] builder chat unlock notify failed:", err.message);
+        logger.info(`[Chat] Conversation ${conversationId} ready after shop confirmation`);
+
+        try {
+          const userSnap = await db.collection("users").doc(builderId).get();
+          const tokens = [...new Set((userSnap.data()?.fcmTokens || []).filter(Boolean))];
+          if (tokens.length) {
+            await admin.messaging().sendEachForMulticast({
+              notification: {
+                title: "Shop confirmed your order",
+                body: isPartial
+                  ? `${shopName} confirmed your accepted items for "${projectTitle}". You can chat and rate them now.`
+                  : `${shopName} confirmed your quote for "${projectTitle}". You can chat and rate them now.`,
+              },
+              data: { type: "quotation_confirmed", conversationId, postId, quotationId },
+              tokens,
+            });
+          }
+        } catch (err) {
+          logger.warn("[FCM] builder confirm notify failed:", err.message);
+        }
+      } else if (justDeclined) {
+        try {
+          const userSnap = await db.collection("users").doc(builderId).get();
+          const tokens = [...new Set((userSnap.data()?.fcmTokens || []).filter(Boolean))];
+          if (tokens.length) {
+            await admin.messaging().sendEachForMulticast({
+              notification: {
+                title: "Shop declined your accepted offer",
+                body: `${shopName} couldn't fulfill the accepted total for "${projectTitle}". This deal is now closed.`,
+              },
+              data: { type: "quotation_declined_by_shop", postId, quotationId },
+              tokens,
+            });
+          }
+        } catch (err) {
+          logger.warn("[FCM] builder decline notify failed:", err.message);
+        }
       }
     } catch (err) {
-      logger.error("[Chat] onQuotationAccepted error:", err);
+      logger.error("[Confirm] onShopConfirmedQuotation error:", err);
     }
   }
 );

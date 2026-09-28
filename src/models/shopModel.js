@@ -10,6 +10,38 @@
 
   const SUBMIT_QUOTATION_URL =
     "https://us-central1-iconstruct-58a87.cloudfunctions.net/submitQuotation";
+  const RESPOND_TO_QUOTE_URL =
+    "https://us-central1-iconstruct-58a87.cloudfunctions.net/respondToAcceptedQuote";
+  const PROPOSE_RENEGOTIATION_URL =
+    "https://us-central1-iconstruct-58a87.cloudfunctions.net/proposeItemRenegotiation";
+
+  async function postToShopFunction(url, body) {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Not authenticated");
+    const token = await user.getIdToken(true);
+
+    let res;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      throw new Error("Cannot reach the server. Check your connection and try again.");
+    }
+
+    let data = {};
+    try {
+      data = await res.json();
+    } catch {
+      /* non-JSON response */
+    }
+    if (!res.ok) {
+      throw new Error(data.error || `Request failed (${res.status}).`);
+    }
+    return data;
+  }
 
   // ── Shop ──────────────────────────────────────────────────────────────────────
 
@@ -157,6 +189,20 @@
       throw new Error(data.error || `Could not submit quote (${res.status}).`);
     }
     return data;
+  }
+
+  /** Shop's final say on the builder's accepted total — "confirm" locks the
+   *  deal in (unlocks chat/rating); "decline" ends the whole project deal. */
+  export async function respondToAcceptedQuote({ postId, quotationId, decision }) {
+    return postToShopFunction(RESPOND_TO_QUOTE_URL, { postId, quotationId, decision });
+  }
+
+  /** Shop counters the price on one line item the builder declined for being
+   *  overpriced. Capped server-side at 2 rounds per item. */
+  export async function proposeItemRenegotiation({ postId, quotationId, itemIndex, newPrice }) {
+    return postToShopFunction(PROPOSE_RENEGOTIATION_URL, {
+      postId, quotationId, itemIndex, newPrice: parseFloat(newPrice),
+    });
   }
 
   // ── Payments ──────────────────────────────────────────────────────────────────
