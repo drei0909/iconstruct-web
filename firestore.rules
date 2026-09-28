@@ -233,18 +233,12 @@ service cloud.firestore {
             || request.auth.uid == quotationId
           ));
 
-        // Matches the real payload written by insertQuotation(): shopId,
-        // projectId, amount, status:"pending", items[]. The old version of
-        // this rule required estimatedTotal/postId/status:"submitted" and an
-        // auto-generated doc id equal to the shop's uid — fields the app has
-        // never written, so every quote submission was silently rejected.
-        allow create: if signedIn()
-          && request.resource.data.shopId == request.auth.uid
-          && shopIsApproved(request.auth.uid)
-          && request.resource.data.projectId == postId
-          && request.resource.data.amount is number
-          && request.resource.data.amount >= 0
-          && request.resource.data.status == 'pending';
+        // Quote creation goes through the submitQuotation Cloud Function
+        // (Admin SDK — bypasses this rule entirely) so the abuse rate limit
+        // and the Basic plan's monthly quota are actually enforceable; a
+        // direct client write here could never be rate-limited or quota-
+        // checked server-side. isAdmin() is only a manual-fix escape hatch.
+        allow create: if isAdmin();
 
         // Only the builder who posted the project decides a quote — full
         // accept, reject, or partial accept (per-line items[].accepted +
@@ -287,10 +281,11 @@ service cloud.firestore {
              || resource.data.builderId == request.auth.uid
            ));
 
-      allow create: if signedIn()
-        && request.resource.data.keys().hasAll(["shopId"])
-        && request.resource.data.shopId == request.auth.uid
-        && shopIsApproved(request.auth.uid);
+      // Same lockdown as the nested rule above — this collection-group match
+      // overlaps the same documents, and Firestore grants access if EITHER
+      // matching rule allows it. Leaving this one permissive would have
+      // completely undone locking down the nested create rule.
+      allow create: if isAdmin();
     }
 
     // Builder ↔ shop chat. Unlocks after a quotation is accepted.

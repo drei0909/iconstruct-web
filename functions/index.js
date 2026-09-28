@@ -767,6 +767,16 @@ exports.runSubscriptionExpiryNow = onRequest(
       return res.status(403).json({ error: "Admins only." });
     }
 
+    const adminLimit = rateLimit(`expirynow-uid:${decoded.uid}`, {
+      max: 5,
+      windowMs: 5 * 60 * 1000,
+    });
+    if (!adminLimit.ok) {
+      return res.status(429).json({
+        error: `Too many requests. Retry in ${adminLimit.retryAfterSec}s.`,
+      });
+    }
+
     try {
       const result = await enforceExpiredSubscriptions();
       return res.status(200).json({ success: true, ...result });
@@ -1213,6 +1223,16 @@ exports.syncMyLatestPayment = onRequest(
     const decoded = await requireAuth(req, res);
     if (!decoded) return;
 
+    const syncLimit = rateLimit(`sync-uid:${decoded.uid}`, {
+      max: 10,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!syncLimit.ok) {
+      return res.status(429).json({
+        error: `Too many sync attempts. Retry in ${syncLimit.retryAfterSec}s.`,
+      });
+    }
+
     try {
       const shopId = decoded.uid;
       let activated = null;
@@ -1540,6 +1560,24 @@ exports.assertEmailOtpVerified = onRequest(
     const email = normalizeEmailServer(req.body?.email);
     const consume = req.body?.consume === true;
     if (!email) return res.status(400).json({ error: "Email is required." });
+
+    // Unauthenticated (runs before the account exists) — limit per IP and
+    // per email, same as requestEmailOtp/verifyEmailOtp, so it can't be
+    // hammered to probe verification state or exhaust the OTP doc reads.
+    const ipLim = rateLimit(`assertotp-ip:${clientIp(req)}`, {
+      max: 30,
+      windowMs: 15 * 60 * 1000,
+    });
+    const mailLim = rateLimit(`assertotp-mail:${email}`, {
+      max: 10,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!ipLim.ok || !mailLim.ok) {
+      return res.status(429).json({
+        error: `Too many attempts. Retry in ${Math.max(ipLim.retryAfterSec, mailLim.retryAfterSec)}s.`,
+      });
+    }
+
     const ref = db.collection("otps").doc(email.replace(/\//g, "_"));
     const snap = await ref.get();
     const data = snap.exists ? snap.data() : null;
@@ -1581,6 +1619,150 @@ exports.assertEmailOtpVerified = onRequest(
     return res.status(500).json({ error: err.message || "Check failed." });
   }
 });
+
+/**
+ * Submit a per-line quotation on a project. Used to be a direct client write
+ * to Firestore (insertQuotation -> addDoc), which meant nothing about it was
+ * actually enforceable server-side — no rate limit, and the Basic plan's
+ * "3 quotations per month" cap was a UI-only check anyone could skip by
+ * calling the API directly. This function is now the only path (see the
+ * locked-down `create` rule on projectPosts/{postId}/quotations), so both
+ * are real here.
+ */
+exports.submitQuotation = onRequest(
+  { cors: [/^http:\/\/localhost:\d+$/, true], invoker: "public", timeoutSeconds: 30 },
+  async (req, res) => {
+    if (handlePreflight(req, res)) return;
+    applyCors(req, res);
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+
+    const decoded = await requireAuth(req, res);
+    if (!decoded) return;
+    const shopId = decoded.uid;
+
+    const ipLimit = rateLimit(`quote-ip:${clientIp(req)}`, {
+      max: 60,
+      windowMs: 15 * 60 * 1000,
+    });
+    const uidLimit = rateLimit(`quote-uid:${shopId}`, {
+      max: 20,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!ipLimit.ok || !uidLimit.ok) {
+      return res.status(429).json({
+        error: `Too many quote submissions. Retry in ${Math.max(ipLimit.retryAfterSec, uidLimit.retryAfterSec)}s.`,
+      });
+    }
+
+    try {
+      const shopSnap = await db.collection("shops").doc(shopId).get();
+      if (!shopSnap.exists) {
+        return res.status(403).json({ error: "Shop not found." });
+      }
+      const shop = shopSnap.data() || {};
+      if (String(shop.status || "").toLowerCase() !== "approved") {
+        return res.status(403).json({ error: "Only approved shops can submit quotes." });
+      }
+
+      const { projectId, amount, note, items } = req.body || {};
+      const amt = Number(amount);
+      if (!projectId || typeof projectId !== "string") {
+        return res.status(400).json({ error: "Project is required." });
+      }
+      if (!Number.isFinite(amt) || amt <= 0) {
+        return res.status(400).json({ error: "Enter a valid quote amount." });
+      }
+      const list = Array.isArray(items) ? items.slice(0, 500) : [];
+      const safeNote = typeof note === "string" ? note.slice(0, 2000) : "";
+
+      const postRef = db.collection("projectPosts").doc(projectId);
+      const postSnap = await postRef.get();
+      if (!postSnap.exists) {
+        return res.status(404).json({ error: "Project not found." });
+      }
+      const post = postSnap.data() || {};
+      if (String(post.status || "open").toLowerCase() !== "open") {
+        return res.status(409).json({ error: "This project is no longer open for quotes." });
+      }
+      const builderId =
+        post.userId || post.builderId || post.ownerId || post.postedBy || "";
+
+      // Basic plan's monthly quota — reads the same admin-editable config the
+      // dashboard already shows, so it can't drift from what shops are told.
+      const plan = String(shop.subscriptionPlan || "basic").toLowerCase();
+      if (plan === "basic") {
+        let quotaLimit = 3;
+        try {
+          const cfgSnap = await db.collection("systemConfig").doc("subscriptionPlans").get();
+          const q = cfgSnap.data()?.plans?.basic?.quotaLimit;
+          if (q === -1) quotaLimit = Infinity;
+          else if (Number.isFinite(Number(q))) quotaLimit = Number(q);
+        } catch {
+          /* static default already set */
+        }
+
+        if (Number.isFinite(quotaLimit)) {
+          const monthStartMs = new Date(
+            new Date().getFullYear(),
+            new Date().getMonth(),
+            1
+          ).getTime();
+          // Reuses the existing shopId+createdAt collection-group index — no
+          // new index needed. Volume here is inherently small (Basic shops
+          // are capped at a few quotes a month), so filtering in memory is
+          // cheaper than adding another composite index for one query.
+          const usedSnap = await db
+            .collectionGroup("quotations")
+            .where("shopId", "==", shopId)
+            .get();
+          const monthCount = usedSnap.docs.filter((d) => {
+            const ts = d.data().createdAt;
+            const ms = ts?.toMillis?.() ?? (ts?.seconds ? ts.seconds * 1000 : 0);
+            return ms >= monthStartMs;
+          }).length;
+          if (monthCount >= quotaLimit) {
+            return res.status(403).json({
+              error: `Monthly quota reached (${quotaLimit} quotations). Upgrade to Pro for unlimited quoting.`,
+            });
+          }
+        }
+      }
+
+      const quotationRef = postRef.collection("quotations").doc();
+      const payload = {
+        projectId,
+        projectTitle: post.projectName || post.title || "Project",
+        shopId,
+        shopName: shop.shopName || "",
+        amount: amt,
+        note: safeNote,
+        items: list,
+        quotedCount: list.filter((i) => i?.status === "quoted" || i?.status == null).length,
+        substitutedCount: list.filter((i) => i?.status === "substituted").length,
+        declinedCount: list.filter((i) => i?.status === "declined").length,
+        status: "pending",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      if (builderId) payload.builderId = builderId;
+
+      await db.runTransaction(async (tx) => {
+        tx.set(quotationRef, payload);
+        tx.update(postRef, {
+          quotationCount: admin.firestore.FieldValue.increment(1),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      });
+
+      return res.status(200).json({ success: true, id: quotationRef.id });
+    } catch (err) {
+      logger.error("submitQuotation error", err);
+      return res.status(500).json({ error: err.message || "Failed to submit quote." });
+    }
+  }
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FCM DIRECTION 1:

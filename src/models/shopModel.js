@@ -1,12 +1,15 @@
   // src/models/shopModel.js
   // ONLY job: talk to Firestore. No logic. No auth checks.
 
-  import { db } from "../services/firebase";
+  import { db, auth } from "../services/firebase";
   import {
-    doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc,
+    doc, getDoc, getDocs, addDoc,
     collection, collectionGroup, query, where, orderBy,
-    serverTimestamp, increment,
+    serverTimestamp,
   } from "firebase/firestore";
+
+  const SUBMIT_QUOTATION_URL =
+    "https://us-central1-iconstruct-58a87.cloudfunctions.net/submitQuotation";
 
   // ── Shop ──────────────────────────────────────────────────────────────────────
 
@@ -88,60 +91,52 @@
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   }
 
-  export async function insertQuotation({
-    projectId,
-    projectTitle,
-    shopId,
-    shopName,
-    amount,
-    note,
-    items,
-    quotedCount,
-    substitutedCount,
-    declinedCount,
-    builderId,
-  }) {
-    const quotationRef = collection(db, "projectPosts", projectId, "quotations");
-    const list = Array.isArray(items) ? items : [];
-    const payload = {
-      projectId: String(projectId),
-      projectTitle: projectTitle || "Project",
-      shopId: String(shopId),
-      shopName: shopName || "",
-      amount: parseFloat(amount),
-      note: note || "",
-      items: list,
-      quotedCount: Number.isFinite(quotedCount) ? quotedCount : list.filter((i) => i.status === "quoted" || i.status == null).length,
-      substitutedCount: Number.isFinite(substitutedCount) ? substitutedCount : list.filter((i) => i.status === "substituted").length,
-      declinedCount: Number.isFinite(declinedCount) ? declinedCount : list.filter((i) => i.status === "declined").length,
-      status: "pending",
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    };
-    if (builderId) payload.builderId = String(builderId);
+  /**
+   * Submits a quote through the submitQuotation Cloud Function instead of
+   * writing the Firestore doc directly — that write is now locked to admin-
+   * only in firestore.rules. The function enforces server-side what a direct
+   * client write never could: a real rate limit, and the Basic plan's
+   * monthly quota. It derives projectTitle/shopName/builderId itself (from
+   * the shop + project docs) and bumps quotationCount atomically, so those
+   * params are accepted here only for backward compatibility with the
+   * caller and are otherwise unused.
+   */
+  export async function insertQuotation({ projectId, amount, note, items }) {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Not authenticated");
+    const token = await user.getIdToken(true);
 
+    let res;
     try {
-      await addDoc(quotationRef, payload);
-    } catch (err) {
-      const msg = String(err?.message || err || "");
-      if (/permission|insufficient/i.test(msg)) {
-        throw new Error(
-          "Firebase blocked this quote (permissions). Confirm your shop status is approved and run: firebase deploy --only firestore:rules"
-        );
-      }
-      throw err;
-    }
-
-    // Bid counter is best-effort — quote already saved if this fails
-    try {
-      const postRef = doc(db, "projectPosts", projectId);
-      await updateDoc(postRef, {
-        quotationCount: increment(1),
-        updatedAt: serverTimestamp(),
+      res = await fetch(SUBMIT_QUOTATION_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          projectId,
+          amount: parseFloat(amount),
+          note: note || "",
+          items: Array.isArray(items) ? items : [],
+        }),
       });
-    } catch (err) {
-      console.warn("quotationCount update skipped:", err.message);
+    } catch {
+      throw new Error(
+        "Cannot reach the quotation server. Check your connection and try again."
+      );
     }
+
+    let data = {};
+    try {
+      data = await res.json();
+    } catch {
+      /* non-JSON response */
+    }
+    if (!res.ok) {
+      throw new Error(data.error || `Could not submit quote (${res.status}).`);
+    }
+    return data;
   }
 
   // ── Payments ──────────────────────────────────────────────────────────────────
