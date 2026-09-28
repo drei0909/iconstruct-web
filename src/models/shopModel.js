@@ -5,7 +5,7 @@
   import {
     doc, getDoc, getDocs, addDoc,
     collection, collectionGroup, query, where, orderBy,
-    serverTimestamp,
+    serverTimestamp, onSnapshot,
   } from "firebase/firestore";
 
   const SUBMIT_QUOTATION_URL =
@@ -89,6 +89,26 @@
     );
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  }
+
+  /**
+   * Live version of fetchQuotationsByShop — a builder unchecking materials
+   * and re-submitting their acceptance updates the quotation doc directly
+   * (no notification to the shop otherwise), so the shop's dashboard needs
+   * to see that change without a manual page refresh. Returns the unsubscribe
+   * function; caller must call it on unmount.
+   */
+  export function subscribeToShopQuotations(shopId, onChange, onError) {
+    const q = query(
+      collectionGroup(db, "quotations"),
+      where("shopId", "==", shopId),
+      orderBy("createdAt", "desc")
+    );
+    return onSnapshot(
+      q,
+      (snap) => onChange(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+      onError
+    );
   }
 
   /**

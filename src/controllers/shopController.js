@@ -7,6 +7,7 @@ import {
   fetchShopById,
   fetchOpenProjects,
   fetchQuotationsByShop,
+  subscribeToShopQuotations,
   insertQuotation,
   fetchLatestPaymentByShop,
   fetchPendingPaymentByShop,
@@ -48,6 +49,14 @@ export async function getShopQuotations() {
   const user = auth.currentUser;
   if (!user) throw new Error("Not authenticated");
   return fetchQuotationsByShop(user.uid);
+}
+
+/** Live quotations feed — updates instantly when a builder accepts/declines
+ *  items on a quote, no manual refresh needed. Returns the unsubscribe fn. */
+export function watchShopQuotations(onChange, onError) {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Not authenticated");
+  return subscribeToShopQuotations(user.uid, onChange, onError);
 }
 
 export async function submitQuotation({ projectId, amount, note, items, quotedCount, substitutedCount, declinedCount }) {

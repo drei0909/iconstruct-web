@@ -6,7 +6,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   getShopProfile, getShopQuotations, getPostedProjects,
-  submitQuotation, logoutShop,
+  submitQuotation, logoutShop, watchShopQuotations,
 } from "../../controllers/shopController";
 import { auth, db } from "../../services/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -328,6 +328,18 @@ export default function ShopDashboardPro() {
       }
       prevStatusRef.current = subscriptionStatus;
     });
+    return () => unsubscribe();
+  }, []);
+
+  // Live quotations feed — when a builder accepts/unchecks items and re-submits,
+  // that updates the quotation doc directly with no other signal to the shop,
+  // so this dashboard needs to reflect it immediately instead of on next reload.
+  useEffect(() => {
+    if (!auth.currentUser) return;
+    const unsubscribe = watchShopQuotations(
+      (quotData) => setQuotations(quotData),
+      () => {}
+    );
     return () => unsubscribe();
   }, []);
 
