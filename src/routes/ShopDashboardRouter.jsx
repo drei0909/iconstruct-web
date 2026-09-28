@@ -30,12 +30,18 @@ async function showAccessDenied(message) {
 
 async function showSubscriptionAlert({ planName, shopName, onConfirm, onLater }) {
   const Swal = (await import("sweetalert2")).default;
+  const { getLivePlanConfig } = await import("../config/planConfig");
   const planMeta = {
-    pro: { label: "Pro Plan", color: "#1D4ED8", price: "₱999/month" },
-    business: { label: "Business Plan", color: "#7C3AED", price: "₱4,999/month" },
-    basic: { label: "Basic Plan", color: "#059669", price: "Free" },
+    pro: { label: "Pro Plan", color: "#1D4ED8" },
+    business: { label: "Business Plan", color: "#7C3AED" },
+    basic: { label: "Basic Plan", color: "#059669" },
   };
-  const meta = planMeta[planName?.toLowerCase()] ?? planMeta.basic;
+  const key = (planName || "basic").toLowerCase();
+  const liveCfg = await getLivePlanConfig(key);
+  const meta = {
+    ...(planMeta[key] ?? planMeta.basic),
+    price: liveCfg.price > 0 ? `₱${Number(liveCfg.price).toLocaleString("en-PH")}/month` : "Free",
+  };
   const safeName = String(shopName || "your shop")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")

@@ -12,6 +12,7 @@ import { auth, db } from "../../services/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 
 import PayMongoPaymentForm from "../../components/forms/PayMongoPaymentForm";
+import { getLivePlanConfig, getPlanConfig } from "../../config/planConfig";
 import React from "react";
 
 import QuoteModal from "../../components/QuoteModal";
@@ -186,6 +187,15 @@ function AllProjects({ projects, quotations, setQuoteModal, estimateConfig, supp
 
 function Billing({ shop }) {
   const [showRenew, setShowRenew] = React.useState(false);
+  const [planPrice, setPlanPrice] = React.useState(() => getPlanConfig("pro").price);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    getLivePlanConfig("pro").then((cfg) => {
+      if (!cancelled) setPlanPrice(cfg.price);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const expiryExact = (() => {
     const t = shop?.subscriptionExpiry;
@@ -207,7 +217,7 @@ function Billing({ shop }) {
           <div>
             <div style={{ fontSize:18, fontWeight:900, color:"#0F172A", marginBottom:4 }}>Pro Plan</div>
             <div style={{ fontSize:22, fontWeight:900, color:"#3B82F6" }}>
-              ₱999<span style={{ fontSize:13, fontWeight:400, color:"#94A3B8" }}>/month</span>
+              ₱{Number(planPrice).toLocaleString("en-PH")}<span style={{ fontSize:13, fontWeight:400, color:"#94A3B8" }}>/month</span>
             </div>
           </div>
           <span style={{ display:"inline-flex", alignItems:"center", background:"#EFF6FF", color:"#1D4ED8", border:"1px solid #BFDBFE", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:700 }}>

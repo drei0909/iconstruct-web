@@ -101,13 +101,23 @@ export function sendRejectionEmail({ toEmail, toName, shopName, reason }) {
 }
 
 // ── Payment status emails ──────────────────────────────────────────────────
-export function sendPaymentConfirmedEmail({ toEmail, toName, shopName, planName }) {
-  const planLabels = {
-    pro:      "Pro (₱999/month)",
-    business: "Business (₱4,999/month)",
-    basic:    "Basic (Free)",
-  };
-  const label = planLabels[planName?.toLowerCase()] ?? "Selected Plan";
+export async function sendPaymentConfirmedEmail({ toEmail, toName, shopName, planName }) {
+  const planTitles = { pro: "Pro", business: "Business", basic: "Basic" };
+  const key = (planName || "").toLowerCase();
+  const title = planTitles[key];
+
+  let label = "Selected Plan";
+  if (title) {
+    let priceText = "";
+    try {
+      const { getLivePlanConfig } = await import("../config/planConfig");
+      const cfg = await getLivePlanConfig(key);
+      priceText = cfg.price > 0 ? ` (₱${Number(cfg.price).toLocaleString("en-PH")}/month)` : " (Free)";
+    } catch {
+      /* price omitted if config fetch fails — rest of the email still sends */
+    }
+    label = `${title}${priceText}`;
+  }
 
   return sendGatedNotification("paymentConfirmed", {
     toEmail, toName, shopName,
