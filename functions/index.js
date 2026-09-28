@@ -1704,28 +1704,33 @@ exports.submitQuotation = onRequest(
         }
 
         if (Number.isFinite(quotaLimit)) {
-          const monthStartMs = new Date(
-            new Date().getFullYear(),
-            new Date().getMonth(),
-            1
-          ).getTime();
-          // Reuses the existing shopId+createdAt collection-group index — no
-          // new index needed. Volume here is inherently small (Basic shops
-          // are capped at a few quotes a month), so filtering in memory is
-          // cheaper than adding another composite index for one query.
-          const usedSnap = await db
-            .collectionGroup("quotations")
-            .where("shopId", "==", shopId)
-            .get();
-          const monthCount = usedSnap.docs.filter((d) => {
-            const ts = d.data().createdAt;
-            const ms = ts?.toMillis?.() ?? (ts?.seconds ? ts.seconds * 1000 : 0);
-            return ms >= monthStartMs;
-          }).length;
-          if (monthCount >= quotaLimit) {
-            return res.status(403).json({
-              error: `Monthly quota reached (${quotaLimit} quotations). Upgrade to Pro for unlimited quoting.`,
-            });
+          // A secondary safety check must never be able to take down the
+          // primary feature it's checking. If this query fails for any
+          // infrastructure reason (e.g. an index not finished building),
+          // log it and let the quote through uncounted rather than 500ing
+          // every quote submission until someone notices and redeploys.
+          try {
+            const monthStartMs = new Date(
+              new Date().getFullYear(),
+              new Date().getMonth(),
+              1
+            ).getTime();
+            const usedSnap = await db
+              .collectionGroup("quotations")
+              .where("shopId", "==", shopId)
+              .get();
+            const monthCount = usedSnap.docs.filter((d) => {
+              const ts = d.data().createdAt;
+              const ms = ts?.toMillis?.() ?? (ts?.seconds ? ts.seconds * 1000 : 0);
+              return ms >= monthStartMs;
+            }).length;
+            if (monthCount >= quotaLimit) {
+              return res.status(403).json({
+                error: `Monthly quota reached (${quotaLimit} quotations). Upgrade to Pro for unlimited quoting.`,
+              });
+            }
+          } catch (quotaErr) {
+            logger.error("submitQuotation quota check failed, allowing quote through", quotaErr);
           }
         }
       }
