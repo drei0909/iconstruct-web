@@ -14,6 +14,7 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { getPlanConfig } from "../../config/planConfig";
 import { getRecommendationConfig } from "../../controllers/recommendationController";
 import { normalizeEngineDoc } from "../../utils/recommendationEngine";
+import { getShopRating } from "../../utils/shopRating";
 import PayMongoPaymentForm from "../../components/forms/PayMongoPaymentForm";
 import React from "react";
 import QuoteModal from "../../components/QuoteModal";
@@ -82,7 +83,8 @@ function StatCard({ label, value, color, sub }) {
 
 // ─── TAB COMPONENTS (defined OUTSIDE parent — stable identity, no remount) ────
 
-function Overview({ quotations, projects, quotaUsed, setActiveTab }) {
+function Overview({ shop, quotations, projects, quotaUsed, setActiveTab }) {
+  const rating = getShopRating(shop);
   const accepted  = quotations.filter(q => q.status === "accepted").length;
   const pct       = Math.min((quotaUsed / QUOTA_LIMIT) * 100, 100);
   const barColor  = pct >= 100 ? "var(--db-red)" : pct >= 66 ? "var(--db-amber)" : "var(--db-green)";
@@ -122,6 +124,12 @@ function Overview({ quotations, projects, quotaUsed, setActiveTab }) {
         <StatCard label="Quotations Submitted" value={quotations.length} color="var(--db-accent-mid)" sub="All time" />
         <StatCard label="This Month"            value={quotaUsed}         color="var(--db-amber)"      sub={`of ${QUOTA_LIMIT} allowed`} />
         <StatCard label="Accepted"              value={accepted}          color="var(--db-green)"      sub={quotations.length ? `${Math.round((accepted / quotations.length) * 100)}% of submitted` : "No quotes yet"} />
+        <StatCard
+          label="Your Rating"
+          value={rating.hasRatings ? `★ ${rating.average.toFixed(1)}` : "—"}
+          color="var(--db-amber)"
+          sub={rating.hasRatings ? `${rating.count} rating${rating.count === 1 ? "" : "s"} from builders` : "Not yet rated"}
+        />
       </div>
       <div style={{ marginBottom: 20 }}>
         <TopProductsCard quotations={quotations} accentColor="#2C5282" plan="basic" onUpgrade={() => setActiveTab("upgrade")} />
@@ -415,7 +423,7 @@ export default function ShopDashboardBasic() {
       return <div className="db-loading-center"><div className="db-spinner" />Loading dashboard...</div>;
     }
     switch (activeTab) {
-      case "overview":   return <Overview quotations={quotations} projects={projects} quotaUsed={quotaUsed} setActiveTab={setActiveTab} />;
+      case "overview":   return <Overview shop={shop} quotations={quotations} projects={projects} quotaUsed={quotaUsed} setActiveTab={setActiveTab} />;
       case "projects":   return <Projects projects={projects} quotations={quotations} quotaUsed={quotaUsed} setQuoteModal={setQuoteModal} setActiveTab={setActiveTab} loading={loading} estimateConfig={estimateConfig} suppliedCategories={shop?.suppliedCategories || []} />;
       case "quotations": return (
         <Quotations
@@ -450,7 +458,7 @@ export default function ShopDashboardBasic() {
             onShopUpdated={(next) => setShop((s) => ({ ...s, ...next }))}
           />
         );
-      default:           return <Overview quotations={quotations} projects={projects} quotaUsed={quotaUsed} setActiveTab={setActiveTab} />;
+      default:           return <Overview shop={shop} quotations={quotations} projects={projects} quotaUsed={quotaUsed} setActiveTab={setActiveTab} />;
     }
   };
 

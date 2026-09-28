@@ -25,6 +25,7 @@ import {
 import { loadQuoteTemplates, saveQuoteTemplates } from "../../utils/quoteTemplates";
 import { getRecommendationConfig } from "../../controllers/recommendationController";
 import { normalizeEngineDoc } from "../../utils/recommendationEngine";
+import { getShopRating } from "../../utils/shopRating";
 import DashboardBrand from "../../components/ui/DashboardBrand";
 import ShopNotificationBell from "../../components/ui/ShopNotificationBell";
 import TopProductsCard from "../../components/shop/TopProductsCard";
@@ -83,6 +84,7 @@ function subscriptionRenewLine(shop) {
 }
 
 function Overview({ shop, quotations, projects, money, stale, insights, setQuoteModal, setActiveTab }) {
+  const rating = getShopRating(shop);
   return (
     <div>
       <div className="db-status-bar">
@@ -95,12 +97,18 @@ function Overview({ shop, quotations, projects, money, stale, insights, setQuote
         <button className="db-status-bar-link" onClick={() => setActiveTab("billing")}>Manage billing →</button>
       </div>
 
-      <div className="db-stat-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12, marginBottom:24 }}>
+      <div className="db-stat-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:12, marginBottom:24 }}>
         <StatCard label="Revenue won"     value={money.format.revenueWon} color="#10B981" sub="Accepted totals" />
         <StatCard label="Open pipeline"   value={money.format.pipeline}   color="#F59E0B" sub="Pending value" />
         <StatCard label="Win rate"        value={`${money.winRate}%`}     color="#3B82F6" sub="Acceptance" />
         <StatCard label="Follow-ups"      value={stale.length}            color="#EF4444" sub="Pending &gt; 3 days" />
         <StatCard label="Open projects"   value={projects.length}         color="#0F172A" sub="Ready to bid" />
+        <StatCard
+          label="Your Rating"
+          value={rating.hasRatings ? `★ ${rating.average.toFixed(1)}` : "—"}
+          color="#D97706"
+          sub={rating.hasRatings ? `${rating.count} rating${rating.count === 1 ? "" : "s"} from builders` : "Not yet rated"}
+        />
       </div>
 
       <div className="db-two-col" style={{ display:"grid", gridTemplateColumns:"1fr 280px", gap:20 }}>

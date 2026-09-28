@@ -24,6 +24,7 @@ import PaidPlanAnalytics from "../../components/shop/PaidPlanAnalytics";
 import { getQuoteMoneyStats } from "../../utils/quoteAnalytics";
 import { getRecommendationConfig } from "../../controllers/recommendationController";
 import { normalizeEngineDoc } from "../../utils/recommendationEngine";
+import { getShopRating } from "../../utils/shopRating";
 import DashboardBrand from "../../components/ui/DashboardBrand";
 import ShopNotificationBell from "../../components/ui/ShopNotificationBell";
 import TopProductsCard from "../../components/shop/TopProductsCard";
@@ -88,6 +89,7 @@ function subscriptionRenewLine(shop) {
 }
 
 function Overview({ shop, quotations, projects, accepted, pending, rejected, money, monthQuotes, setQuoteModal, setActiveTab }) {
+  const rating = getShopRating(shop);
   return (
     <div>
       <div className="db-status-bar">
@@ -100,11 +102,17 @@ function Overview({ shop, quotations, projects, accepted, pending, rejected, mon
         <button className="db-status-bar-link" onClick={() => setActiveTab("billing")}>Manage billing →</button>
       </div>
 
-      <div className="db-stat-grid-4" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:24 }}>
+      <div className="db-stat-grid-5" style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:14, marginBottom:24 }}>
         <StatCard label="Revenue won"     value={money.format.revenueWon} color="#10B981" sub="Accepted quote totals" />
         <StatCard label="Open pipeline"   value={money.format.pipeline}   color="#F59E0B" sub="Pending value" />
         <StatCard label="Win rate"        value={`${money.winRate}%`}     color="#3B82F6" sub={`${monthQuotes.length} bids this month`} />
         <StatCard label="Open projects"   value={projects.length}         color="#2C5282" sub="Ready to bid" />
+        <StatCard
+          label="Your Rating"
+          value={rating.hasRatings ? `★ ${rating.average.toFixed(1)}` : "—"}
+          color="#D97706"
+          sub={rating.hasRatings ? `${rating.count} rating${rating.count === 1 ? "" : "s"} from builders` : "Not yet rated"}
+        />
       </div>
 
       <div className="db-two-col" style={{ display:"grid", gridTemplateColumns:"1fr 300px", gap:20 }}>
