@@ -4,6 +4,7 @@ export const SHOP_STATUS = {
   pending: "pending",
   approved: "approved",
   rejected: "rejected",
+  suspended: "suspended",
   deleted: "deleted",
 };
 
@@ -33,6 +34,13 @@ export function evaluateShopLoginAccess(status) {
       ok: false,
       code: "rejected",
       message: "Your application was not approved. Please contact support.",
+    };
+  }
+  if (s === SHOP_STATUS.suspended) {
+    return {
+      ok: false,
+      code: "suspended",
+      message: "Your shop account has been suspended by an administrator. Please contact support.",
     };
   }
   if (s === SHOP_STATUS.deleted) {

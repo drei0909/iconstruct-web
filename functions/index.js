@@ -1857,56 +1857,30 @@ exports.notifyShopsOnNewProject = onDocumentCreated(
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FCM DIRECTION 2:
-// Shop submits a quotation → notify the builder (Flutter app)
+// Shop submits a quotation → notify the builder
 //
-// TWO triggers work together:
-//   A) projectPosts/{postId} updated (quotationCount increases) — from web app
-//   B) projectPosts/{postId}/quotations/{quotationId} created  — from Flutter app
-//
-// Both end up notifying the builder via their fcmTokens array.
+// Used to be two triggers: one on projectPosts/{postId} (quotationCount
+// increasing) and one on the quotations subcollection being created — the
+// idea being each covered a different write path so exactly one fired per
+// quote. But submitQuotation() always does both in the same transaction
+// (creates the quotation doc AND increments quotationCount), so both fired
+// on every single quote and every builder got duplicate push notifications.
+// quotationCount is now only ever touched from that one transaction, so the
+// create trigger alone is sufficient — removed the redundant one.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Trigger A: Web app increments quotationCount on the projectPost ───────────
-exports.notifyBuilderOnQuotation = onDocumentUpdated(
-  "projectPosts/{postId}",
-  async (event) => {
-    const before = event.data.before.data();
-    const after  = event.data.after.data();
-    const postId = event.params.postId;
-
-    // Only fire when quotationCount actually increases
-    const countBefore = before.quotationCount || 0;
-    const countAfter  = after.quotationCount  || 0;
-
-    if (countAfter <= countBefore) return;
-
-    const userId      = after.userId;
-    const projectName = after.projectName || "your project";
-
-    logger.info(`[FCM-A] Web quotation on post ${postId} for user ${userId}`);
-
-    if (!userId) {
-      logger.warn("[FCM-A] No userId on projectPost — cannot notify builder.");
-      return;
-    }
-
-    await sendBuilderNotification({ userId, postId, projectName, countAfter });
-  }
-);
-
-// ── Trigger B: Flutter app writes directly to the quotations subcollection ────
 exports.notifyBuilderOnQuotationSubcollection = onDocumentCreated(
   "projectPosts/{postId}/quotations/{quotationId}",
   async (event) => {
     const postId      = event.params.postId;
     const quotationId = event.params.quotationId;
 
-    logger.info(`[FCM-B] Flutter quotation created: ${quotationId} on post ${postId}`);
+    logger.info(`[FCM] Quotation created: ${quotationId} on post ${postId}`);
 
     // Get the parent projectPost to find the builder's userId
     const postSnap = await db.collection("projectPosts").doc(postId).get();
     if (!postSnap.exists) {
-      logger.warn(`[FCM-B] projectPost ${postId} not found.`);
+      logger.warn(`[FCM] projectPost ${postId} not found.`);
       return;
     }
 
@@ -1916,7 +1890,7 @@ exports.notifyBuilderOnQuotationSubcollection = onDocumentCreated(
     const countAfter  = post.quotationCount || 1;
 
     if (!userId) {
-      logger.warn("[FCM-B] No userId on projectPost — cannot notify builder.");
+      logger.warn("[FCM] No userId on projectPost — cannot notify builder.");
       return;
     }
 

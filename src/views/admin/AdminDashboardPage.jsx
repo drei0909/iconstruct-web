@@ -46,6 +46,7 @@
     pending:   { bg: "#FEF3C7", border: "#FCD34D", text: "#92400E", dot: "#F59E0B" },
     approved:  { bg: "#D1FAE5", border: "#6EE7B7", text: "#065F46", dot: "#10B981" },
     rejected:  { bg: "#FEE2E2", border: "#FCA5A5", text: "#991B1B", dot: "#EF4444" },
+    suspended: { bg: "#F1F5F9", border: "#CBD5E1", text: "#334155", dot: "#64748B" },
     confirmed: { bg: "#D1FAE5", border: "#6EE7B7", text: "#065F46", dot: "#10B981" },
   };
 

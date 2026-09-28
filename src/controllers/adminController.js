@@ -204,7 +204,13 @@ export async function rejectPayment(paymentId, reason, shopId) {
 
 /** Block approved shop from logging into the shop dashboard (app still sees products if public rules allow). */
 export async function suspendShop(uid, reason = "Suspended by administrator") {
-  await updateShopApproval(uid, "rejected", reason);
+  // Was writing status:"rejected" — the same value a brand-new registration
+  // gets when its application is denied. Shop Applications and Manage Shops
+  // both read the same shops list, so a suspended (previously approved,
+  // operating) shop showed up mixed into the "Rejected" applications queue
+  // with no way to tell it apart from a genuine new-signup rejection.
+  // "suspended" is now its own status.
+  await updateShopApproval(uid, "suspended", reason);
   const snap = await getDoc(doc(db, "shops", uid));
   const name = snap.exists() ? snap.data().shopName : uid;
   await writeLog("warn", `Shop "${name}" suspended. ${reason}`);

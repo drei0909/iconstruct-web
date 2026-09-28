@@ -132,7 +132,7 @@ export default function ManageShopsTab({
     [shops]
   );
   const suspended = useMemo(
-    () => shops.filter((s) => String(s.status || "").toLowerCase() === "rejected"),
+    () => shops.filter((s) => String(s.status || "").toLowerCase() === "suspended"),
     [shops]
   );
 
@@ -602,7 +602,7 @@ export default function ManageShopsTab({
               </div>
 
               <div style={{ marginTop: 22, paddingTop: 16, borderTop: "1px solid #F1F5F9" }}>
-                {String(managing.status).toLowerCase() === "rejected" ? (
+                {["rejected", "suspended"].includes(String(managing.status).toLowerCase()) ? (
                   <>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", marginBottom: 8 }}>Restore access</div>
                     {managing.rejectionReason ? (
