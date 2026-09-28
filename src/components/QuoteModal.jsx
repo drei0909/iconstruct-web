@@ -54,13 +54,15 @@ export default function QuoteModal({
     return cat !== "other" && !coverage.includes(cat);
   };
 
-  // Each line starts as "quote" with an empty price. The shop can flip a line to
-  // "substitute" (offer a different item it does carry) or "decline" (can't supply).
+  // Each line starts as "quote" with an empty price, offering the full quantity
+  // requested. The shop can flip a line to "substitute" (offer a different item
+  // it does carry), "decline" (can't supply), or lower the quantity when it only
+  // has partial stock (e.g. builder needs 11 plywood, shop only has 5).
   const [lines, setLines] = useState(() =>
     materials.map((m) =>
       outOfCoverage(m)
-        ? { mode: "decline", price: "", note: "Outside our supply categories", subName: "" }
-        : { mode: "quote", price: "", note: "", subName: "" }
+        ? { mode: "decline", price: "", note: "Outside our supply categories", subName: "", qty: m.quantity || 0 }
+        : { mode: "quote", price: "", note: "", subName: "", qty: m.quantity || 0 }
     )
   );
   const [note, setNote] = useState("");
@@ -72,21 +74,32 @@ export default function QuoteModal({
   const setPrice    = (index, val)  => patchLine(index, { price: val === "" ? "" : Math.max(0, parseFloat(val) || 0) });
   const setLineNote = (index, val)  => patchLine(index, { note: val });
   const setSubName  = (index, val)  => patchLine(index, { subName: val });
+  const setQty      = (index, val, requestedQty) => {
+    if (val === "") return patchLine(index, { qty: "" });
+    const n = Math.max(1, Math.min(Math.round(Number(val) || 0), requestedQty));
+    patchLine(index, { qty: n });
+  };
 
   const rows = materials.map((m, i) => {
-    const l = lines[i] || { mode: "quote", price: "", note: "", subName: "" };
-    const qty = m.quantity || 0;
+    const l = lines[i] || { mode: "quote", price: "", note: "", subName: "", qty: m.quantity || 0 };
+    const requestedQty = m.quantity || 0;
+    const qty = l.qty === "" ? "" : (l.qty ?? requestedQty);
+    const qtyNum = Number(qty) || 0;
     const priceNum = Number(l.price) || 0;
     const priced = l.mode === "quote" || l.mode === "substitute";
+    const partial = priced && qtyNum > 0 && qtyNum < requestedQty;
     return {
       index: i,
       mode: l.mode,
       note: l.note,
       subName: l.subName || "",
-      qty,
+      qty: qtyNum,
+      qtyRaw: qty,
+      requestedQty,
+      partial,
       priceRaw: l.price,
       price: priceNum,
-      subtotal: priced ? qty * priceNum : 0,
+      subtotal: priced ? qtyNum * priceNum : 0,
       productName: m.name,
       unit: m.unit || "piece",
       size: m.size || "",
@@ -98,8 +111,8 @@ export default function QuoteModal({
   const subRows    = rows.filter(r => r.mode === "substitute");
   const declineRows = rows.filter(r => r.mode === "decline");
 
-  const quotedPriced = quotedRows.filter(r => r.price > 0);
-  const subValid     = subRows.filter(r => r.subName.trim() && r.price > 0);
+  const quotedPriced = quotedRows.filter(r => r.price > 0 && r.qty > 0);
+  const subValid     = subRows.filter(r => r.subName.trim() && r.price > 0 && r.qty > 0);
 
   const missingQuotePrice = quotedRows.length - quotedPriced.length;
   const missingSubInfo    = subRows.length - subValid.length;
@@ -107,29 +120,33 @@ export default function QuoteModal({
 
   const supplyRows = [...quotedPriced, ...subValid];
   const total = supplyRows.reduce((sum, r) => sum + r.subtotal, 0);
+  const partialCount = supplyRows.filter(r => r.partial).length;
   const canSubmit = !submitting && supplyRows.length > 0 && incomplete === 0;
 
   const handleSubmit = () => {
     if (!canSubmit) return;
     const items = rows.map(r => {
       const base = {
-        unit: r.unit, size: r.size, category: r.category, qty: r.qty,
+        unit: r.unit, size: r.size, category: r.category,
         lineNote: (r.note || "").trim(),
       };
       if (r.mode === "decline") {
-        return { ...base, productName: r.productName, status: "declined", price: 0, subtotal: 0 };
+        return { ...base, productName: r.productName, status: "declined", qty: r.requestedQty, price: 0, subtotal: 0 };
       }
+      const partialFields = r.partial ? { requestedQty: r.requestedQty } : {};
       if (r.mode === "substitute") {
         return {
           ...base,
+          ...partialFields,
           productName: r.subName.trim() || r.productName,
           requestedName: r.productName,
           status: "substituted",
+          qty: r.qty,
           price: r.price,
           subtotal: r.subtotal,
         };
       }
-      return { ...base, productName: r.productName, status: "quoted", price: r.price, subtotal: r.subtotal };
+      return { ...base, ...partialFields, productName: r.productName, status: "quoted", qty: r.qty, price: r.price, subtotal: r.subtotal };
     });
     onSubmit({
       projectId: project.id,
@@ -217,7 +234,9 @@ export default function QuoteModal({
             Project Items — Price, Substitute or Mark Unavailable
           </div>
           <div style={{ fontSize: 12, color: "#94A3B8", marginBottom: 14 }}>
-            Enter your price for each item you can supply. Don't carry the exact item?
+            Enter your price for each item you can supply. Only have part of the stock?
+            Lower the <strong style={{ color: "#1D4ED8" }}>quantity</strong> — the builder will see exactly how much you can fill and can
+            source the rest elsewhere. Don't carry the exact item?
             Tap <strong style={{ color: AMBER }}>Substitute</strong> to offer an equivalent, or
             <strong style={{ color: "#B91C1C" }}> Unavailable</strong> to skip it. You can still send the quote.
           </div>
@@ -266,6 +285,7 @@ export default function QuoteModal({
                     background: bgColor,
                     transition: "all 0.15s",
                   }}>
+                    {/* Row 1: identity + mode toggle */}
                     <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
 
                       <MaterialImage accentColor={accentColor} active={active} />
@@ -274,9 +294,10 @@ export default function QuoteModal({
                         <div style={{ fontSize: 13.5, fontWeight: 700, color: isDecl ? "#B91C1C" : "#0F172A", textDecoration: isDecl ? "line-through" : "none", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                           {m.name}
                           {isSub && <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.06em", color: AMBER, background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: 5, padding: "1px 5px" }}>SUBSTITUTE</span>}
+                          {r.partial && <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.06em", color: "#1D4ED8", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 5, padding: "1px 5px" }}>PARTIAL</span>}
                         </div>
                         <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
-                          {r.qty} {r.unit}
+                          Needs {r.requestedQty} {r.unit}
                           {r.size && ` · ${r.size}`}
                           {r.category && ` · ${r.category}`}
                         </div>
@@ -288,34 +309,65 @@ export default function QuoteModal({
                         {seg("Substitute", "substitute", isSub, AMBER)}
                         {seg("Unavailable", "decline", isDecl, "#DC2626")}
                       </div>
-
-                      {(isQuote || isSub) && (
-                        <>
-                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, flexShrink: 0 }}>
-                            <label style={{ fontSize: 9, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.08em", textTransform: "uppercase" }}>PRICE (₱)</label>
-                            <input
-                              type="number" min="0"
-                              value={r.priceRaw === "" ? "" : r.price || ""}
-                              placeholder="0"
-                              onChange={e => setPrice(r.index, e.target.value)}
-                              style={{
-                                width: 90, padding: "6px 8px",
-                                border: `1.5px solid ${active ? (isSub ? AMBER : accentColor) : "#E4E9F0"}`,
-                                borderRadius: 7, fontSize: 13, fontWeight: 600,
-                                textAlign: "center", outline: "none",
-                                color: "#0F172A", background: "#fff",
-                              }}
-                            />
-                          </div>
-                          <div style={{ minWidth: 80, textAlign: "right", flexShrink: 0 }}>
-                            <div style={{ fontSize: 9, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 3 }}>SUBTOTAL</div>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: active ? (isSub ? AMBER : accentColor) : "#CBD5E1" }}>
-                              {active ? peso(r.subtotal) : "—"}
-                            </div>
-                          </div>
-                        </>
-                      )}
                     </div>
+
+                    {/* Row 2: quantity you can supply + price + subtotal (own row so it
+                        never wraps against the mode buttons above) */}
+                    {(isQuote || isSub) && (
+                      <div style={{
+                        display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap",
+                        marginTop: 10, paddingTop: 10, borderTop: "1px dashed #E4E9F0",
+                      }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 3, flexShrink: 0 }}>
+                          <label style={{ fontSize: 9, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                            QTY YOU CAN SUPPLY
+                          </label>
+                          <input
+                            type="number" min="1" max={r.requestedQty}
+                            value={r.qtyRaw === "" ? "" : r.qty || ""}
+                            placeholder={String(r.requestedQty)}
+                            onChange={e => setQty(r.index, e.target.value, r.requestedQty)}
+                            style={{
+                              width: 80, padding: "6px 8px",
+                              border: `1.5px solid ${r.partial ? "#1D4ED8" : "#E4E9F0"}`,
+                              borderRadius: 7, fontSize: 13, fontWeight: 600,
+                              textAlign: "center", outline: "none",
+                              color: "#0F172A", background: "#fff",
+                            }}
+                          />
+                        </div>
+
+                        <div style={{ display: "flex", flexDirection: "column", gap: 3, flexShrink: 0 }}>
+                          <label style={{ fontSize: 9, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.08em", textTransform: "uppercase" }}>PRICE (₱)</label>
+                          <input
+                            type="number" min="0"
+                            value={r.priceRaw === "" ? "" : r.price || ""}
+                            placeholder="0"
+                            onChange={e => setPrice(r.index, e.target.value)}
+                            style={{
+                              width: 90, padding: "6px 8px",
+                              border: `1.5px solid ${active ? (isSub ? AMBER : accentColor) : "#E4E9F0"}`,
+                              borderRadius: 7, fontSize: 13, fontWeight: 600,
+                              textAlign: "center", outline: "none",
+                              color: "#0F172A", background: "#fff",
+                            }}
+                          />
+                        </div>
+
+                        <div style={{ minWidth: 80, textAlign: "right", flexShrink: 0, marginLeft: "auto" }}>
+                          <div style={{ fontSize: 9, fontWeight: 700, color: "#94A3B8", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 3 }}>SUBTOTAL</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: active ? (isSub ? AMBER : accentColor) : "#CBD5E1" }}>
+                            {active ? peso(r.subtotal) : "—"}
+                          </div>
+                        </div>
+
+                        {r.partial && (
+                          <div style={{ flexBasis: "100%", fontSize: 11, color: "#1D4ED8" }}>
+                            Builder will see {r.qty} of {r.requestedQty} {r.unit} fulfilled — they can source the rest elsewhere.
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* DPWH reference price (Pro / Business) */}
                     {ref && (
@@ -354,7 +406,7 @@ export default function QuoteModal({
                       placeholder={
                         isDecl ? "Reason (optional) — e.g. we don't carry this / out of stock"
                         : isSub ? "Note for the builder (optional) — why this is a good match"
-                        : "Note for this item (optional) — e.g. only 40 in stock"
+                        : "Note for this item (optional) — e.g. delivery lead time"
                       }
                       style={{
                         width: "100%", marginTop: 10, padding: "7px 10px",
@@ -375,16 +427,23 @@ export default function QuoteModal({
                 Quote Summary — {quotedPriced.length} quoted
                 {subValid.length > 0 ? ` · ${subValid.length} substitute` : ""}
                 {declineRows.length > 0 ? ` · ${declineRows.length} unavailable` : ""}
+                {partialCount > 0 ? ` · ${partialCount} partial` : ""}
               </div>
               {quotedPriced.map((item, i) => (
                 <div key={`q${i}`} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 6, color: "#334155" }}>
-                  <span>{item.productName} × {item.qty} {item.unit}</span>
+                  <span>
+                    {item.productName} × {item.qty} {item.unit}
+                    {item.partial && <span style={{ color: "#1D4ED8", fontWeight: 600 }}> (of {item.requestedQty} needed)</span>}
+                  </span>
                   <span style={{ fontWeight: 600 }}>{peso(item.subtotal)}</span>
                 </div>
               ))}
               {subValid.map((item, i) => (
                 <div key={`s${i}`} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 6, color: "#92400E" }}>
-                  <span>{item.subName.trim()} <span style={{ color: "#B45309" }}>(instead of {item.productName})</span> × {item.qty}</span>
+                  <span>
+                    {item.subName.trim()} <span style={{ color: "#B45309" }}>(instead of {item.productName})</span> × {item.qty}
+                    {item.partial && <span style={{ color: "#1D4ED8", fontWeight: 600 }}> (of {item.requestedQty} needed)</span>}
+                  </span>
                   <span style={{ fontWeight: 600 }}>{peso(item.subtotal)}</span>
                 </div>
               ))}

@@ -1674,7 +1674,30 @@ exports.submitQuotation = onRequest(
       if (!Number.isFinite(amt) || amt <= 0) {
         return res.status(400).json({ error: "Enter a valid quote amount." });
       }
-      const list = Array.isArray(items) ? items.slice(0, 500) : [];
+      const safeNum = (v) => {
+        const n = Number(v);
+        return Number.isFinite(n) && n >= 0 ? n : 0;
+      };
+      const list = (Array.isArray(items) ? items.slice(0, 500) : []).map((it) => {
+        const clean = {
+          productName: String(it?.productName || "").slice(0, 200),
+          unit: String(it?.unit || "").slice(0, 40),
+          size: String(it?.size || "").slice(0, 120),
+          category: String(it?.category || "").slice(0, 80),
+          status: ["quoted", "substituted", "declined"].includes(it?.status) ? it.status : "quoted",
+          qty: safeNum(it?.qty),
+          price: safeNum(it?.price),
+          subtotal: safeNum(it?.subtotal),
+          lineNote: String(it?.lineNote || "").slice(0, 500),
+        };
+        // requestedQty is only present when the shop is offering less than the
+        // builder originally asked for — omit rather than write 0/undefined so
+        // existing readers that don't know this field can't misread it.
+        const reqQty = Number(it?.requestedQty);
+        if (Number.isFinite(reqQty) && reqQty > clean.qty) clean.requestedQty = reqQty;
+        if (it?.requestedName) clean.requestedName = String(it.requestedName).slice(0, 200);
+        return clean;
+      });
       const safeNote = typeof note === "string" ? note.slice(0, 2000) : "";
 
       const postRef = db.collection("projectPosts").doc(projectId);
