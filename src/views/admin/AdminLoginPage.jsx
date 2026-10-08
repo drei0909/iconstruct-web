@@ -1,15 +1,13 @@
 // src/views/admin/AdminLoginPage.jsx
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { auth } from "../../services/firebase";
 import { loginAdmin } from "../../controllers/adminController";
 import ForgotPassword from "../../components/forms/ForgotPassword";
 
 // Already-signed-in admins are redirected away from /admin by the
 // <GuestOnly adminAware> route guard (see App.jsx / context/AuthContext).
+// On success this form doesn't navigate itself either — see handleSubmit.
 
 export default function AdminLogin() {
-  const navigate = useNavigate();
   const [form, setForm]       = useState({ email: "", password: "" });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -22,12 +20,16 @@ export default function AdminLogin() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Session still active — skip re-auth; AdminRoute re-verifies admin status.
-    if (auth.currentUser) {
-      navigate("/admin/dashboard", { replace: true });
-      return;
-    }
-
+    // No "already signed in, skip re-auth" shortcut here on purpose: if
+    // auth.currentUser belongs to a signed-in but NON-admin session (e.g.
+    // someone testing the shop side earlier in the same browser), jumping
+    // straight to /admin/dashboard ignored whatever was just typed in this
+    // form entirely — AdminRoute would reject that stale session and bounce
+    // back here with the fields cleared, looking like a silent failure no
+    // matter what credentials were entered. A genuinely already-confirmed
+    // admin never even reaches this form — <GuestOnly adminAware> redirects
+    // them before it renders — so this shortcut only ever fired for the
+    // broken case, never a useful one.
     setLoading(true);
     setError("");
     try {
