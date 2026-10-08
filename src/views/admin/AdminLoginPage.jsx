@@ -32,10 +32,17 @@ export default function AdminLogin() {
     setError("");
     try {
       await loginAdmin(form.email, form.password);
-      navigate("/admin/dashboard", { replace: true });
+      // Don't navigate here. loginAdmin() runs its own admin check, but
+      // AuthContext's onAuthStateChanged runs a SEPARATE, concurrent one to
+      // set isAdmin — the two don't share results. Navigating immediately
+      // used to race that: AdminRoute could still read the old
+      // isAdmin:false (initializing doesn't reset on a fresh sign-in) and
+      // bounce a genuine admin straight back here. Leaving loading on and
+      // not navigating lets the wrapping <GuestOnly adminAware> redirect
+      // once AuthContext actually confirms isAdmin — only one source of
+      // truth, no race. This component unmounts via that redirect shortly.
     } catch (err) {
       setError(err.message || "Invalid credentials.");
-    } finally {
       setLoading(false);
     }
   };

@@ -22,6 +22,12 @@ export function AuthProvider({ children }) {
         setState({ user: null, isAdmin: false, initializing: false });
         return;
       }
+      // A fresh sign-in re-enters this callback with the PREVIOUS state's
+      // initializing already false, so route guards reading isAdmin before
+      // the check below resolves would see stale false/non-admin and bounce
+      // a real admin out. Marking initializing again for this transition
+      // makes them wait instead of acting on stale data.
+      setState((prev) => ({ ...prev, initializing: true }));
       let isAdmin = false;
       try {
         isAdmin = (await getDoc(doc(db, "admins", user.uid))).exists();
