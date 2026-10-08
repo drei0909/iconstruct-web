@@ -10,6 +10,7 @@
     getAllShops, getShopStats, approveShop, rejectShop, logoutAdmin,
     getAllPayments, getPaymentStats, confirmPayment, rejectPayment,
     getContactMessages, setShopPlanManual, suspendShop, reopenShop,
+    watchAdminInbox,
   } from "../../controllers/adminController";
 
   import {
@@ -41,6 +42,7 @@
   import DashboardBrand from "../../components/ui/DashboardBrand";
   import MobileDrawerNav from "../../components/ui/MobileDrawerNav";
   import { auth } from "../../services/firebase";
+  import { formatDate, formatTime, formatDateTime, formatRelative, toMillis } from "../../utils/dateTime";
 
   const STATUS_COLOR = {
     pending:   { bg: "#FEF3C7", border: "#FCD34D", text: "#92400E", dot: "#F59E0B" },
@@ -195,7 +197,8 @@
                       <code style={{ fontSize:11, background:"#F1F5F9", padding:"2px 6px", borderRadius:4, color:"#334155" }}>{p.referenceNumber || "—"}</code>
                     </td>
                     <td style={{ padding:"12px 14px", fontSize:11, color:"#94A3B8" }}>
-                      {p.submittedAt?.toDate ? p.submittedAt.toDate().toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"}) : "—"}
+                      <div style={{ color:"#64748B" }}>{formatDate(p.submittedAt)}</div>
+                      <div>{formatTime(p.submittedAt)}</div>
                     </td>
                     <td style={{ padding:"12px 14px" }}><StatusBadge status={p.status} /></td>
                     <td style={{ padding:"12px 14px" }}>
@@ -246,9 +249,13 @@
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const [notifOpen, setNotifOpen]             = useState(false);
     const [previewModal, setPreviewModal]       = useState(null);
+    const [inbox, setInbox] = useState({ shops: [], payments: [], messages: [] });
 
-    const load = async () => {
-      setLoading(true);
+    // `silent` refreshes data in the background (no full-page spinner) —
+    // used when a live notification arrives so the tables catch up too.
+    const load = async (opts) => {
+      const silent = opts?.silent === true;
+      if (!silent) setLoading(true);
       try {
         // Load independently so one failed query (messages/payments) cannot wipe shops.
         const results = await Promise.allSettled([
@@ -279,13 +286,39 @@
         }
       } catch (err) {
         console.warn(err);
-        showToast("Failed to load data. Please refresh.", "error");
+        if (!silent) showToast("Failed to load data. Please refresh.", "error");
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
     };
 
     useEffect(() => { load(); }, []);
+
+    // Live admin inbox. The bell used to be derived from data loaded once on
+    // page open, so new applications/payments/messages never appeared until
+    // a manual refresh. This keeps it current and announces new arrivals.
+    useEffect(() => {
+      const LABEL = {
+        shops:    (d) => `New shop application: ${d.shopName || "Unnamed shop"}`,
+        payments: (d) => `New payment: ${d.shopName || "A shop"} · ${(d.planName || "").toUpperCase()}`,
+        messages: (d) => `New message from ${d.name || "a visitor"}`,
+      };
+      const unsub = watchAdminInbox(
+        ({ shops, payments, messages, added }) => {
+          setInbox({ shops, payments, messages });
+          if (added.length) {
+            showToast(
+              added.length === 1
+                ? LABEL[added[0].kind](added[0])
+                : `${added.length} new items need your attention`
+            );
+            load({ silent: true });
+          }
+        },
+        (key, err) => console.warn(`Admin inbox (${key}) listener failed:`, err?.message || err)
+      );
+      return () => unsub();
+    }, []);
 
     const showToast = (msg, type = "success") => {
       setToast({ msg, type });
@@ -429,11 +462,36 @@
       return matchFilter && matchSearch;
     });
 
-    const pendingShops    = shops.filter(s => s.status === "pending");
-    const pendingPayments = payments.filter(p => p.status === "pending");
-    const newContactCount = contactMessages.filter(
-      (m) => String(m.status || "").toLowerCase() === "new"
-    ).length;
+    const newContactCount = inbox.messages.length;
+    const pendingShopCount = inbox.shops.length;
+    const pendingPayCount  = inbox.payments.length;
+    const notifTotal = pendingShopCount + pendingPayCount + newContactCount;
+
+    // One newest-first feed across all three sources, each with its own
+    // arrival timestamp so the admin sees exactly when it came in.
+    const notifications = [
+      ...inbox.shops.map((s) => ({
+        key: `shop-${s.id}`, name: s.shopName || "Unnamed shop",
+        sub: "New shop application", at: s.createdAt,
+        open: () => { setSelected(s); setActiveTab("applications"); },
+      })),
+      ...inbox.payments.map((p) => ({
+        key: `pay-${p.id}`, name: p.shopName || "A shop",
+        sub: `Payment · ${(p.planName || "").toUpperCase()} plan`, at: p.submittedAt,
+        open: () => { setSelectedPayment(p); setActiveTab("subscriptions"); },
+      })),
+      ...inbox.messages.map((m) => ({
+        key: `msg-${m.id}`, name: m.name || "Visitor",
+        sub: `Message · ${m.subject || m.email || "Contact form"}`, at: m.createdAt,
+        open: () => setActiveTab("messages"),
+      })),
+    ].sort((a, b) => toMillis(b.at) - toMillis(a.at));
+
+    useEffect(() => {
+      const base = "iConstruct Admin";
+      document.title = notifTotal > 0 ? `(${notifTotal}) ${base}` : base;
+    }, [notifTotal]);
+    useEffect(() => () => { document.title = "iConstruct"; }, []);
 
     const renderContent = () => {
       switch (activeTab) {
@@ -520,7 +578,11 @@
         <nav style={{ flex:1, padding:"12px 0" }}>
           {TABS.map(tab => {
             const isActive = activeTab === tab.key;
-            const badge = tab.key === "applications" ? stats.pending : tab.key === "subscriptions" ? payStats.pending : 0;
+            const badge =
+              tab.key === "applications" ? pendingShopCount
+              : tab.key === "subscriptions" ? pendingPayCount
+              : tab.key === "messages" ? newContactCount
+              : 0;
             return (
               <button
                 key={tab.key}
@@ -596,39 +658,46 @@
           <div style={{ position:"relative" }}>
             <button onClick={() => setNotifOpen(!notifOpen)} style={{ width:36, height:36, borderRadius:8, border:"1px solid #E2E8F0", background:"#F8FAFC", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#64748B", position:"relative" }}>
               <Bell size={17} />
-              {(stats.pending + payStats.pending) > 0 && (
-                <span style={{ position:"absolute", top:-4, right:-4, background:"#EF4444", color:"#fff", width:16, height:16, borderRadius:"50%", fontSize:9, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", border:"2px solid #fff" }}>
-                  {stats.pending + payStats.pending}
+              {notifTotal > 0 && (
+                <span style={{ position:"absolute", top:-5, right:-5, background:"#EF4444", color:"#fff", minWidth:17, height:17, padding:"0 4px", borderRadius:9, fontSize:9, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", border:"2px solid #fff" }}>
+                  {notifTotal > 99 ? "99+" : notifTotal}
                 </span>
               )}
             </button>
             {notifOpen && (
-              <div style={{ position:"absolute", top:44, right:0, width:300, background:"#fff", border:"1px solid #E2E8F0", borderRadius:12, boxShadow:"0 10px 40px rgba(0,0,0,0.1)", zIndex:100, overflow:"hidden" }}>
-                <div style={{ padding:"14px 16px", borderBottom:"1px solid #F1F5F9", display:"flex", justifyContent:"space-between" }}>
-                  <span style={{ fontSize:13, fontWeight:700, color:"#0F172A" }}>Notifications</span>
+              <div style={{ position:"absolute", top:44, right:0, width:340, maxWidth:"calc(100vw - 32px)", background:"#fff", border:"1px solid #E2E8F0", borderRadius:12, boxShadow:"0 10px 40px rgba(0,0,0,0.1)", zIndex:100, overflow:"hidden" }}>
+                <div style={{ padding:"14px 16px", borderBottom:"1px solid #F1F5F9", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <span style={{ fontSize:13, fontWeight:700, color:"#0F172A" }}>
+                    Notifications{notifTotal > 0 ? ` (${notifTotal})` : ""}
+                  </span>
                   <span style={{ fontSize:10, color:"#3B82F6", fontWeight:600, cursor:"pointer" }} onClick={() => setNotifOpen(false)}>Close</span>
                 </div>
-                {pendingShops.slice(0,3).map(shop => (
-                  <div key={shop.id} style={{ padding:"12px 16px", borderBottom:"1px solid #F8FAFC", display:"flex", gap:10, cursor:"pointer" }} onClick={() => { setSelected(shop); setActiveTab("applications"); setNotifOpen(false); }}>
-                    <Avatar name={shop.shopName||""} size={28} />
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:12, fontWeight:600, color:"#0F172A" }}>{shop.shopName}</div>
-                      <div style={{ fontSize:11, color:"#64748B" }}>New shop application</div>
+                <div style={{ maxHeight:380, overflowY:"auto" }}>
+                  {notifications.slice(0, 15).map((n) => (
+                    <div key={n.key} style={{ padding:"12px 16px", borderBottom:"1px solid #F8FAFC", display:"flex", gap:10, cursor:"pointer" }}
+                      onClick={() => { n.open(); setNotifOpen(false); }}
+                      onMouseEnter={e => e.currentTarget.style.background="#F8FAFC"}
+                      onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                      <Avatar name={n.name} size={28} />
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", gap:8 }}>
+                          <span style={{ fontSize:12, fontWeight:600, color:"#0F172A", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{n.name}</span>
+                          <span style={{ fontSize:10, color:"#94A3B8", flexShrink:0 }}>{formatRelative(n.at)}</span>
+                        </div>
+                        <div style={{ fontSize:11, color:"#64748B", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{n.sub}</div>
+                        <div style={{ fontSize:10, color:"#94A3B8", marginTop:1 }}>{formatDateTime(n.at)}</div>
+                      </div>
                     </div>
-                  </div>
-                ))}
-                {pendingPayments.slice(0,3).map(p => (
-                  <div key={p.id} style={{ padding:"12px 16px", borderBottom:"1px solid #F8FAFC", display:"flex", gap:10, cursor:"pointer" }} onClick={() => { setSelectedPayment(p); setActiveTab("subscriptions"); setNotifOpen(false); }}>
-                    <Avatar name={p.shopName||""} size={28} />
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:12, fontWeight:600, color:"#0F172A" }}>{p.shopName}</div>
-                      <div style={{ fontSize:11, color:"#64748B" }}>Payment · {p.planName} plan</div>
+                  ))}
+                  {notifications.length > 15 && (
+                    <div style={{ padding:"10px 16px", textAlign:"center", color:"#64748B", fontSize:11 }}>
+                      +{notifications.length - 15} more — open the matching tab to see all
                     </div>
-                  </div>
-                ))}
-                {stats.pending === 0 && payStats.pending === 0 && (
-                  <div style={{ padding:"24px 16px", textAlign:"center", color:"#94A3B8", fontSize:12 }}>No new notifications</div>
-                )}
+                  )}
+                  {notifTotal === 0 && (
+                    <div style={{ padding:"24px 16px", textAlign:"center", color:"#94A3B8", fontSize:12 }}>You're all caught up</div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -664,7 +733,11 @@
         <MobileDrawerNav
           items={TABS.map(tab => ({
             ...tab,
-            badge: tab.key === "applications" ? stats.pending : tab.key === "subscriptions" ? payStats.pending : 0,
+            badge:
+              tab.key === "applications" ? pendingShopCount
+              : tab.key === "subscriptions" ? pendingPayCount
+              : tab.key === "messages" ? newContactCount
+              : 0,
           }))}
           activeTab={activeTab}
           onSelect={(key) => {
@@ -722,9 +795,10 @@
                       Call {selected.phone}
                     </a>
                   ) : null}
-                  {selected.createdAt?.toDate ? (
+                  {selected.createdAt ? (
                     <span style={{ fontSize:12, color:"#64748B", padding:"7px 12px" }}>
-                      Submitted {selected.createdAt.toDate().toLocaleString("en-PH", { month:"short", day:"numeric", year:"numeric", hour:"numeric", minute:"2-digit" })}
+                      Submitted {formatDateTime(selected.createdAt)}
+                      {selected.reviewedAt ? ` · Reviewed ${formatDateTime(selected.reviewedAt)}` : ""}
                     </span>
                   ) : null}
                 </div>
@@ -842,7 +916,8 @@
                   ["Plan",        `${selectedPayment.planName?.toUpperCase()} — ${selectedPayment.planPrice}`],
                   ["Method",      selectedPayment.paymentMethod],
                   ["Reference #", selectedPayment.referenceNumber || "—"],
-                  ["Submitted",   selectedPayment.submittedAt?.toDate ? selectedPayment.submittedAt.toDate().toLocaleString("en-PH") : "—"],
+                  ["Submitted",   formatDateTime(selectedPayment.submittedAt)],
+                  ...(selectedPayment.reviewedAt ? [["Reviewed", formatDateTime(selectedPayment.reviewedAt)]] : []),
                 ].map(([k,v]) => (
                   <div key={k} style={{ display:"flex", gap:12, fontSize:13, marginBottom:9 }}>
                     <span style={{ color:"#94A3B8", minWidth:130, flexShrink:0 }}>{k}</span>

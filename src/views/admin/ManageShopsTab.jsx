@@ -8,24 +8,7 @@ import {
   Warning,
   X,
 } from "@phosphor-icons/react";
-
-function toDate(v) {
-  try {
-    if (!v) return null;
-    if (typeof v.toDate === "function") return v.toDate();
-    if (typeof v.seconds === "number") return new Date(v.seconds * 1000);
-    const d = new Date(v);
-    return Number.isNaN(d.getTime()) ? null : d;
-  } catch {
-    return null;
-  }
-}
-
-function formatDate(v) {
-  const d = toDate(v);
-  if (!d) return "—";
-  return d.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
-}
+import { toDate, formatDateTime } from "../../utils/dateTime";
 
 function planKeyOf(shop) {
   return String(shop?.subscriptionPlan || "basic").toLowerCase();
@@ -39,12 +22,12 @@ function getExpiryInfo(shop) {
   }
   const daysLeft = Math.ceil((expiry.getTime() - Date.now()) / 86400000);
   if (daysLeft < 0) {
-    return { label: `Expired ${formatDate(expiry)}`, tone: "bad", expired: true, soon: false, daysLeft };
+    return { label: `Expired ${formatDateTime(expiry)}`, tone: "bad", expired: true, soon: false, daysLeft };
   }
   if (daysLeft <= 14) {
-    return { label: `${daysLeft}d left · ${formatDate(expiry)}`, tone: "warn", expired: false, soon: true, daysLeft };
+    return { label: `${daysLeft}d left · ${formatDateTime(expiry)}`, tone: "warn", expired: false, soon: true, daysLeft };
   }
-  return { label: formatDate(expiry), tone: "ok", expired: false, soon: false, daysLeft };
+  return { label: formatDateTime(expiry), tone: "ok", expired: false, soon: false, daysLeft };
 }
 
 const PLAN_STYLE = {
@@ -490,6 +473,8 @@ export default function ManageShopsTab({
                 ["Phone", managing.phone],
                 ["Address", managing.address],
                 ["City", [managing.city, managing.province].filter(Boolean).join(", ")],
+                ["Registered", formatDateTime(managing.createdAt)],
+                ["Last reviewed", formatDateTime(managing.reviewedAt)],
                 ["Expiry", getExpiryInfo(managing).label],
               ].map(([k, v]) => (
                 <div key={k} style={{ display: "flex", gap: 12, fontSize: 13, marginBottom: 8 }}>

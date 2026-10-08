@@ -14,22 +14,9 @@ import {
   PaperPlaneTilt,
   Trash,
 } from "@phosphor-icons/react";
+import { formatDateTime } from "../../utils/dateTime";
 
-function formatWhen(ts) {
-  try {
-    const d = ts?.toDate?.() || (ts ? new Date(ts) : null);
-    if (!d || Number.isNaN(d.getTime())) return "—";
-    return d.toLocaleString("en-PH", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return "—";
-  }
-}
+const formatWhen = (ts) => formatDateTime(ts);
 
 function firstName(fullName) {
   const n = String(fullName || "").trim();

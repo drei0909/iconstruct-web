@@ -7,6 +7,7 @@ import {
 import ListPagination, { paginate } from "../ui/ListPagination";
 import { estimateProjectBaseline } from "../../utils/recommendationEngine";
 import { scoreProjectFit } from "../../utils/supplyCategories";
+import { toDate, formatDateTime } from "../../utils/dateTime";
 
 const ACCENT = "#2C5282";
 const peso0 = (n) => `₱${Number(n || 0).toLocaleString("en-PH", { maximumFractionDigits: 0 })}`;
@@ -16,20 +17,6 @@ const FIT_META = {
   poor: { tone: "slate", label: "Low match" },
 };
 const DEFAULT_PAGE_SIZE = 8;
-
-function toDate(ts) {
-  if (!ts) return null;
-  if (typeof ts.toDate === "function") return ts.toDate();
-  if (typeof ts.seconds === "number") return new Date(ts.seconds * 1000);
-  const d = new Date(ts);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function formatDate(ts) {
-  const d = toDate(ts);
-  if (!d) return null;
-  return d.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
-}
 
 function humanizeKey(key) {
   return String(key)
@@ -483,7 +470,7 @@ export default function ShopProjectsPanel({
           {pageItems.map((p) => {
             const already = quotedIds.has(p.id);
             const open = expandedId === p.id;
-            const date = formatDate(p.postedAt || p.createdAt);
+            const date = formatDateTime(p.postedAt || p.createdAt, null);
             const materials = p.materials || [];
             const siteDetails = normalizeSiteDetails(p.siteDetails);
             const baseline = estimateConfig ? estimateProjectBaseline(p, estimateConfig) : null;

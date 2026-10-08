@@ -3,6 +3,7 @@ import {
   ArrowRight,
   CheckCircle,
 } from "@phosphor-icons/react";
+import { formatDateTime, formatRelative, toMillis } from "../../utils/dateTime";
 
 function DonutChart({ segments = [], size = 128, thickness = 15, centerLabel, centerSub }) {
   const total = segments.reduce((s, x) => s + (Number(x.value) || 0), 0) || 1;
@@ -246,12 +247,12 @@ export default function DashboardOverview({
   const attention = [
     ...shops
       .filter((s) => s.status === "pending")
-      .slice(0, 4)
       .map((s) => ({
         id: `shop-${s.id}`,
         kind: "Application",
         name: s.shopName,
         sub: s.ownerName || s.email,
+        at: s.createdAt,
         status: "pending",
         onClick: () => {
           setFilter?.("pending");
@@ -261,12 +262,12 @@ export default function DashboardOverview({
       })),
     ...payments
       .filter((p) => p.status === "pending")
-      .slice(0, 3)
       .map((p) => ({
         id: `pay-${p.id}`,
         kind: "Payment",
         name: p.shopName,
         sub: `${(p.planName || "").toUpperCase()} plan`,
+        at: p.submittedAt,
         status: "pending",
         onClick: () => {
           setPayFilter?.("pending");
@@ -276,16 +277,18 @@ export default function DashboardOverview({
       })),
     ...contactMessages
       .filter((m) => String(m.status || "").toLowerCase() === "new")
-      .slice(0, 3)
       .map((m) => ({
         id: `msg-${m.id}`,
         kind: "Message",
         name: m.name || "Contact",
         sub: m.subject || m.email,
+        at: m.createdAt,
         status: "pending",
         onClick: () => setActiveTab("messages"),
       })),
-  ].slice(0, 5);
+  ]
+    .sort((a, b) => toMillis(b.at) - toMillis(a.at))
+    .slice(0, 5);
 
   const timeStr = lastRefreshed
     ? lastRefreshed.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" })
@@ -545,6 +548,11 @@ export default function DashboardOverview({
                     <div style={{ fontSize: 11, color: "#94A3B8" }}>
                       {item.kind} · {item.sub}
                     </div>
+                    {item.at ? (
+                      <div style={{ fontSize: 10.5, color: "#94A3B8" }} title={formatDateTime(item.at)}>
+                        {formatDateTime(item.at)} · {formatRelative(item.at)}
+                      </div>
+                    ) : null}
                   </div>
                   {StatusBadge ? <StatusBadge status={item.status} /> : null}
                   <ArrowRight size={13} color="#CBD5E1" />

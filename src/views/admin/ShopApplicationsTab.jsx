@@ -7,6 +7,7 @@ import {
   FileText,
   Warning,
 } from "@phosphor-icons/react";
+import { toDate, formatDate, formatTime } from "../../utils/dateTime";
 
 const REQUIRED_DOC_GROUPS = [
   {
@@ -18,24 +19,6 @@ const REQUIRED_DOC_GROUPS = [
   { key: "validId", label: "Valid ID", types: ["validId"] },
   { key: "selfie", label: "ID selfie", types: ["selfie"] },
 ];
-
-function toDate(v) {
-  try {
-    if (!v) return null;
-    if (typeof v.toDate === "function") return v.toDate();
-    if (typeof v.seconds === "number") return new Date(v.seconds * 1000);
-    const d = new Date(v);
-    return Number.isNaN(d.getTime()) ? null : d;
-  } catch {
-    return null;
-  }
-}
-
-function formatDate(v) {
-  const d = toDate(v);
-  if (!d) return "—";
-  return d.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
-}
 
 function waitingLabel(v) {
   const d = toDate(v);
@@ -401,6 +384,7 @@ export default function ShopApplicationsTab({
                       </td>
                       <td style={{ padding: "12px 14px" }}>
                         <div style={{ fontSize: 12, color: "#64748B" }}>{formatDate(shop.createdAt)}</div>
+                        <div style={{ fontSize: 11, color: "#94A3B8" }}>{formatTime(shop.createdAt)}</div>
                         {wait ? (
                           <div
                             style={{

@@ -46,6 +46,7 @@ import {
 
 
 import { PLAN_CONFIG } from "../../config/planConfig";
+import { formatDateTime } from "../../utils/dateTime";
 import { db } from "../../services/firebase";
 import {
   doc,
@@ -384,9 +385,7 @@ export default function SystemSettingsTab({ currentUser }) {
           level: data.level || "info",
           message: data.message || "",
           actor: data.actor || "system",
-          timestamp: data.createdAt?.toDate
-            ? data.createdAt.toDate().toLocaleString("en-PH")
-            : "—",
+          timestamp: formatDateTime(data.createdAt),
         };
       });
           setLogs(entries);
@@ -892,9 +891,7 @@ const handleSavePlan = async () => {
                         : <Badge label="Admin" color={T.info} bg={T.infoLight} />}
                     </td>
                     <td style={{ padding: "11px 14px", fontSize: 11.5, color: T.textLight }}>
-                      {admin.createdAt?.toDate
-                        ? admin.createdAt.toDate().toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })
-                        : "—"}
+                      {formatDateTime(admin.createdAt)}
                     </td>
                     <td style={{ padding: "11px 14px" }}>
                       <div style={{ display: "flex", gap: 5 }}>
@@ -918,7 +915,7 @@ const handleSavePlan = async () => {
           { label: "Logged In As", value: currentUser?.email || "—" },
           { label: "UID", value: currentUser?.uid ? `${currentUser.uid.slice(0, 14)}…` : "—" },
           { label: "Email Verified", value: currentUser?.emailVerified ? "Verified" : "Not verified", color: currentUser?.emailVerified ? T.success : T.danger },
-          { label: "Last Sign-In", value: currentUser?.metadata?.lastSignInTime ? new Date(currentUser.metadata.lastSignInTime).toLocaleString("en-PH") : "—" },
+          { label: "Last Sign-In", value: formatDateTime(currentUser?.metadata?.lastSignInTime) },
         ]} />
       </SectionCard>
     </>
@@ -970,7 +967,7 @@ const handleSavePlan = async () => {
       <SectionCard title="Authentication Info" subtitle="Your current Firebase Auth session details." icon={<TbFingerprint size={18} />}>
         <InfoGrid items={[
           { label: "Auth Provider", value: currentUser?.providerData?.[0]?.providerId || "password" },
-          { label: "Account Created", value: currentUser?.metadata?.creationTime ? new Date(currentUser.metadata.creationTime).toLocaleDateString("en-PH") : "—" },
+          { label: "Account Created", value: formatDateTime(currentUser?.metadata?.creationTime) },
           { label: "Token Expires", value: "1 hour (auto-refresh)" },
           { label: "2FA Status", value: currentUser?.multiFactor?.enrolledFactors?.length > 0 ? "Enabled" : "Not enabled", color: currentUser?.multiFactor?.enrolledFactors?.length > 0 ? T.success : T.warning },
         ]} />

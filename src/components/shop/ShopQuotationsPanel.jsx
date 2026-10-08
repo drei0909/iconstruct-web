@@ -5,6 +5,7 @@ import ListPagination, { paginate } from "../ui/ListPagination";
 import { getAcceptanceSummary } from "../../utils/quoteAnalytics";
 import { openQuotePdf } from "../../utils/quotePdf";
 import { confirmQuotation, renegotiateQuoteItem } from "../../controllers/shopController";
+import { toDate, formatDateTime } from "../../utils/dateTime";
 
 const ACCENT = "#2C5282";
 const DEFAULT_PAGE_SIZE = 8;
@@ -18,20 +19,6 @@ const STATUS_META = {
 
 // "accepted" filter/count also covers partial acceptances.
 const wonKey = (s) => (s === "partially_accepted" ? "accepted" : s);
-
-function toDate(ts) {
-  if (!ts) return null;
-  if (typeof ts.toDate === "function") return ts.toDate();
-  if (typeof ts.seconds === "number") return new Date(ts.seconds * 1000);
-  const d = new Date(ts);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function formatDate(ts) {
-  const d = toDate(ts);
-  if (!d) return "—";
-  return d.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
-}
 
 function peso(n) {
   return `₱${Number(n || 0).toLocaleString()}`;
@@ -437,7 +424,7 @@ export default function ShopQuotationsPanel({
                       {q.projectTitle || "Project"}
                     </div>
                     <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 2 }}>
-                      Submitted {formatDate(q.createdAt)}
+                      Submitted {formatDateTime(q.createdAt)}
                       {supplyItems.length > 0 ? ` · ${supplyItems.length} item${supplyItems.length > 1 ? "s" : ""}` : ""}
                       {declinedItems.length > 0 ? ` · ${declinedItems.length} unavailable` : ""}
                       {acc.isClosed ? ` · builder took ${acc.takenCount} of ${acc.lineCount}` : ""}
@@ -487,6 +474,11 @@ export default function ShopQuotationsPanel({
                           Accepted total {peso(acc.acceptedTotal)}
                           {acc.isPartial ? ` · you quoted ${peso(acc.quotedTotal)}` : ""}
                         </div>
+                        {toDate(q.acceptedAt) && (
+                          <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
+                            Builder responded {formatDateTime(q.acceptedAt)}
+                          </div>
+                        )}
 
                         {needsConfirmation && (
                           <div style={{ marginTop: 10 }}>
@@ -527,7 +519,7 @@ export default function ShopQuotationsPanel({
 
                         {q.shopConfirmation === "confirmed" && (
                           <div style={{ fontSize: 11.5, color: "#065F46", marginTop: 6, fontWeight: 600 }}>
-                            ✓ You confirmed this order — chat and rating are unlocked.
+                            ✓ You confirmed this order{toDate(q.shopConfirmedAt) ? ` on ${formatDateTime(q.shopConfirmedAt)}` : ""} — chat and rating are unlocked.
                           </div>
                         )}
                       </div>
@@ -604,7 +596,8 @@ export default function ShopQuotationsPanel({
                                   <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed #BFDBFE" }}>
                                     {negotiation?.status === "pending" && (
                                       <div style={{ fontSize: 11.5, color: "#1D4ED8" }}>
-                                        You proposed {peso(negotiation.shopOfferedPrice)} — waiting on the builder.
+                                        You proposed {peso(negotiation.shopOfferedPrice)}
+                                        {toDate(negotiation.shopOfferedAt) ? ` on ${formatDateTime(negotiation.shopOfferedAt)}` : ""} — waiting on the builder.
                                       </div>
                                     )}
                                     {negotiation?.status === "declined" && (

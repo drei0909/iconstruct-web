@@ -5,7 +5,48 @@ import { db } from "../services/firebase";
 import {
   collection, doc, getDocs, updateDoc, getCountFromServer,
   query, orderBy, serverTimestamp, Timestamp,
+  where, limit, onSnapshot,
 } from "firebase/firestore";
+
+const NOTIF_SOURCES = [
+  { key: "shops",    col: "shops",                field: "status", value: "pending" },
+  { key: "payments", col: "subscriptionPayments", field: "status", value: "pending" },
+  { key: "messages", col: "contactMessages",      field: "status", value: "new" },
+];
+
+/**
+ * Live feed of everything waiting on an admin: pending shop applications,
+ * pending payments, and new contact messages. Each listener only watches
+ * the actionable subset (status filter + cap), never a whole collection,
+ * so it stays cheap no matter how many shops/payments pile up over time.
+ *
+ * onChange receives { shops, payments, messages } (arrays of docs) and,
+ * after the first load, `added` — docs that just arrived — so the caller
+ * can alert on genuinely new items without re-alerting on page load.
+ */
+export function subscribeToAdminInbox(onChange, onError, cap = 50) {
+  const state = { shops: [], payments: [], messages: [] };
+  const primed = { shops: false, payments: false, messages: false };
+
+  const unsubs = NOTIF_SOURCES.map(({ key, col, field, value }) =>
+    onSnapshot(
+      query(collection(db, col), where(field, "==", value), limit(cap)),
+      (snap) => {
+        const added = primed[key]
+          ? snap.docChanges()
+              .filter((c) => c.type === "added")
+              .map((c) => ({ id: c.doc.id, ...c.doc.data(), kind: key }))
+          : [];
+        primed[key] = true;
+        state[key] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        onChange({ ...state, added });
+      },
+      (err) => onError?.(key, err)
+    )
+  );
+
+  return () => unsubs.forEach((u) => u());
+}
 
 // Get all shops
 export async function fetchAllShops() {

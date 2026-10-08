@@ -20,6 +20,7 @@ import {
   updatePaymentStatus,
   updateShopSubscription,
   fetchPlatformOpsCounts,
+  subscribeToAdminInbox,
 } from "../models/adminModel";
 import {
   fetchContactMessages,
@@ -74,6 +75,12 @@ export async function logoutAdmin() {
   const email = auth.currentUser?.email || "unknown";
   await writeLog("info", `Admin signed out: ${email}`);
   await signOut(auth);
+}
+
+/** Live pending shops / payments / new messages for the admin bell.
+ *  Returns the unsubscribe function. */
+export function watchAdminInbox(onChange, onError) {
+  return subscribeToAdminInbox(onChange, onError);
 }
 
 // ── Shops ──────────────────────────────────────────────────────────────────
