@@ -7,8 +7,8 @@
   import { useNavigate } from "react-router-dom";
   import SearchBar from "../../components/ui/SearchBar";
   import {
-    getAllShops, getShopStats, approveShop, rejectShop, logoutAdmin,
-    getAllPayments, getPaymentStats, confirmPayment, rejectPayment,
+    getAllShops, approveShop, rejectShop, logoutAdmin,
+    getAllPayments, confirmPayment, rejectPayment,
     getContactMessages, setShopPlanManual, suspendShop, reopenShop,
     watchAdminInbox,
   } from "../../controllers/adminController";
@@ -258,21 +258,38 @@
       if (!silent) setLoading(true);
       try {
         // Load independently so one failed query (messages/payments) cannot wipe shops.
+        // Stats are counted from the lists already fetched — getShopStats /
+        // getPaymentStats each re-downloaded the entire collection just to
+        // count it, doubling every admin page load's reads.
         const results = await Promise.allSettled([
           getAllShops(),
-          getShopStats(),
           getAllPayments(),
-          getPaymentStats(),
           getContactMessages(),
         ]);
 
-        const [shopsRes, statsRes, paymentsRes, payStatsRes, messagesRes] = results;
+        const [shopsRes, paymentsRes, messagesRes] = results;
         const failed = results.filter((r) => r.status === "rejected");
 
-        if (shopsRes.status === "fulfilled") setShops(shopsRes.value || []);
-        if (statsRes.status === "fulfilled") setStats(statsRes.value);
-        if (paymentsRes.status === "fulfilled") setPayments(paymentsRes.value || []);
-        if (payStatsRes.status === "fulfilled") setPayStats(payStatsRes.value);
+        if (shopsRes.status === "fulfilled") {
+          const list = shopsRes.value || [];
+          setShops(list);
+          setStats({
+            total:    list.length,
+            pending:  list.filter((s) => s.status === "pending").length,
+            approved: list.filter((s) => s.status === "approved").length,
+            rejected: list.filter((s) => s.status === "rejected").length,
+          });
+        }
+        if (paymentsRes.status === "fulfilled") {
+          const list = paymentsRes.value || [];
+          setPayments(list);
+          setPayStats({
+            total:     list.length,
+            pending:   list.filter((p) => p.status === "pending").length,
+            confirmed: list.filter((p) => p.status === "confirmed").length,
+            rejected:  list.filter((p) => p.status === "rejected").length,
+          });
+        }
         if (messagesRes.status === "fulfilled") setContactMessages(messagesRes.value || []);
         else setContactMessages([]);
 
@@ -363,8 +380,9 @@
         showToast(`Payment confirmed. ${planName.toUpperCase()} plan activated!`);
         setSelectedPayment(null);
         load();
-      } catch {
-        showToast("Failed to confirm payment. Try again.", "error");
+      } catch (err) {
+        showToast(err?.message || "Failed to confirm payment. Try again.", "error");
+        load({ silent: true });
       } finally {
         setActionLoading(false);
       }

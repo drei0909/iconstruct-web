@@ -95,17 +95,13 @@
   export async function fetchOpenProjects() {
     // Full collection read (rules: signed-in). No status filter — Flutter may omit
     // "status" or use a different value; shops still need to see those posts.
-    let docs = [];
-    try {
-      const q = query(collection(db, "projectPosts"), orderBy("postedAt", "desc"));
-      const snap = await getDocs(q);
-      docs = snap.docs.map((d) => normalizeProjectPost(d.id, d.data()));
-    } catch {
-      // Missing index / no postedAt on some docs → plain collection scan
-      const snap = await getDocs(collection(db, "projectPosts"));
-      docs = snap.docs.map((d) => normalizeProjectPost(d.id, d.data()));
-      docs.sort((a, b) => projectTimestamp(b) - projectTimestamp(a));
-    }
+    // Sorted client-side on purpose: orderBy("postedAt") makes Firestore
+    // silently EXCLUDE every post without that field (it doesn't throw, so a
+    // catch-based fallback never ran) — a post saved with only createdAt would
+    // never reach any shop. projectTimestamp() falls back across field names.
+    const snap = await getDocs(collection(db, "projectPosts"));
+    const docs = snap.docs.map((d) => normalizeProjectPost(d.id, d.data()));
+    docs.sort((a, b) => projectTimestamp(b) - projectTimestamp(a));
 
     // Hide only clearly finished posts; keep open / missing status / active / etc.
     return docs.filter((p) => !CLOSED_STATUSES.has(p.status));

@@ -176,6 +176,10 @@ export default function ShopNotificationBell({ extraItems = [] }) {
               items.map((item) => (
                 <div
                   key={item.id}
+                  role={item.onClick ? "button" : undefined}
+                  tabIndex={item.onClick ? 0 : undefined}
+                  onClick={item.onClick ? () => { item.onClick(); setOpen(false); } : undefined}
+                  onKeyDown={item.onClick ? (e) => { if (e.key === "Enter") { item.onClick(); setOpen(false); } } : undefined}
                   style={{
                     padding: "12px 16px",
                     borderBottom: "1px solid #F8FAFC",
@@ -183,6 +187,7 @@ export default function ShopNotificationBell({ extraItems = [] }) {
                     borderLeft: item.important
                       ? "3px solid #D97706"
                       : "3px solid transparent",
+                    cursor: item.onClick ? "pointer" : "default",
                   }}
                 >
                   <div

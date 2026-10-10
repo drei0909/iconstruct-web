@@ -39,5 +39,7 @@ export default function GuestOnly({
     // still use the form to authenticate with an admin account.
     return isAdmin ? <Navigate to="/admin/dashboard" replace /> : children;
   }
-  return <Navigate to={to} replace />;
+  // An admin has no shop profile — sending them to the shop dashboard made it
+  // report "Shop profile not found" and sign them out.
+  return <Navigate to={isAdmin ? "/admin/dashboard" : to} replace />;
 }

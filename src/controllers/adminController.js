@@ -88,16 +88,6 @@ export async function getAllShops() {
   return fetchAllShops();
 }
 
-export async function getShopStats() {
-  const shops = await fetchAllShops();
-  return {
-    total:    shops.length,
-    pending:  shops.filter(s => s.status === "pending").length,
-    approved: shops.filter(s => s.status === "approved").length,
-    rejected: shops.filter(s => s.status === "rejected").length,
-  };
-}
-
 export async function approveShop(uid) {
   await updateShopApproval(uid, "approved");
 
@@ -146,21 +136,31 @@ export async function getAllPayments() {
   return fetchAllPayments();
 }
 
-export async function getPaymentStats() {
-  const payments = await fetchAllPayments();
-  return {
-    total:     payments.length,
-    pending:   payments.filter(p => p.status === "pending").length,
-    confirmed: payments.filter(p => p.status === "confirmed").length,
-    rejected:  payments.filter(p => p.status === "rejected").length,
-  };
-}
 
 export async function confirmPayment(paymentId, planName, shopId) {
-  // Calculate expiry: Business = 365 days, everything else = 30 days
-  const days   = planName?.toLowerCase() === "business" ? 365 : 30;
-  const expiry = new Date();
-  expiry.setDate(expiry.getDate() + days);
+  // Must match activateShopSubscription (PayMongo path) exactly: every plan
+  // is billed monthly, so 30 days — this used to grant Business 365 days for
+  // one month's payment. And an early renewal of the SAME still-active plan
+  // stacks onto the remaining time instead of throwing those paid days away.
+  const planKey = String(planName || "").toLowerCase();
+  // Guard double-confirms (double click, two admins at once) — with stacking
+  // above, confirming the same payment twice would grant 60 days for one.
+  const paySnap = await getDoc(doc(db, "subscriptionPayments", paymentId));
+  if (!paySnap.exists() || paySnap.data().status !== "pending") {
+    throw new Error("This payment has already been processed.");
+  }
+  const before = await getDoc(doc(db, "shops", shopId));
+  const current = before.exists() ? before.data() : {};
+  let baseMs = Date.now();
+  if (
+    String(current.subscriptionPlan || "").toLowerCase() === planKey &&
+    String(current.subscriptionStatus || "").toLowerCase() === "active"
+  ) {
+    const exp = current.subscriptionExpiry;
+    const expMs = exp?.toDate ? exp.toDate().getTime() : exp ? new Date(exp).getTime() : 0;
+    if (Number.isFinite(expMs) && expMs > baseMs) baseMs = expMs;
+  }
+  const expiry = new Date(baseMs + 30 * 24 * 60 * 60 * 1000);
 
   await updatePaymentStatus(paymentId, "confirmed");
   await updateShopSubscription(shopId, planName, expiry);

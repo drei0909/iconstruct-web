@@ -43,6 +43,10 @@ export async function requestNotificationPermission(shopUid) {
   }
 
   // Step 1: Check / request browser notification permission
+  if (typeof Notification === "undefined") {
+    // iOS Safari outside an installed web app has no Notification API at all.
+    return null;
+  }
   if (Notification.permission === "denied") {
     console.warn("[FCM] Notifications are blocked. User must enable in browser settings.");
     return null;

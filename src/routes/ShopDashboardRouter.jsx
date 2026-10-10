@@ -68,7 +68,7 @@ async function showSubscriptionAlert({ planName, shopName, onConfirm, onLater })
 
 export default function ShopDashboardRouter() {
   const navigate = useNavigate();
-  const { user, initializing } = useAuth();
+  const { user, isAdmin, initializing } = useAuth();
   // null = loading | false = blocked/redirect | plan string = ok
   const [plan, setPlan] = useState(null);
   const [shopId, setShopId] = useState(null);
@@ -87,9 +87,14 @@ export default function ShopDashboardRouter() {
       navigate("/login", { replace: true });
       return;
     }
+    if (isAdmin) {
+      // Admins have no shop profile; don't treat that as an error and sign them out.
+      navigate("/admin/dashboard", { replace: true });
+      return;
+    }
     deniedOnceRef.current = false;
     setShopId(user.uid);
-  }, [user, initializing, navigate]);
+  }, [user, isAdmin, initializing, navigate]);
 
   useEffect(() => {
     if (!shopId) return;

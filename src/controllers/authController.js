@@ -254,51 +254,48 @@ export async function registerShop(form) {
     throw new Error("Document upload incomplete. Please try again.");
   }
 
-  await setDoc(doc(db, "shops", cred.user.uid), {
-    uid: cred.user.uid,
-    ownerName: form.ownerName,
-    email: email,
-    shopName: form.shopName,
-    phone: form.phone,
-    address: form.address,
-    barangay: form.barangay || "",
-    city: "Lipa City",
-    province: "Batangas",
-    description: form.description || "",
-    documents: cleanDocs,
-    documentURL: cleanDocs[0]?.url || "",
-    documentName: cleanDocs[0]?.name || "",
-    status: "pending",
-    subscriptionPlan: "basic",
-    subscriptionStatus: null,
-    createdAt: serverTimestamp(),
-  });
+  try {
+    await setDoc(doc(db, "shops", cred.user.uid), {
+      uid: cred.user.uid,
+      ownerName: form.ownerName,
+      email: email,
+      shopName: form.shopName,
+      phone: form.phone,
+      address: form.address,
+      barangay: form.barangay || "",
+      city: "Lipa City",
+      province: "Batangas",
+      description: form.description || "",
+      documents: cleanDocs,
+      documentURL: cleanDocs[0]?.url || "",
+      documentName: cleanDocs[0]?.name || "",
+      status: "pending",
+      subscriptionPlan: "basic",
+      subscriptionStatus: null,
+      createdAt: serverTimestamp(),
+    });
+  } catch {
+    // Without this, a failed profile write left a login account with no shop
+    // behind it — every retry then hit "email already registered" for good.
+    try {
+      await cred.user.delete();
+    } catch {
+      /* ignore */
+    }
+    throw new Error("Couldn't save your shop details. Please check your connection and submit again.");
+  }
 
   await consumeEmailVerification(email, flowId);
+
+  // A pending shop can't use the dashboard yet, and staying signed in made
+  // "Sign in" bounce through an access-restricted popup right after submit.
+  await signOut(auth);
 
   return cred.user;
 }
 
 export async function logoutShop() {
   await signOut(auth);
-}
-
-export async function initPasswordReset(email, db) {
-  const { getDocs, collection, query, where } = await import("firebase/firestore");
-  const normalized = normalizeEmail(email);
-  assertRateLimit(`pwreset:${normalized}`, RATE.passwordReset, "Too many password reset requests");
-
-  const q = query(collection(db, "shops"), where("email", "==", normalized));
-  const snap = await getDocs(q);
-
-  if (snap.empty) throw new Error("no-account");
-
-  const shopData = snap.docs[0].data();
-  const ownerName = shopData.ownerName || "Shop Owner";
-
-  await sendOTP(normalized, ownerName, "password_reset");
-
-  return { ownerName };
 }
 
 export async function firebasePasswordReset(email) {

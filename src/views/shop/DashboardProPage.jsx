@@ -28,6 +28,7 @@ import { normalizeEngineDoc } from "../../utils/recommendationEngine";
 import { getShopRating } from "../../utils/shopRating";
 import DashboardBrand from "../../components/ui/DashboardBrand";
 import ShopNotificationBell from "../../components/ui/ShopNotificationBell";
+import { buildShopQuoteAlerts } from "../../utils/shopAlerts";
 import TopProductsCard from "../../components/shop/TopProductsCard";
 import SupplyCoverageTab from "../../components/shop/SupplyCoverageTab";
 import StorefrontTab from "../../components/shop/StorefrontTab";
@@ -518,7 +519,9 @@ export default function ShopDashboardPro() {
         <div style={{ fontSize:15, fontWeight:700, color:"#0F172A" }}>{NAV.find(n=>n.key===activeTab)?.label}</div>
       </div>
       <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-        <ShopNotificationBell />
+        <ShopNotificationBell
+          extraItems={buildShopQuoteAlerts(quotations).map((a) => ({ ...a, onClick: () => setActiveTab("quotations") }))}
+        />
         <PlanBadge />
         <div style={{ width:34, height:34, borderRadius:"50%", background:"linear-gradient(135deg,#1E3A5F,#3B82F6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, color:"#fff" }}>
           {shop?.shopName?.[0] || "S"}

@@ -68,6 +68,32 @@ async function resolvePlanPrice(planId) {
   return { ...fallback };
 }
 
+/**
+ * sendEachForMulticast rejects the ENTIRE call above 500 tokens, so a
+ * broadcast to a big audience used to reach nobody. Sends in 500-token
+ * chunks and returns one combined result whose `responses` line up with the
+ * input `tokens` array (so invalid-token cleanup can still index into it).
+ */
+async function sendMulticastChunked({ tokens = [], ...message }) {
+  const responses = [];
+  let successCount = 0;
+  let failureCount = 0;
+  for (let i = 0; i < tokens.length; i += 500) {
+    const chunk = tokens.slice(i, i + 500);
+    try {
+      const res = await admin.messaging().sendEachForMulticast({ ...message, tokens: chunk });
+      responses.push(...res.responses);
+      successCount += res.successCount;
+      failureCount += res.failureCount;
+    } catch (err) {
+      logger.warn("[FCM] multicast chunk failed:", err.message);
+      responses.push(...chunk.map(() => ({ success: false, error: { code: "chunk-failed" } })));
+      failureCount += chunk.length;
+    }
+  }
+  return { responses, successCount, failureCount };
+}
+
 // Lets a handler throw with a specific HTTP status from deep inside a
 // transaction, instead of returning sentinel values up through every layer.
 class HttpError extends Error {
@@ -677,7 +703,17 @@ async function sendOtpViaEmailJs({ toEmail, toName, otpCode }) {
         "EmailJS blocks server OTP until enabled. Open https://dashboard.emailjs.com/admin/account/security → enable “Allow EmailJS API for non-browser applications”, then try again. (Optional: set Firebase secret EMAILJS_PRIVATE_KEY.)"
       );
     }
-    throw new Error(`OTP email failed (${res.status}): ${text || res.statusText}`);
+    // Users were seeing raw provider errors like "Gmail_API: Invalid grant.
+    // Please reconnect your Gmail account" — meaningless to a shop owner and
+    // nothing they can act on. Keep the detail in the logs for whoever fixes
+    // the EmailJS connection; give the user a plain message instead.
+    logger.error("EmailJS send failed", { status: res.status, body: text });
+    if (/invalid grant|reconnect your gmail/i.test(lower)) {
+      throw new Error(
+        "Our verification email service is temporarily unavailable. Please try again later, or contact us through the Contact page."
+      );
+    }
+    throw new Error("We couldn't send the verification email right now. Please try again in a few minutes.");
   }
 }
 
@@ -1535,14 +1571,18 @@ exports.verifyEmailOtp = onRequest(
       return res.status(400).json({ error: "Incorrect OTP. Please check your email and try again." });
     }
 
-    // Single-use: clear hashes/codes, mark verified until original expiry
+    // Single-use: clear hashes/codes. The code itself expires 10 min after
+    // it's sent, but the *verification* has to outlast the rest of the
+    // registration form (shop info, 4 document uploads, terms) — holding it
+    // to the original 10 min made slower applicants fail at the final submit.
+    // assertEmailOtpVerified still consumes it on a successful registration.
     await ref.set(
       {
         verified: true,
         verifiedAt: Date.now(),
         otp: null,
         otpHash: null,
-        expires: data.expires,
+        expires: Date.now() + 60 * 60 * 1000,
         attempts: 0,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       },
@@ -2050,7 +2090,7 @@ exports.notifyShopsOnNewProject = onDocumentCreated(
         tokens: uniqueTokens,
       };
 
-      const response = await admin.messaging().sendEachForMulticast(message);
+      const response = await sendMulticastChunked(message);
       logger.info(`[FCM] Sent: ${response.successCount} success, ${response.failureCount} failed`);
 
       // Clean up invalid tokens
@@ -2069,15 +2109,23 @@ exports.notifyShopsOnNewProject = onDocumentCreated(
 
       if (invalidTokens.length > 0) {
         logger.info(`[FCM] Removing ${invalidTokens.length} invalid tokens`);
-        const batch = db.batch();
-        shopsSnap.forEach((shopDoc) => {
+        const invalid = new Set(invalidTokens);
+        // A Firestore batch caps at 500 writes — commit in chunks.
+        let batch = db.batch();
+        let ops = 0;
+        for (const shopDoc of shopsSnap.docs) {
           const shopTokens = shopDoc.data().fcmTokens || [];
-          const cleaned    = shopTokens.filter(t => !invalidTokens.includes(t));
+          const cleaned    = shopTokens.filter(t => !invalid.has(t));
           if (cleaned.length !== shopTokens.length) {
             batch.update(shopDoc.ref, { fcmTokens: cleaned });
+            if (++ops === 450) {
+              await batch.commit();
+              batch = db.batch();
+              ops = 0;
+            }
           }
-        });
-        await batch.commit();
+        }
+        if (ops > 0) await batch.commit();
       }
 
     } catch (err) {
@@ -2473,7 +2521,7 @@ async function sendMaintenanceMulticast({ title, body, type, scheduleId }) {
     tokens,
   };
 
-  const response = await admin.messaging().sendEachForMulticast(message);
+  const response = await sendMulticastChunked(message);
   logger.info(
     `[FCM] maintenance ${type}: ${response.successCount} ok, ${response.failureCount} fail`
   );

@@ -320,6 +320,14 @@ export default function RegisterForm() {
       await registerShop({ ...form, flowId: flowIdRef.current });
       setSubmitted(true);
     } catch (err) {
+      if (/verify your email with the OTP|context mismatch/i.test(String(err?.message || ""))) {
+        // Verification lapsed — send them back to the code step (everything
+        // they typed and uploaded is still in the form) instead of a dead end.
+        setOtp(["","","","","",""]);
+        setOtpError("Your email verification expired. Tap Resend for a new code — your details are saved.");
+        setStep(1);
+        return;
+      }
       const byCode = {
         "auth/email-already-in-use": "This email is already registered.",
         "auth/invalid-email": "The email address is not valid.",

@@ -1,7 +1,6 @@
 // src/components/forms/LoginForm.jsx
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { auth } from "../../services/firebase";
 import { loginShop } from "../../controllers/authController";
 import ForgotPassword from "./ForgotPassword";
 import { requestNotificationPermission } from "../../services/fcmService";
@@ -26,24 +25,18 @@ function LoginForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Session still active (e.g. user hit Back to this page and clicked
-    // Sign In without logging out) — go straight through, no re-auth.
-    if (auth.currentUser) {
-      navigate("/shop/dashboard", { replace: true });
-      return;
-    }
-
+    // No "already signed in, skip re-auth" shortcut: it ignored whatever was
+    // typed, and a signed-in visitor never sees this form anyway (GuestOnly).
     setLoading(true);
     setFirebaseError("");
     try {
       const { user } = await loginShop(form.email, form.password);
 
-      // FCM must never block login to the dashboard
-      try {
-        await requestNotificationPermission(user.uid);
-      } catch (fcmErr) {
-        console.warn("[Login] FCM setup skipped:", fcmErr?.message || fcmErr);
-      }
+      // Not awaited on purpose: this shows the browser's "Allow notifications?"
+      // prompt, and awaiting it left login spinning until the user answered.
+      requestNotificationPermission(user.uid).catch((fcmErr) =>
+        console.warn("[Login] FCM setup skipped:", fcmErr?.message || fcmErr)
+      );
 
       navigate("/shop/dashboard", { replace: true });
     } catch (err) {
