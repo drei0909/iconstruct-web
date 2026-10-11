@@ -211,13 +211,6 @@ export default function MaintenanceGate({ children }) {
               Maintenance in progress
             </span>
           </div>
-
-          <p style={{ fontSize: 12, color: "#475569", marginTop: 28 }}>
-            Are you an admin?{" "}
-            <a href="/admin" style={{ color: "#93C5FD", textDecoration: "none", fontWeight: 600 }}>
-              Sign in here →
-            </a>
-          </p>
         </div>
       </div>
     );
