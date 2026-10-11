@@ -6,9 +6,9 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function AdminRoute({ children }) {
-  const { user, isAdmin, initializing } = useAuth();
+  const { user, isAdmin, initializing, checking } = useAuth();
 
-  if (initializing) {
+  if (initializing || checking) {
     return (
       <div style={{
         minHeight: "100vh", display: "flex", alignItems: "center",

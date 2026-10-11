@@ -46,18 +46,26 @@ function LoginForm() {
         "auth/invalid-email": "The email address is not valid.",
         "auth/too-many-requests": "Too many failed attempts. Please try again later.",
         "auth/invalid-credential": "Invalid email or password.",
-        "no-shop": "Shop record not found. Please contact support.",
+        "auth/user-disabled": "This account has been disabled. Please contact support.",
+        "auth/network-request-failed":
+          "Can't reach iConstruct's servers. Check your internet connection, or a VPN / firewall / work network that may block Google services.",
+        unavailable:
+          "Can't reach iConstruct's servers. Check your internet connection, or a VPN / firewall / work network that may block Google services.",
+        "no-shop":
+          "This login isn't linked to a hardware shop. If you registered recently, your sign-up may not have finished — please register again or contact support.",
         pending:
           "Your shop application is still under review. You cannot access the dashboard yet.",
         rejected: "Your application was not approved. Please contact support.",
         deleted: "This shop account has been closed.",
-        unavailable: "This shop account is not allowed to sign in. Contact support.",
+        suspended: "Your shop account has been suspended. Please contact support.",
       };
+      // The code in the fallback lets a tester report the exact failure
+      // instead of an unactionable "something went wrong".
       setFirebaseError(
         err.userMessage ||
           msg[err.message] ||
           msg[err.code] ||
-          "Something went wrong. Please try again."
+          `Sign-in failed${err?.code ? ` (${err.code})` : ""}. Please try again.`
       );
     } finally {
       setLoading(false);

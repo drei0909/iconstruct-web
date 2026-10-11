@@ -17,11 +17,20 @@ import ShopDashboardBasic from "../views/shop/DashboardBasicPage";
 import ShopDashboardPro from "../views/shop/DashboardProPage";
 import ShopDashboardBusiness from "../views/shop/DashboardBusinessPage";
 
-async function showAccessDenied(message) {
+const DENIED_TITLE = {
+  pending: "Application under review",
+  rejected: "Application not approved",
+  suspended: "Account suspended",
+  deleted: "Account closed",
+  "no-shop": "No shop account found",
+  network: "Can't reach iConstruct",
+};
+
+async function showAccessDenied(message, code) {
   const Swal = (await import("sweetalert2")).default;
   await Swal.fire({
     icon: "info",
-    title: "Access restricted",
+    title: DENIED_TITLE[code] || "Access restricted",
     text: message,
     confirmButtonColor: "#2C5282",
     allowOutsideClick: false,
@@ -68,7 +77,7 @@ async function showSubscriptionAlert({ planName, shopName, onConfirm, onLater })
 
 export default function ShopDashboardRouter() {
   const navigate = useNavigate();
-  const { user, isAdmin, initializing } = useAuth();
+  const { user, isAdmin, initializing, checking } = useAuth();
   // null = loading | false = blocked/redirect | plan string = ok
   const [plan, setPlan] = useState(null);
   const [shopId, setShopId] = useState(null);
@@ -80,7 +89,7 @@ export default function ShopDashboardRouter() {
   const unsubRef = useRef(null);
 
   useEffect(() => {
-    if (initializing) return;
+    if (initializing || checking) return;
     if (!user) {
       setPlan(false);
       setShopId(null);
@@ -94,7 +103,7 @@ export default function ShopDashboardRouter() {
     }
     deniedOnceRef.current = false;
     setShopId(user.uid);
-  }, [user, isAdmin, initializing, navigate]);
+  }, [user, isAdmin, initializing, checking, navigate]);
 
   useEffect(() => {
     if (!shopId) return;
@@ -106,7 +115,10 @@ export default function ShopDashboardRouter() {
         if (!snap.exists()) {
           if (!deniedOnceRef.current) {
             deniedOnceRef.current = true;
-            await showAccessDenied("Shop profile not found. Contact support.");
+            await showAccessDenied(
+              "This login isn't linked to a hardware shop. If you registered recently, your sign-up may not have finished — please register again or contact support.",
+              "no-shop"
+            );
             try {
               await logoutShop();
             } catch {
@@ -132,7 +144,7 @@ export default function ShopDashboardRouter() {
           setGateNote(access.message);
           if (!deniedOnceRef.current) {
             deniedOnceRef.current = true;
-            await showAccessDenied(access.message);
+            await showAccessDenied(access.message, access.code);
             try {
               await logoutShop();
             } catch {
@@ -181,11 +193,18 @@ export default function ShopDashboardRouter() {
 
         prevSubStatusRef.current = data.subscriptionStatus;
       },
-      async () => {
+      async (err) => {
         setPlan(false);
         if (!deniedOnceRef.current) {
           deniedOnceRef.current = true;
-          await showAccessDenied("Could not load your shop. Please sign in again.");
+          const code = String(err?.code || "");
+          const isNetwork = code === "unavailable" || code === "deadline-exceeded";
+          await showAccessDenied(
+            isNetwork
+              ? "Couldn't connect to iConstruct's servers. Check your internet connection (or a VPN / firewall / work network that may block Google services) and sign in again."
+              : `Could not load your shop${code ? ` (${code})` : ""}. Please sign in again.`,
+            isNetwork ? "network" : ""
+          );
           try {
             await logoutShop();
           } catch {

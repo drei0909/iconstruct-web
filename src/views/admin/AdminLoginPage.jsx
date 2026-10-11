@@ -44,7 +44,21 @@ export default function AdminLogin() {
       // once AuthContext actually confirms isAdmin — only one source of
       // truth, no race. This component unmounts via that redirect shortly.
     } catch (err) {
-      setError(err.message || "Invalid credentials.");
+      const byCode = {
+        "auth/invalid-credential": "Incorrect email or password.",
+        "auth/wrong-password": "Incorrect email or password.",
+        "auth/user-not-found": "Incorrect email or password.",
+        "auth/invalid-email": "Enter a valid email address.",
+        "auth/too-many-requests": "Too many failed attempts. Please wait a few minutes and try again.",
+        "auth/user-disabled": "This account has been disabled.",
+        "auth/network-request-failed":
+          "Can't reach the server. Check your internet connection, VPN or firewall.",
+      };
+      setError(
+        byCode[err?.code] ||
+          (err?.code ? `Sign-in failed (${err.code}).` : err?.message) ||
+          "Sign-in failed. Please try again."
+      );
       setLoading(false);
     }
   };
