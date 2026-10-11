@@ -36,6 +36,7 @@ import {
   sendContactReplyEmail,
 } from "../services/emailService";
 import { assertRateLimit, RATE } from "../utils/rateLimit";
+import { cycleDays, getLivePlanConfig } from "../config/planConfig";
 
 
 
@@ -160,7 +161,10 @@ export async function confirmPayment(paymentId, planName, shopId) {
     const expMs = exp?.toDate ? exp.toDate().getTime() : exp ? new Date(exp).getTime() : 0;
     if (Number.isFinite(expMs) && expMs > baseMs) baseMs = expMs;
   }
-  const expiry = new Date(baseMs + 30 * 24 * 60 * 60 * 1000);
+  // Length comes from the plan's billing cycle (Monthly 30 / Quarterly 90 /
+  // Annually 365 days) — it was a flat 30 even for quarterly/annual plans.
+  const livePlan = await getLivePlanConfig(planKey);
+  const expiry = new Date(baseMs + cycleDays(livePlan.billingCycle) * 24 * 60 * 60 * 1000);
 
   await updatePaymentStatus(paymentId, "confirmed");
   await updateShopSubscription(shopId, planName, expiry);
@@ -243,13 +247,15 @@ export async function reopenShop(uid) {
  * plan: "basic" | "pro" | "business"
  * days: subscription length from now (ignored for basic)
  */
-export async function setShopPlanManual(uid, plan, days = 30) {
+export async function setShopPlanManual(uid, plan, days) {
   const planKey = String(plan || "basic").toLowerCase();
   let expiry = null;
   if (planKey === "pro" || planKey === "business") {
-    const d = Number(days) > 0 ? Number(days) : planKey === "business" ? 365 : 30;
-    expiry = new Date();
-    expiry.setDate(expiry.getDate() + d);
+    // Default to one billing cycle of that plan (was 365 days for Business).
+    const d = Number(days) > 0
+      ? Number(days)
+      : cycleDays((await getLivePlanConfig(planKey)).billingCycle);
+    expiry = new Date(Date.now() + d * 24 * 60 * 60 * 1000);
   }
   await updateShopSubscription(uid, planKey, expiry);
   const snap = await getDoc(doc(db, "shops", uid));

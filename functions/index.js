@@ -40,6 +40,17 @@ const PLAN_PRICES = {
   business: { amount: 499900, currency: "PHP", name: "iConstruct Business Plan", interval: "month" },
 };
 
+/** Days one payment buys, from the admin's billing cycle setting. Must stay
+ *  in sync with cycleDays() in src/config/planConfig.js. Every activation
+ *  used to grant a flat 30 days even when the plan was set to Quarterly or
+ *  Annually — the shop paid for 90/365 days and got 30. */
+function cycleDays(billingCycle) {
+  const c = String(billingCycle || "monthly").toLowerCase();
+  if (c.startsWith("quarter")) return 90;
+  if (c.startsWith("annual") || c.startsWith("year")) return 365;
+  return 30;
+}
+
 /** Admin-editable amounts from systemConfig/subscriptionPlans (PHP → centavos). */
 async function resolvePlanPrice(planId) {
   const fallback = PLAN_PRICES[planId];
@@ -59,13 +70,14 @@ async function resolvePlanPrice(planId) {
           interval: String(p.billingCycle || "month")
             .replace(/ly$/i, "")
             .toLowerCase() || "month",
+          days: cycleDays(p.billingCycle),
         };
       }
     }
   } catch (e) {
     logger.warn("resolvePlanPrice fallback", planId, e.message);
   }
-  return { ...fallback };
+  return { ...fallback, days: 30 };
 }
 
 /**
@@ -260,6 +272,8 @@ async function activateShopSubscription(shopId, planId, opts = {}) {
   }
 
   const shopRef = db.collection("shops").doc(shopId);
+  // Length bought by this payment, from the admin's billing cycle setting.
+  const planDays = (await resolvePlanPrice(planId))?.days || 30;
 
   const result = await db.runTransaction(async (tx) => {
     if (sessionId) {
@@ -280,7 +294,7 @@ async function activateShopSubscription(shopId, planId, opts = {}) {
     // of the SAME plan while it's still active — that preserves paid days the
     // shop hasn't used yet. A first-time subscribe, a plan switch (e.g. Basic
     // -> Pro, Pro -> Business), or renewing after it already expired must all
-    // start the 30 days fresh from today; otherwise a leftover expiry from a
+    // start a full billing cycle fresh from now; otherwise a leftover expiry from a
     // different plan (or an old test payment) gets silently added on top.
     const isSamePlanActiveRenewal =
       data.subscriptionPlan === planId &&
@@ -296,7 +310,7 @@ async function activateShopSubscription(shopId, planId, opts = {}) {
         }
       }
     }
-    const newExpiry = new Date(baseMs + 30 * 24 * 60 * 60 * 1000);
+    const newExpiry = new Date(baseMs + planDays * 24 * 60 * 60 * 1000);
     const amount =
       amountCentavos != null
         ? amountCentavos / 100
@@ -308,6 +322,11 @@ async function activateShopSubscription(shopId, planId, opts = {}) {
         subscriptionPlan: planId,
         subscriptionStatus: "active",
         subscriptionExpiry: admin.firestore.Timestamp.fromDate(newExpiry),
+        subscriptionCycleDays: planDays,
+        // Start of the CURRENT paid run (kept on a same-plan early renewal).
+        subscriptionStartedAt: isSamePlanActiveRenewal && data.subscriptionStartedAt
+          ? data.subscriptionStartedAt
+          : admin.firestore.FieldValue.serverTimestamp(),
         lastPaymentAt: admin.firestore.FieldValue.serverTimestamp(),
         lastPaymentSource: source,
         lastPaymentSessionId: sessionId || null,
@@ -717,6 +736,70 @@ async function sendOtpViaEmailJs({ toEmail, toName, otpCode }) {
   }
 }
 
+/**
+ * Status email through the same EmailJS template the web app uses for
+ * approvals/payments (to_email, to_name, shop_name, status_title, message).
+ * Honors the admin's on/off switch in systemConfig/notificationSettings.
+ * Best-effort: returns false instead of throwing, so a mail outage never
+ * blocks the job that called it.
+ */
+async function sendStatusEmail(settingKey, { toEmail, toName, shopName, statusTitle, message }) {
+  if (!toEmail) return false;
+  try {
+    const settings = (await db.collection("systemConfig").doc("notificationSettings").get()).data() || {};
+    if (settingKey && settings[settingKey] === false) return false;
+  } catch {
+    /* default: send */
+  }
+  const body = {
+    service_id: process.env.EMAILJS_SERVICE_ID || "service_ekwltb2",
+    template_id: process.env.EMAILJS_TEMPLATE_NOTIF || "o2fr3vo",
+    user_id: process.env.EMAILJS_PUBLIC_KEY || "8CRqLBqTGPfDxdwl-",
+    template_params: {
+      to_email: toEmail,
+      to_name: toName || "Shop Owner",
+      shop_name: shopName || "",
+      status_title: statusTitle,
+      message,
+    },
+  };
+  if (process.env.EMAILJS_PRIVATE_KEY) body.accessToken = process.env.EMAILJS_PRIVATE_KEY;
+  try {
+    const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      logger.warn("[Email] status email failed", { status: res.status, body: await res.text().catch(() => "") });
+      return false;
+    }
+    return true;
+  } catch (err) {
+    logger.warn("[Email] status email error", err.message);
+    return false;
+  }
+}
+
+/** Push to every device a shop is signed in on. Best-effort. */
+async function pushToShop(shopData, { title, body, data = {} }) {
+  const tokens = [...new Set((shopData?.fcmTokens || []).filter(Boolean))];
+  if (!tokens.length) return 0;
+  try {
+    const res = await sendMulticastChunked({ notification: { title, body }, data, tokens });
+    return res.successCount;
+  } catch (err) {
+    logger.warn("[FCM] shop push failed", err.message);
+    return 0;
+  }
+}
+
+const MANILA_DATETIME = {
+  timeZone: "Asia/Manila",
+  month: "short", day: "numeric", year: "numeric",
+  hour: "numeric", minute: "2-digit", hour12: true,
+};
+
 function normalizeEmailServer(email) {
   return String(email || "").trim().toLowerCase();
 }
@@ -730,59 +813,161 @@ async function enforceExpiredSubscriptions() {
   const shopIds = [];
   let checked = 0;
 
-  // Query by expiry (avoids scanning every shop). Single-field inequality is fine.
-  const snap = await db
-    .collection("shops")
-    .where("subscriptionExpiry", "<=", now)
-    .limit(400)
-    .get();
+  // Only ACTIVE plans that are past due (index: subscriptionStatus +
+  // subscriptionExpiry). The old query matched every shop that had EVER
+  // expired — they keep their past expiry date — capped at 400, so once
+  // 400 shops had expired, newly expiring plans were never processed.
+  // Pages until nothing is due; each processed shop drops out of the query.
+  for (let page = 0; page < 20; page += 1) {
+    const snap = await db
+      .collection("shops")
+      .where("subscriptionStatus", "==", "active")
+      .where("subscriptionExpiry", "<=", now)
+      .limit(200)
+      .get();
+    if (snap.empty) break;
 
-  const batch = db.batch();
-  let batchCount = 0;
-
-  for (const docSnap of snap.docs) {
-    checked += 1;
-    const data = docSnap.data() || {};
-    const plan = String(data.subscriptionPlan || "basic").toLowerCase();
-    const status = String(data.subscriptionStatus || "").toLowerCase();
-
-    // Only rewrite shops still stored as paid / active paid
-    if (plan !== "pro" && plan !== "business") continue;
-    if (status === "expired") continue;
-
-    batch.set(
-      docSnap.ref,
-      {
-        subscriptionPlan: "basic",
-        subscriptionStatus: "expired",
-        lastExpiredPlan: plan,
-        lastExpiredAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
-    batchCount += 1;
-    shopIds.push(docSnap.id);
-  }
-
-  if (batchCount > 0) {
+    const batch = db.batch();
+    const expiredNow = [];
+    for (const docSnap of snap.docs) {
+      checked += 1;
+      const data = docSnap.data() || {};
+      const plan = String(data.subscriptionPlan || "basic").toLowerCase();
+      batch.set(
+        docSnap.ref,
+        {
+          subscriptionPlan: "basic",
+          subscriptionStatus: "expired",
+          lastExpiredPlan: plan,
+          lastExpiredAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      shopIds.push(docSnap.id);
+      if (plan === "pro" || plan === "business") expiredNow.push({ data, plan });
+    }
     await batch.commit();
+
+    // Tell each shop its plan ended (best-effort; never blocks the downgrade).
+    await Promise.all(
+      expiredNow.map(async ({ data, plan }) => {
+        const planName = plan === "business" ? "Business" : "Pro";
+        const when = data.subscriptionExpiry?.toDate
+          ? data.subscriptionExpiry.toDate().toLocaleString("en-PH", MANILA_DATETIME)
+          : "";
+        await pushToShop(data, {
+          title: `Your ${planName} plan has ended`,
+          body: "Your shop is now on Basic. Renew anytime from Billing to get your features back.",
+          data: { type: "subscription_expired" },
+        });
+        await sendStatusEmail("subscriptionReminder", {
+          toEmail: data.email,
+          toName: data.ownerName,
+          shopName: data.shopName,
+          statusTitle: `${planName} Plan Ended`,
+          message: `Your iConstruct ${planName} plan for "${data.shopName || "your shop"}" ended${when ? ` on ${when}` : ""}. Your shop is now on the free Basic plan.\n\nRenew anytime from Billing in your dashboard to restore your ${planName} features.`,
+        });
+      })
+    );
+
+    if (snap.size < 200) break;
   }
 
-  logger.info("Subscription expiry pass", {
-    checked,
-    expired: shopIds.length,
-    shopIds,
-  });
-
+  logger.info("Subscription expiry pass", { checked, expired: shopIds.length, shopIds });
   return { checked, expired: shopIds.length, shopIds };
 }
 
-// Daily 16:00 UTC ≈ 00:00 Asia/Manila — rewrite expired paid plans to basic in Firestore
+/** Days-before-expiry reminder stages, most urgent first. */
+const EXPIRY_REMINDER_STAGES = [
+  { key: "d1", ms: 1 * 24 * 60 * 60 * 1000 },
+  { key: "d3", ms: 3 * 24 * 60 * 60 * 1000 },
+  { key: "d7", ms: 7 * 24 * 60 * 60 * 1000 },
+];
+
+/**
+ * Warn shops whose paid plan ends within 7 days — once at 7 days, 3 days and
+ * 1 day out, by push + email (the shop's dashboard bell shows it too, live).
+ * Each stage is recorded as `expiryReminders.<stage> = <expiry millis>`, so a
+ * stage sends at most once per expiry date and a renewal (new expiry)
+ * naturally re-arms all of them. If the job first sees a shop already deep
+ * in the window (e.g. a plan bought with 2 days to spare), it sends only the
+ * most urgent stage and marks the earlier ones done instead of spamming.
+ */
+async function remindExpiringSubscriptions() {
+  const nowMs = Date.now();
+  const horizon = admin.firestore.Timestamp.fromMillis(nowMs + EXPIRY_REMINDER_STAGES[2].ms);
+  let sent = 0;
+  let lastDoc = null;
+
+  for (let page = 0; page < 20; page += 1) {
+    let q = db
+      .collection("shops")
+      .where("subscriptionStatus", "==", "active")
+      .where("subscriptionExpiry", ">", admin.firestore.Timestamp.fromMillis(nowMs))
+      .where("subscriptionExpiry", "<=", horizon)
+      .orderBy("subscriptionExpiry")
+      .limit(200);
+    if (lastDoc) q = q.startAfter(lastDoc);
+    const snap = await q.get();
+    if (snap.empty) break;
+    lastDoc = snap.docs[snap.docs.length - 1];
+
+    for (const docSnap of snap.docs) {
+      const data = docSnap.data() || {};
+      const plan = String(data.subscriptionPlan || "").toLowerCase();
+      if (plan !== "pro" && plan !== "business") continue;
+      const expMs = data.subscriptionExpiry.toMillis();
+      const left = expMs - nowMs;
+      const stageIdx = EXPIRY_REMINDER_STAGES.findIndex((s) => left <= s.ms);
+      if (stageIdx === -1) continue;
+      const stage = EXPIRY_REMINDER_STAGES[stageIdx];
+      const sentMap = data.expiryReminders || {};
+      if (sentMap[stage.key] === expMs) continue;
+
+      const planName = plan === "business" ? "Business" : "Pro";
+      const when = new Date(expMs).toLocaleString("en-PH", MANILA_DATETIME);
+      const hours = Math.max(1, Math.round(left / (60 * 60 * 1000)));
+      const daysLeft = Math.round(hours / 24);
+      const leftText = hours < 24
+        ? `${hours} hour${hours === 1 ? "" : "s"}`
+        : `${daysLeft} day${daysLeft === 1 ? "" : "s"}`;
+
+      await pushToShop(data, {
+        title: `Your ${planName} plan ends in ${leftText}`,
+        body: `It expires ${when}. Renew from Billing to keep your ${planName} features.`,
+        data: { type: "subscription_expiring", expiresAt: String(expMs) },
+      });
+      await sendStatusEmail("subscriptionReminder", {
+        toEmail: data.email,
+        toName: data.ownerName,
+        shopName: data.shopName,
+        statusTitle: `${planName} Plan Ending Soon`,
+        message: `Your iConstruct ${planName} plan for "${data.shopName || "your shop"}" ends in ${leftText}, on ${when}.\n\nRenew from Billing in your dashboard before then to keep your ${planName} features without interruption. If it lapses, your shop moves to the free Basic plan.`,
+      });
+
+      // Mark this stage and every earlier (less urgent) one for this expiry.
+      const update = {};
+      for (let i = stageIdx; i < EXPIRY_REMINDER_STAGES.length; i += 1) {
+        update[`expiryReminders.${EXPIRY_REMINDER_STAGES[i].key}`] = expMs;
+      }
+      await docSnap.ref.update(update);
+      sent += 1;
+    }
+    if (snap.size < 200) break;
+  }
+
+  logger.info("Subscription reminder pass", { sent });
+  return { sent };
+}
+
+// Hourly: was once a day at midnight, so a plan that ended mid-morning kept
+// its paid features (incl. unlimited quoting) for up to a day. Both queries
+// only touch shops actually due, so running hourly stays cheap at any scale.
 exports.enforceSubscriptionExpiry = onSchedule(
   {
-    schedule: "every day 16:00",
-    timeZone: "UTC",
+    schedule: "every 60 minutes",
+    timeZone: "Asia/Manila",
     region: "us-central1",
   },
   async () => {
@@ -791,6 +976,12 @@ exports.enforceSubscriptionExpiry = onSchedule(
     } catch (err) {
       logger.error("enforceSubscriptionExpiry failed", err);
       throw err;
+    }
+    try {
+      await remindExpiringSubscriptions();
+    } catch (err) {
+      // Reminders must never undo or block the expiry pass above.
+      logger.error("remindExpiringSubscriptions failed", err);
     }
   }
 );
@@ -824,7 +1015,13 @@ exports.runSubscriptionExpiryNow = onRequest(
 
     try {
       const result = await enforceExpiredSubscriptions();
-      return res.status(200).json({ success: true, ...result });
+      let reminders = { sent: 0 };
+      try {
+        reminders = await remindExpiringSubscriptions();
+      } catch (e) {
+        logger.warn("runSubscriptionExpiryNow reminders failed", e.message);
+      }
+      return res.status(200).json({ success: true, ...result, remindersSent: reminders.sent });
     } catch (err) {
       logger.error("runSubscriptionExpiryNow", err);
       return res.status(500).json({ error: err.message || "Failed" });
@@ -1763,7 +1960,15 @@ exports.submitQuotation = onRequest(
 
       // Basic plan's monthly quota — reads the same admin-editable config the
       // dashboard already shows, so it can't drift from what shops are told.
-      const plan = String(shop.subscriptionPlan || "basic").toLowerCase();
+      // A paid plan past its expiry counts as Basic right away — not only
+      // after the hourly expiry job rewrites it — so it can't keep
+      // unlimited quoting in the gap.
+      const rawPlan = String(shop.subscriptionPlan || "basic").toLowerCase();
+      const expMs = shop.subscriptionExpiry?.toMillis ? shop.subscriptionExpiry.toMillis() : null;
+      const plan =
+        (rawPlan === "pro" || rawPlan === "business") && expMs != null && expMs <= Date.now()
+          ? "basic"
+          : rawPlan;
       if (plan === "basic") {
         let quotaLimit = 3;
         try {

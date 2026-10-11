@@ -113,6 +113,15 @@ function firestoreFeatures(val, fallback) {
   return fallback;
 }
 
+/** Days one payment buys for a billing cycle. Must match cycleDays() in
+ *  functions/index.js (PayMongo activation) so every path grants the same. */
+export function cycleDays(billingCycle) {
+  const c = String(billingCycle || "monthly").toLowerCase();
+  if (c.startsWith("quarter")) return 90;
+  if (c.startsWith("annual") || c.startsWith("year")) return 365;
+  return 30;
+}
+
 function normalizeBillingCycle(raw) {
   const s = String(raw || "month").toLowerCase();
   if (s.startsWith("month")) return "month";

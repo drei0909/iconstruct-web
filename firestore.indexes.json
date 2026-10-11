@@ -25,6 +25,14 @@
       ]
     },
     {
+      "collectionGroup": "shops",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "subscriptionStatus", "order": "ASCENDING" },
+        { "fieldPath": "subscriptionExpiry", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "quotations",
       "queryScope": "COLLECTION_GROUP",
       "fields": [

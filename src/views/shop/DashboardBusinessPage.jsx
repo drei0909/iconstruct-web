@@ -10,6 +10,7 @@ import { auth, db } from "../../services/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import PayMongoPaymentForm from "../../components/forms/PayMongoPaymentForm";
 import { useLivePlanConfig } from "../../hooks/useLivePlanConfig";
+import { toDate, formatDateTime, formatTimeLeft } from "../../utils/dateTime";
 import React from "react";
 import QuoteModal from "../../components/QuoteModal";
 import SettingsTab from "../../components/SettingsTab";
@@ -29,7 +30,7 @@ import { normalizeEngineDoc } from "../../utils/recommendationEngine";
 import { getShopRating } from "../../utils/shopRating";
 import DashboardBrand from "../../components/ui/DashboardBrand";
 import ShopNotificationBell from "../../components/ui/ShopNotificationBell";
-import { buildShopQuoteAlerts } from "../../utils/shopAlerts";
+import { buildShopQuoteAlerts, buildSubscriptionAlert } from "../../utils/shopAlerts";
 import TopProductsCard from "../../components/shop/TopProductsCard";
 import SupplyCoverageTab from "../../components/shop/SupplyCoverageTab";
 import StorefrontTab from "../../components/shop/StorefrontTab";
@@ -78,11 +79,12 @@ function StatCard({ label, value, color, sub }) {
 // ─── TAB COMPONENTS ───────────────────────────────────────────────────────────
 
 function subscriptionRenewLine(shop) {
-  const t = shop?.subscriptionExpiry;
-  const d = t ? (typeof t.toDate === "function" ? t.toDate() : new Date(t.seconds ? t.seconds * 1000 : t)) : null;
-  if (!d || Number.isNaN(d.getTime())) return "Subscription active";
-  const days = Math.max(Math.ceil((d.getTime() - Date.now()) / 86400000), 0);
-  return `Renews ${d.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })} · ${days} day${days === 1 ? "" : "s"} left`;
+  const exp = toDate(shop?.subscriptionExpiry);
+  if (!exp) return "Subscription active";
+  const left = formatTimeLeft(exp);
+  // Exact date AND time; remaining time is never rounded up (2 days 1 hour
+  // used to show as "3 days left").
+  return left ? `Renews ${formatDateTime(exp)} · ${left} left` : `Expired ${formatDateTime(exp)}`;
 }
 
 function Overview({ shop, quotations, projects, money, stale, insights, setQuoteModal, setActiveTab }) {
@@ -553,7 +555,10 @@ export default function ShopDashboardBusiness() {
       </div>
       <div style={{ display:"flex", alignItems:"center", gap:10 }}>
         <ShopNotificationBell
-          extraItems={buildShopQuoteAlerts(quotations).map((a) => ({ ...a, onClick: () => setActiveTab("quotations") }))}
+          extraItems={[
+                ...[buildSubscriptionAlert(shop)].filter(Boolean).map((a) => ({ ...a, onClick: () => setActiveTab("billing") })),
+                ...buildShopQuoteAlerts(quotations).map((a) => ({ ...a, onClick: () => setActiveTab("quotations") })),
+              ]}
         />
         <PlanBadge />
         <div style={{ width:34, height:34, borderRadius:"50%", background:"linear-gradient(135deg,#0D2E43,#2D6A8F)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, color:"#fff" }}>

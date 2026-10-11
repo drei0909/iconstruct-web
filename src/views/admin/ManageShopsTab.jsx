@@ -9,6 +9,8 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { toDate, formatDateTime } from "../../utils/dateTime";
+import { cycleDays } from "../../config/planConfig";
+import { useLivePlanConfig } from "../../hooks/useLivePlanConfig";
 
 function planKeyOf(shop) {
   return String(shop?.subscriptionPlan || "basic").toLowerCase();
@@ -109,6 +111,12 @@ export default function ManageShopsTab({
   const [planPick, setPlanPick] = useState("pro");
   const [planDays, setPlanDays] = useState(30);
   const [suspendReason, setSuspendReason] = useState("");
+  const livePro = useLivePlanConfig("pro");
+  const liveBusiness = useLivePlanConfig("business");
+  // One billing cycle of that plan (Monthly 30 / Quarterly 90 / Annually 365);
+  // Business used to pre-fill 365 days even on a monthly plan.
+  const defaultDaysFor = (p) =>
+    cycleDays((p === "business" ? liveBusiness : p === "pro" ? livePro : null)?.billingCycle);
 
   const live = useMemo(
     () => shops.filter((s) => String(s.status || "").toLowerCase() === "approved"),
@@ -176,8 +184,9 @@ export default function ManageShopsTab({
   const openManage = (shop) => {
     setManaging(shop);
     const k = planKeyOf(shop);
-    setPlanPick(k === "basic" ? "pro" : k);
-    setPlanDays(k === "business" ? 365 : 30);
+    const pick = k === "basic" ? "pro" : k;
+    setPlanPick(pick);
+    setPlanDays(defaultDaysFor(pick));
     setSuspendReason("");
   };
 
@@ -557,7 +566,7 @@ export default function ManageShopsTab({
                       type="button"
                       onClick={() => {
                         setPlanPick(p);
-                        setPlanDays(p === "business" ? 365 : 30);
+                        setPlanDays(defaultDaysFor(p));
                       }}
                       style={{
                         padding: "7px 12px",

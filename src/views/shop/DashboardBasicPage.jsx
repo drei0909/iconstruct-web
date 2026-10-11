@@ -25,7 +25,7 @@ import ShopQuotationsPanel from "../../components/shop/ShopQuotationsPanel";
 import ShopMessagesPanel from "../../components/shop/ShopMessagesPanel";
 import DashboardBrand from "../../components/ui/DashboardBrand";
 import ShopNotificationBell from "../../components/ui/ShopNotificationBell";
-import { buildShopQuoteAlerts } from "../../utils/shopAlerts";
+import { buildShopQuoteAlerts, buildSubscriptionAlert } from "../../utils/shopAlerts";
 import TopProductsCard from "../../components/shop/TopProductsCard";
 import SupplyCoverageTab from "../../components/shop/SupplyCoverageTab";
 import StorefrontTab from "../../components/shop/StorefrontTab";
@@ -560,7 +560,10 @@ export default function ShopDashboardBasic() {
           </div>
           <div className="db-topbar-right">
             <ShopNotificationBell
-              extraItems={buildShopQuoteAlerts(quotations).map((a) => ({ ...a, onClick: () => setActiveTab("quotations") }))}
+              extraItems={[
+                ...[buildSubscriptionAlert(shop)].filter(Boolean).map((a) => ({ ...a, onClick: () => setActiveTab("upgrade") })),
+                ...buildShopQuoteAlerts(quotations).map((a) => ({ ...a, onClick: () => setActiveTab("quotations") })),
+              ]}
             />
             <PlanBadge />
             <div className="db-topbar-avatar">{initials(shop?.shopName)}</div>

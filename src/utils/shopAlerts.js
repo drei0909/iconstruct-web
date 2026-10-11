@@ -3,7 +3,50 @@
 // shop learns it has something to act on without relying on browser push.
 
 import { getAcceptanceSummary } from "./quoteAnalytics";
-import { formatDateTime, toMillis } from "./dateTime";
+import { formatDateTime, formatTimeLeft, toDate, toMillis } from "./dateTime";
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Bell item for a paid plan ending within 7 days (or that just ended).
+ * Derived from the live shop doc, so it appears and updates in real time —
+ * the same warning the hourly job pushes/emails at 7, 3 and 1 day out.
+ */
+export function buildSubscriptionAlert(shop) {
+  if (!shop) return null;
+  const plan = String(shop.subscriptionPlan || "").toLowerCase();
+  const status = String(shop.subscriptionStatus || "").toLowerCase();
+  const planName = (p) => (p === "business" ? "Business" : "Pro");
+
+  if ((plan === "pro" || plan === "business") && status === "active") {
+    const exp = toDate(shop.subscriptionExpiry);
+    if (!exp) return null;
+    const left = exp.getTime() - Date.now();
+    if (left <= 0 || left > WEEK_MS) return null;
+    return {
+      id: `sub-expiring-${exp.getTime()}`,
+      important: true,
+      at: shop.subscriptionExpiry,
+      title: `${planName(plan)} plan ends in ${formatTimeLeft(exp)}`,
+      body: `Renew from Billing to keep your ${planName(plan)} features. If it lapses, your shop moves to Basic.`,
+      meta: `Expires ${formatDateTime(exp)}`,
+    };
+  }
+
+  if (status === "expired" && (shop.lastExpiredPlan === "pro" || shop.lastExpiredPlan === "business")) {
+    const ended = toDate(shop.subscriptionExpiry) || toDate(shop.lastExpiredAt);
+    if (!ended || Date.now() - ended.getTime() > WEEK_MS) return null;
+    return {
+      id: `sub-expired-${ended.getTime()}`,
+      important: true,
+      at: ended,
+      title: `Your ${planName(shop.lastExpiredPlan)} plan has ended`,
+      body: "Your shop is now on Basic. Renew anytime to get your features back.",
+      meta: `Ended ${formatDateTime(ended)}`,
+    };
+  }
+  return null;
+}
 
 const peso = (n) => `₱${Number(n || 0).toLocaleString("en-PH")}`;
 
