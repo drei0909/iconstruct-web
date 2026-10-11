@@ -133,9 +133,17 @@ export default function ManageShopsTab({
     return counts;
   }, [live]);
 
+  const isSuspended = (s) => String(s?.status || "").toLowerCase() === "suspended";
+
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const pool = planFilter === "suspended" ? suspended : live;
+    // Suspended shops stay in the main list (they used to vanish from it,
+    // reachable only through the separate "Suspended" filter). Plan / expiry
+    // filters still mean live shops only.
+    const pool =
+      planFilter === "suspended" ? suspended
+      : planFilter === "all" ? [...live, ...suspended]
+      : live;
     return pool
       .filter((s) => {
         const k = planKeyOf(s);
@@ -155,6 +163,8 @@ export default function ManageShopsTab({
         );
       })
       .sort((a, b) => {
+        // Suspended first so an admin sees them without hunting.
+        if (isSuspended(a) !== isSuspended(b)) return isSuspended(a) ? -1 : 1;
         const ia = getExpiryInfo(a);
         const ib = getExpiryInfo(b);
         if (ia.expired !== ib.expired) return ia.expired ? -1 : 1;
@@ -187,7 +197,7 @@ export default function ManageShopsTab({
             Manage Shops
           </h2>
           <p style={{ fontSize: 13, color: "#64748B", margin: 0, maxWidth: 540, lineHeight: 1.45 }}>
-            Live (approved) shops. Change plans, catch expiries, or suspend access if needed.
+            Approved and suspended shops. Change plans, catch expiries, suspend access, or restore a suspended shop.
           </p>
         </div>
       </div>
@@ -196,7 +206,7 @@ export default function ManageShopsTab({
         className="ms-stats"
         style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 10, marginBottom: 14 }}
       >
-        <StatPill label="Live shops" value={live.length} color="#10B981" active={planFilter === "all"} onClick={() => setPlanFilter("all")} />
+        <StatPill label="All shops" value={live.length + suspended.length} color="#10B981" active={planFilter === "all"} onClick={() => setPlanFilter("all")} />
         <StatPill label="Basic" value={mix.basic} color="#64748B" active={planFilter === "basic"} onClick={() => setPlanFilter("basic")} />
         <StatPill label="Pro" value={mix.pro} color="#2C5282" active={planFilter === "pro"} onClick={() => setPlanFilter("pro")} />
         <StatPill label="Business" value={mix.business} color="#CFB184" active={planFilter === "business"} onClick={() => setPlanFilter("business")} />
@@ -256,7 +266,7 @@ export default function ManageShopsTab({
                   <td colSpan={7} style={{ padding: "48px 22px", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>
                     {planFilter === "suspended"
                       ? "No suspended shops."
-                      : live.length === 0
+                      : live.length + suspended.length === 0
                         ? "No approved shops yet."
                         : "No shops match this search or filter."}
                     {planFilter !== "all" ? (
@@ -266,7 +276,7 @@ export default function ManageShopsTab({
                           onClick={() => setPlanFilter("all")}
                           style={{ fontSize: 12, fontWeight: 600, color: "#3B82F6", background: "none", border: "none", cursor: "pointer" }}
                         >
-                          Show all live shops
+                          Show all shops
                         </button>
                       </div>
                     ) : null}
@@ -275,18 +285,22 @@ export default function ManageShopsTab({
               ) : (
                 rows.map((shop) => {
                   const info = getExpiryInfo(shop);
+                  const susp = isSuspended(shop);
+                  const rowBg = susp ? "#FEF2F2" : "transparent";
                   return (
                     <tr
                       key={shop.id}
                       style={{
-                        borderLeft:
-                          info.expired ? "3px solid #EF4444" : info.soon ? "3px solid #F59E0B" : "3px solid transparent",
+                        background: rowBg,
+                        borderLeft: susp
+                          ? "3px solid #64748B"
+                          : info.expired ? "3px solid #EF4444" : info.soon ? "3px solid #F59E0B" : "3px solid transparent",
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.background = "#F8FAFC";
+                        e.currentTarget.style.background = susp ? "#FEE2E2" : "#F8FAFC";
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.background = "transparent";
+                        e.currentTarget.style.background = rowBg;
                       }}
                     >
                       <td style={{ padding: "12px 14px" }}>
@@ -323,26 +337,55 @@ export default function ManageShopsTab({
                       </td>
                       <td style={{ padding: "12px 14px" }}>{StatusBadge ? <StatusBadge status={shop.status} /> : null}</td>
                       <td style={{ padding: "12px 14px" }}>
-                        <button
-                          type="button"
-                          onClick={() => openManage(shop)}
-                          style={{
-                            padding: "6px 11px",
-                            borderRadius: 7,
-                            border: "1px solid #E2E8F0",
-                            background: "#fff",
-                            fontSize: 11.5,
-                            fontWeight: 600,
-                            color: "#334155",
-                            cursor: "pointer",
-                            fontFamily: "inherit",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 4,
-                          }}
-                        >
-                          {planFilter === "suspended" ? "Restore" : "Manage"} <ArrowRight size={11} weight="bold" />
-                        </button>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {susp ? (
+                            <button
+                              type="button"
+                              disabled={actionLoading}
+                              onClick={async () => {
+                                if (!window.confirm(`Restore “${shop.shopName || "this shop"}”? They will be able to sign in again.`)) return;
+                                await onReopen?.(shop.id);
+                              }}
+                              style={{
+                                padding: "6px 11px",
+                                borderRadius: 7,
+                                border: "none",
+                                background: "#10B981",
+                                fontSize: 11.5,
+                                fontWeight: 600,
+                                color: "#fff",
+                                cursor: actionLoading ? "not-allowed" : "pointer",
+                                opacity: actionLoading ? 0.6 : 1,
+                                fontFamily: "inherit",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                              }}
+                            >
+                              <CheckCircle size={12} weight="bold" /> Restore
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => openManage(shop)}
+                            style={{
+                              padding: "6px 11px",
+                              borderRadius: 7,
+                              border: "1px solid #E2E8F0",
+                              background: "#fff",
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              color: "#334155",
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            Manage <ArrowRight size={11} weight="bold" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

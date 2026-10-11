@@ -902,6 +902,24 @@
                   </button>
                 </div>
               )}
+              {/* Rejected or suspended shops had no action here at all — a shop
+                  suspended before "suspended" became its own status was saved
+                  as "rejected" and could never be brought back. */}
+              {["rejected", "suspended"].includes(String(selected.status || "").toLowerCase()) && (
+                <div style={{ padding:"16px 28px 22px", borderTop:"1px solid #F1F5F9", display:"flex", gap:12, position:"sticky", bottom:0, background:"#fff" }}>
+                  <button
+                    disabled={actionLoading}
+                    onClick={async () => {
+                      if (!window.confirm(`Restore "${selected.shopName || "this shop"}"? It will be approved and able to sign in again.`)) return;
+                      await handleReopenShop(selected.id);
+                      setSelected(null);
+                    }}
+                    style={{ flex:1, padding:"12px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#059669,#10B981)", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:actionLoading?0.7:1, display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}
+                  >
+                    <CheckCircle size={15} weight="bold" /> {actionLoading ? "Processing..." : "Restore shop (approve)"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           );
