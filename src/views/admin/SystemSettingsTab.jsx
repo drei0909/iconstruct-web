@@ -45,7 +45,7 @@ import {
 } from "../../utils/maintenanceStatus";
 
 
-import { PLAN_CONFIG } from "../../config/planConfig";
+import { PLAN_CONFIG, invalidatePlanCache } from "../../config/planConfig";
 import { formatDateTime } from "../../utils/dateTime";
 import { db } from "../../services/firebase";
 import {
@@ -714,6 +714,7 @@ const handleSavePlan = async () => {
       { plans: updated, updatedAt: serverTimestamp() },
       { merge: true }
     );
+    invalidatePlanCache();
     setPlans(updated);
     setEditingPlan(null);
     await writeLog(

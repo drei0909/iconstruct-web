@@ -4,27 +4,33 @@
 import { useState, useEffect } from "react";
 import { redirectToPayMongoCheckout } from "../../controllers/paymongoController";
 import { auth } from "../../services/firebase";
-import { getLivePaidPlans, getPaidPlans } from "../../config/planConfig";
+import { getLivePaidPlans, peekLivePaidPlans } from "../../config/planConfig";
 
 export default function PayMongoPaymentForm({ defaultPlan = null, onCancel }) {
-  const [plans, setPlans] = useState(() => getPaidPlans());
-  const [selectedPlan, setSelectedPlan] = useState(null);
+  // Start from the cached admin prices (or nothing) — never the static
+  // defaults, which flashed ₱999 / ₱4,999 before the real price loaded.
+  const [plans, setPlans] = useState(() => peekLivePaidPlans() || []);
+  const [selectedPlan, setSelectedPlan] = useState(() =>
+    defaultPlan ? (peekLivePaidPlans() || []).find((p) => p.id === defaultPlan) || null : null
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [plansLoading, setPlansLoading] = useState(true);
+  const [plansLoading, setPlansLoading] = useState(() => !peekLivePaidPlans());
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const live = await getLivePaidPlans();
-        if (cancelled || !live.length) return;
+        if (cancelled) return;
         setPlans(live);
         if (defaultPlan) {
-          setSelectedPlan(live.find((p) => p.id === defaultPlan) || null);
+          setSelectedPlan((cur) => live.find((p) => p.id === (cur?.id || defaultPlan)) || null);
+        } else {
+          setSelectedPlan((cur) => (cur ? live.find((p) => p.id === cur.id) || null : null));
         }
       } catch {
-        /* static fallback already set */
+        if (!cancelled) setError("Couldn't load plan prices. Check your connection and try again.");
       } finally {
         if (!cancelled) setPlansLoading(false);
       }

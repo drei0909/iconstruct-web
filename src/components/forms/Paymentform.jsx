@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from "react";
 import { submitPaymentRequest } from "../../controllers/shopController";
-import { getLivePaidPlans, getPaidPlans } from "../../config/planConfig";
+import { getLivePaidPlans, peekLivePaidPlans } from "../../config/planConfig";
 
 function mapPlans(list) {
   return list.map((p) => ({
@@ -19,15 +19,15 @@ function mapPlans(list) {
   }));
 }
 
-const FALLBACK_PLANS = mapPlans(getPaidPlans());
-
 const PAYMENT_METHODS = [
   { id: "GCash", label: "GCash", color: "#007aff", hint: "Send to: 0924-360-0285 (iConstruct)" },
 ];
 
 export default function PaymentForm({ onSuccess, existingRequest }) {
   const [step, setStep]         = useState(1); // 1=plan, 2=method, 3=reference, 4=done
-  const [plans, setPlans]                     = useState(FALLBACK_PLANS);
+  // Cached admin prices or nothing — never the static defaults (₱999 / ₱4,999),
+  // which flashed before the real price loaded.
+  const [plans, setPlans]                     = useState(() => mapPlans(peekLivePaidPlans() || []));
   const [selectedPlan, setSelectedPlan]     = useState(null);
   const [selectedMethod, setSelectedMethod] = useState(null);
   const [reference, setReference]           = useState("");
@@ -38,7 +38,10 @@ export default function PaymentForm({ onSuccess, existingRequest }) {
   useEffect(() => {
     getLivePaidPlans()
       .then((live) => {
-        if (live?.length) setPlans(mapPlans(live));
+        const mapped = mapPlans(live || []);
+        setPlans(mapped);
+        // Keep a selection made before prices refreshed pointing at fresh data.
+        setSelectedPlan((cur) => (cur ? mapped.find((p) => p.id === cur.id) || null : null));
       })
       .catch(() => {});
   }, []);
@@ -172,6 +175,9 @@ export default function PaymentForm({ onSuccess, existingRequest }) {
           <div style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", marginBottom: 4 }}>Select a Plan</div>
           <div style={{ fontSize: 12.5, color: "#64748B", marginBottom: 20 }}>You can upgrade or change plans at any time.</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {plans.length === 0 && (
+              <div style={{ fontSize: 12.5, color: "#94A3B8", padding: "18px 0" }}>Loading plans…</div>
+            )}
             {plans.map(plan => (
               <div key={plan.id}
                 onClick={() => setSelectedPlan(plan)}

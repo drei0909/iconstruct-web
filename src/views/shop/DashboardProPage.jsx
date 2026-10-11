@@ -12,7 +12,7 @@ import { auth, db } from "../../services/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 
 import PayMongoPaymentForm from "../../components/forms/PayMongoPaymentForm";
-import { getLivePlanConfig, getPlanConfig } from "../../config/planConfig";
+import { useLivePlanConfig } from "../../hooks/useLivePlanConfig";
 import React from "react";
 
 import QuoteModal from "../../components/QuoteModal";
@@ -188,15 +188,7 @@ function AllProjects({ projects, quotations, setQuoteModal, estimateConfig, supp
 
 function Billing({ shop }) {
   const [showRenew, setShowRenew] = React.useState(false);
-  const [planPrice, setPlanPrice] = React.useState(() => getPlanConfig("pro").price);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    getLivePlanConfig("pro").then((cfg) => {
-      if (!cancelled) setPlanPrice(cfg.price);
-    });
-    return () => { cancelled = true; };
-  }, []);
+  const livePlan = useLivePlanConfig("pro");
 
   const expiryExact = (() => {
     const t = shop?.subscriptionExpiry;
@@ -217,8 +209,12 @@ function Billing({ shop }) {
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20, paddingBottom:20, borderBottom:"1px solid #F1F5F9" }}>
           <div>
             <div style={{ fontSize:18, fontWeight:900, color:"#0F172A", marginBottom:4 }}>Pro Plan</div>
-            <div style={{ fontSize:22, fontWeight:900, color:"#3B82F6" }}>
-              ₱{Number(planPrice).toLocaleString("en-PH")}<span style={{ fontSize:13, fontWeight:400, color:"#94A3B8" }}>/month</span>
+            <div style={{ fontSize:22, fontWeight:900, color:"#3B82F6", minHeight:30 }}>
+              {livePlan ? (
+                <>₱{Number(livePlan.price).toLocaleString("en-PH")}<span style={{ fontSize:13, fontWeight:400, color:"#94A3B8" }}>/{livePlan.billingCycle || "month"}</span></>
+              ) : (
+                <span aria-label="Loading price" style={{ display:"inline-block", width:110, height:24, borderRadius:6, background:"#E2E8F0", verticalAlign:"middle" }} />
+              )}
             </div>
           </div>
           <span style={{ display:"inline-flex", alignItems:"center", background:"#EFF6FF", color:"#1D4ED8", border:"1px solid #BFDBFE", borderRadius:20, padding:"3px 10px", fontSize:10, fontWeight:700 }}>
