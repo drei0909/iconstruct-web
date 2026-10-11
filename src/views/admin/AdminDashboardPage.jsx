@@ -9,7 +9,7 @@
   import {
     getAllShops, approveShop, rejectShop, logoutAdmin,
     getAllPayments, confirmPayment, rejectPayment,
-    getContactMessages, setShopPlanManual, suspendShop, reopenShop,
+    getContactMessages, suspendShop, reopenShop,
     watchAdminInbox,
   } from "../../controllers/adminController";
 
@@ -405,19 +405,6 @@
       }
     };
 
-    const handleSetShopPlan = async (uid, plan, days) => {
-      setActionLoading(true);
-      try {
-        await setShopPlanManual(uid, plan, days);
-        showToast(`Plan updated to ${String(plan).toUpperCase()}.`);
-        await load();
-      } catch {
-        showToast("Failed to update plan.", "error");
-      } finally {
-        setActionLoading(false);
-      }
-    };
-
     const handleSuspendShop = async (uid, reason) => {
       setActionLoading(true);
       try {
@@ -553,7 +540,6 @@
             <ManageShopsTab
               shops={shops}
               actionLoading={actionLoading}
-              onSetPlan={handleSetShopPlan}
               onSuspend={handleSuspendShop}
               onReopen={handleReopenShop}
               Avatar={Avatar}

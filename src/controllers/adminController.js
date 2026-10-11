@@ -242,31 +242,6 @@ export async function reopenShop(uid) {
   }
 }
 
-/**
- * Manually set plan (e.g. grace, demo, downgrade after support call).
- * plan: "basic" | "pro" | "business"
- * days: subscription length from now (ignored for basic)
- */
-export async function setShopPlanManual(uid, plan, days) {
-  const planKey = String(plan || "basic").toLowerCase();
-  let expiry = null;
-  if (planKey === "pro" || planKey === "business") {
-    // Default to one billing cycle of that plan (was 365 days for Business).
-    const d = Number(days) > 0
-      ? Number(days)
-      : cycleDays((await getLivePlanConfig(planKey)).billingCycle);
-    expiry = new Date(Date.now() + d * 24 * 60 * 60 * 1000);
-  }
-  await updateShopSubscription(uid, planKey, expiry);
-  const snap = await getDoc(doc(db, "shops", uid));
-  const name = snap.exists() ? snap.data().shopName : uid;
-  await writeLog(
-    "success",
-    `Manual plan set for "${name}": ${planKey.toUpperCase()}${expiry ? ` until ${expiry.toLocaleDateString("en-PH")}` : ""}.`
-  );
-  return { plan: planKey, expiry };
-}
-
 /** Lightweight counts for admin dashboard ↔ app data. */
 export async function getPlatformOps() {
   return fetchPlatformOpsCounts();

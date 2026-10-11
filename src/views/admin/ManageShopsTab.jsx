@@ -9,8 +9,6 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { toDate, formatDateTime } from "../../utils/dateTime";
-import { cycleDays } from "../../config/planConfig";
-import { useLivePlanConfig } from "../../hooks/useLivePlanConfig";
 
 function planKeyOf(shop) {
   return String(shop?.subscriptionPlan || "basic").toLowerCase();
@@ -99,7 +97,6 @@ function StatPill({ label, value, color, active, onClick }) {
 export default function ManageShopsTab({
   shops = [],
   actionLoading = false,
-  onSetPlan,
   onSuspend,
   onReopen,
   Avatar,
@@ -108,15 +105,7 @@ export default function ManageShopsTab({
   const [query, setQuery] = useState("");
   const [planFilter, setPlanFilter] = useState("all"); // all | basic | pro | business | expiring
   const [managing, setManaging] = useState(null);
-  const [planPick, setPlanPick] = useState("pro");
-  const [planDays, setPlanDays] = useState(30);
   const [suspendReason, setSuspendReason] = useState("");
-  const livePro = useLivePlanConfig("pro");
-  const liveBusiness = useLivePlanConfig("business");
-  // One billing cycle of that plan (Monthly 30 / Quarterly 90 / Annually 365);
-  // Business used to pre-fill 365 days even on a monthly plan.
-  const defaultDaysFor = (p) =>
-    cycleDays((p === "business" ? liveBusiness : p === "pro" ? livePro : null)?.billingCycle);
 
   const live = useMemo(
     () => shops.filter((s) => String(s.status || "").toLowerCase() === "approved"),
@@ -183,10 +172,6 @@ export default function ManageShopsTab({
 
   const openManage = (shop) => {
     setManaging(shop);
-    const k = planKeyOf(shop);
-    const pick = k === "basic" ? "pro" : k;
-    setPlanPick(pick);
-    setPlanDays(defaultDaysFor(pick));
     setSuspendReason("");
   };
 
@@ -552,91 +537,10 @@ export default function ManageShopsTab({
                 >
                   <Warning size={15} weight="bold" style={{ flexShrink: 0, marginTop: 1 }} />
                   {getExpiryInfo(managing).expired
-                    ? "Paid plan has expired. Set a new plan or leave them on Basic."
-                    : "Subscription expires within 14 days. Extend the plan if they already paid."}
+                    ? "Paid plan has expired. The shop is on Basic until they renew from their Billing page."
+                    : "Subscription expires within 14 days. The shop has been notified and can renew from their Billing page."}
                 </div>
               ) : null}
-
-              <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #F1F5F9" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", marginBottom: 10 }}>Set plan</div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-                  {["basic", "pro", "business"].map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => {
-                        setPlanPick(p);
-                        setPlanDays(defaultDaysFor(p));
-                      }}
-                      style={{
-                        padding: "7px 12px",
-                        borderRadius: 8,
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                        textTransform: "capitalize",
-                        border: planPick === p ? "1px solid #0F172A" : "1px solid #E2E8F0",
-                        background: planPick === p ? "#0F172A" : "#fff",
-                        color: planPick === p ? "#fff" : "#334155",
-                      }}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-                {planPick !== "basic" ? (
-                  <label style={{ display: "block", fontSize: 12, color: "#64748B", marginBottom: 12 }}>
-                    Duration (days)
-                    <input
-                      type="number"
-                      min={1}
-                      max={730}
-                      value={planDays}
-                      onChange={(e) => setPlanDays(Number(e.target.value) || 30)}
-                      style={{
-                        display: "block",
-                        marginTop: 6,
-                        width: 120,
-                        padding: "8px 10px",
-                        borderRadius: 8,
-                        border: "1px solid #E2E8F0",
-                        fontSize: 13,
-                        fontFamily: "inherit",
-                      }}
-                    />
-                  </label>
-                ) : (
-                  <p style={{ fontSize: 12, color: "#64748B", margin: "0 0 12px" }}>
-                    Basic has no expiry. Paid features will turn off.
-                  </p>
-                )}
-                <button
-                  type="button"
-                  disabled={actionLoading}
-                  onClick={async () => {
-                    await onSetPlan?.(managing.id, planPick, planDays);
-                    setManaging(null);
-                  }}
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: 9,
-                    border: "none",
-                    background: "#0F172A",
-                    color: "#fff",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: actionLoading ? "not-allowed" : "pointer",
-                    opacity: actionLoading ? 0.7 : 1,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  <CheckCircle size={15} weight="bold" />
-                  {actionLoading ? "Saving..." : `Apply ${planPick.toUpperCase()} plan`}
-                </button>
-              </div>
 
               <div style={{ marginTop: 22, paddingTop: 16, borderTop: "1px solid #F1F5F9" }}>
                 {["rejected", "suspended"].includes(String(managing.status).toLowerCase()) ? (
