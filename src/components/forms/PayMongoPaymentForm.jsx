@@ -5,6 +5,8 @@ import { useState, useEffect } from "react";
 import { redirectToPayMongoCheckout } from "../../controllers/paymongoController";
 import { auth } from "../../services/firebase";
 import { getLivePaidPlans, peekLivePaidPlans } from "../../config/planConfig";
+import { useLatestPayment } from "../../hooks/useLatestPayment";
+import PendingPaymentNotice from "../shop/PendingPaymentNotice";
 
 export default function PayMongoPaymentForm({ defaultPlan = null, onCancel }) {
   // Start from the cached admin prices (or nothing) — never the static
@@ -16,6 +18,10 @@ export default function PayMongoPaymentForm({ defaultPlan = null, onCancel }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [plansLoading, setPlansLoading] = useState(() => !peekLivePaidPlans());
+  // A manual payment awaiting admin review locks checkout (the server
+  // refuses too); also locked for the moment it takes to check.
+  const { payment: latestPayment, pending, loading: paymentLoading } = useLatestPayment();
+  const blocked = pending || paymentLoading;
 
   useEffect(() => {
     let cancelled = false;
@@ -41,7 +47,7 @@ export default function PayMongoPaymentForm({ defaultPlan = null, onCancel }) {
   }, [defaultPlan]);
 
   const handleCheckout = async () => {
-    if (!selectedPlan) return;
+    if (!selectedPlan || blocked) return;
     setLoading(true);
     setError("");
     try {
@@ -59,6 +65,7 @@ export default function PayMongoPaymentForm({ defaultPlan = null, onCancel }) {
 
   return (
     <div style={{ fontFamily: "var(--font-ui)" }}>
+      {pending && <PendingPaymentNotice payment={latestPayment} compact />}
       <div style={{ marginBottom: 20 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", marginBottom: 12, fontFamily: "var(--font-display)" }}>
           Select a Plan
@@ -155,7 +162,7 @@ export default function PayMongoPaymentForm({ defaultPlan = null, onCancel }) {
         )}
         <button
           type="button"
-          disabled={!selectedPlan || loading}
+          disabled={!selectedPlan || loading || blocked}
           onClick={handleCheckout}
           style={{
             flex: 2,
@@ -163,16 +170,20 @@ export default function PayMongoPaymentForm({ defaultPlan = null, onCancel }) {
             borderRadius: 10,
             border: "none",
             background:
-              !selectedPlan || loading
+              !selectedPlan || loading || blocked
                 ? "#E2E8F0"
                 : "linear-gradient(135deg,#2C5282,#3B82F6)",
-            color: !selectedPlan || loading ? "#94A3B8" : "#fff",
+            color: !selectedPlan || loading || blocked ? "#94A3B8" : "#fff",
             fontWeight: 700,
             fontSize: 13,
-            cursor: !selectedPlan || loading ? "not-allowed" : "pointer",
+            cursor: !selectedPlan || loading || blocked ? "not-allowed" : "pointer",
           }}
         >
-          {loading ? "Connecting to PayMongo…" : "Continue to PayMongo →"}
+          {pending
+            ? "Waiting for admin to review your payment"
+            : paymentLoading
+              ? "Checking your payments…"
+              : loading ? "Connecting to PayMongo…" : "Continue to PayMongo →"}
         </button>
       </div>
     </div>

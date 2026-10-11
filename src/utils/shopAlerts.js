@@ -7,6 +7,39 @@ import { formatDateTime, formatTimeLeft, toDate, toMillis } from "./dateTime";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** Bell item for the shop's latest manual payment: under review, or
+ *  rejected within the last week (with the admin's reason). */
+export function buildPaymentAlert(payment) {
+  if (!payment) return null;
+  const status = String(payment.status || "").toLowerCase();
+  const plan = String(payment.planName || "").toUpperCase();
+  if (status === "pending") {
+    return {
+      id: `payment-pending-${payment.id}`,
+      important: false,
+      at: payment.submittedAt,
+      title: `Payment under review${plan ? ` · ${plan}` : ""}`,
+      body: "The admin is checking your manual payment. PayMongo is paused until it's accepted or rejected.",
+      meta: `Submitted ${formatDateTime(payment.submittedAt)}`,
+    };
+  }
+  if (status === "rejected") {
+    const at = payment.reviewedAt || payment.updatedAt;
+    if (toMillis(at) && Date.now() - toMillis(at) > WEEK_MS) return null;
+    return {
+      id: `payment-rejected-${payment.id}`,
+      important: true,
+      at,
+      title: `Payment not accepted${plan ? ` · ${plan}` : ""}`,
+      body: payment.rejectionReason
+        ? `Reason: ${payment.rejectionReason}. You can pay again with PayMongo or submit a new manual payment.`
+        : "You can pay again with PayMongo or submit a new manual payment.",
+      meta: formatDateTime(at, ""),
+    };
+  }
+  return null;
+}
+
 /**
  * Bell item for a paid plan ending within 7 days (or that just ended).
  * Derived from the live shop doc, so it appears and updates in real time —

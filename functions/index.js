@@ -1064,6 +1064,23 @@ exports.createCheckoutSession = onRequest(
 
       // Always bind to authenticated user — never trust client shopId
       const shopId = decoded.uid;
+
+      // A manual payment still awaiting admin review blocks a second,
+      // PayMongo payment — otherwise the shop could be charged twice for
+      // the same upgrade. The web UI locks this too; this is the real gate.
+      const pendingManual = await db
+        .collection("subscriptionPayments")
+        .where("shopId", "==", shopId)
+        .where("status", "==", "pending")
+        .limit(1)
+        .get();
+      if (!pendingManual.empty) {
+        return res.status(409).json({
+          error:
+            "You have a manual payment waiting for admin review. PayMongo checkout is unavailable until the admin accepts or rejects it.",
+        });
+      }
+
       const plan = await resolvePlanPrice(planId);
       if (!plan || !plan.amount) {
         return res.status(400).json({ error: "Invalid plan selected." });

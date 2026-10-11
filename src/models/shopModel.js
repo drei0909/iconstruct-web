@@ -5,7 +5,7 @@
   import {
     doc, getDoc, getDocs, addDoc,
     collection, collectionGroup, query, where, orderBy,
-    serverTimestamp, onSnapshot,
+    serverTimestamp, onSnapshot, limit,
   } from "firebase/firestore";
 
   const SUBMIT_QUOTATION_URL =
@@ -212,6 +212,21 @@
     const snap = await getDocs(q);
     if (snap.empty) return null;
     return { id: snap.docs[0].id, ...snap.docs[0].data() };
+  }
+
+  /** Live view of the shop's most recent payment request (any status). */
+  export function subscribeToLatestPayment(shopId, onChange, onError) {
+    const q = query(
+      collection(db, "subscriptionPayments"),
+      where("shopId", "==", shopId),
+      orderBy("submittedAt", "desc"),
+      limit(1)
+    );
+    return onSnapshot(
+      q,
+      (snap) => onChange(snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() }),
+      onError
+    );
   }
 
   export async function fetchPendingPaymentByShop(shopId) {

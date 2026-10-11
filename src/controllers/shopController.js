@@ -8,6 +8,7 @@ import {
   fetchOpenProjects,
   fetchQuotationsByShop,
   subscribeToShopQuotations,
+  subscribeToLatestPayment,
   insertQuotation,
   respondToAcceptedQuote,
   proposeItemRenegotiation,
@@ -120,6 +121,16 @@ export async function renegotiateQuoteItem({ postId, quotationId, itemIndex, new
 }
 
 // ── Payments ──────────────────────────────────────────────────────────────────
+
+/** Live latest payment request for the signed-in shop. Returns unsubscribe. */
+export function watchMyLatestPayment(onChange, onError) {
+  const user = auth.currentUser;
+  if (!user) {
+    onChange(null);
+    return () => {};
+  }
+  return subscribeToLatestPayment(user.uid, onChange, onError);
+}
 
 export async function getMyPaymentRequest() {
   const user = auth.currentUser;

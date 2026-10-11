@@ -16,6 +16,8 @@ import { getRecommendationConfig } from "../../controllers/recommendationControl
 import { normalizeEngineDoc } from "../../utils/recommendationEngine";
 import { getShopRating } from "../../utils/shopRating";
 import PayMongoPaymentForm from "../../components/forms/PayMongoPaymentForm";
+import PendingPaymentNotice from "../../components/shop/PendingPaymentNotice";
+import { useLatestPayment } from "../../hooks/useLatestPayment";
 import React from "react";
 import QuoteModal from "../../components/QuoteModal";
 import SettingsTab from "../../components/SettingsTab";
@@ -25,7 +27,7 @@ import ShopQuotationsPanel from "../../components/shop/ShopQuotationsPanel";
 import ShopMessagesPanel from "../../components/shop/ShopMessagesPanel";
 import DashboardBrand from "../../components/ui/DashboardBrand";
 import ShopNotificationBell from "../../components/ui/ShopNotificationBell";
-import { buildShopQuoteAlerts, buildSubscriptionAlert } from "../../utils/shopAlerts";
+import { buildShopQuoteAlerts, buildSubscriptionAlert, buildPaymentAlert } from "../../utils/shopAlerts";
 import TopProductsCard from "../../components/shop/TopProductsCard";
 import SupplyCoverageTab from "../../components/shop/SupplyCoverageTab";
 import StorefrontTab from "../../components/shop/StorefrontTab";
@@ -193,10 +195,14 @@ function Quotations({ quotations, setActiveTab, onMessageBuilder, shop, projects
   );
 }
 
-function Upgrade({ existingPayment, onPaymentSuccess }) {
+function Upgrade({ existingPayment: initialPayment, onPaymentSuccess }) {
   const [paymentMode, setPaymentMode] = React.useState("choose");
   const [syncing, setSyncing] = React.useState(false);
   const [syncMsg, setSyncMsg] = React.useState("");
+  // Live, so the PayMongo lock lifts the moment the admin accepts or rejects
+  // a manual payment — no page refresh needed.
+  const { payment: livePayment, pending } = useLatestPayment();
+  const existingPayment = livePayment !== undefined ? livePayment : initialPayment;
 
   if (existingPayment === undefined) {
     return <div className="db-loading-center"><div className="db-spinner" /></div>;
@@ -261,14 +267,24 @@ function Upgrade({ existingPayment, onPaymentSuccess }) {
         {syncMsg && <div style={{ marginTop: 8, color: "#78350F" }}>{syncMsg}</div>}
       </div>
 
+      {pending && <PendingPaymentNotice payment={existingPayment} />}
+
       {paymentMode === "choose" && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
-          {/* PayMongo Option */}
+          {/* PayMongo Option — locked while a manual payment is under review */}
           <div
-            onClick={() => setPaymentMode("paymongo")}
-            style={{ background: "#fff", borderRadius: 14, border: "2px solid #A8C5D8", padding: "24px 20px", cursor: "pointer", textAlign: "center", transition: "all 0.2s" }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = "#154665"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(21,70,101,0.12)"; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = "#A8C5D8"; e.currentTarget.style.boxShadow = "none"; }}
+            role="button"
+            aria-disabled={pending}
+            title={pending ? "Unavailable while your manual payment is under review" : undefined}
+            onClick={() => { if (!pending) setPaymentMode("paymongo"); }}
+            style={{
+              background: pending ? "#F8FAFC" : "#fff", borderRadius: 14,
+              border: `2px solid ${pending ? "#E2E8F0" : "#A8C5D8"}`, padding: "24px 20px",
+              cursor: pending ? "not-allowed" : "pointer", textAlign: "center", transition: "all 0.2s",
+              opacity: pending ? 0.55 : 1,
+            }}
+            onMouseEnter={e => { if (pending) return; e.currentTarget.style.borderColor = "#154665"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(21,70,101,0.12)"; }}
+            onMouseLeave={e => { if (pending) return; e.currentTarget.style.borderColor = "#A8C5D8"; e.currentTarget.style.boxShadow = "none"; }}
           >
             <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
               <TbCreditCard size={36} color="#154665" />
@@ -277,7 +293,11 @@ function Upgrade({ existingPayment, onPaymentSuccess }) {
             <div style={{ fontSize: 11.5, color: "#64748B", lineHeight: 1.6, marginBottom: 12 }}>
               Instant activation via PayMongo.<br />GCash, Maya, and cards accepted.
             </div>
-            <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, background: "#E8F1F7", color: "#154665", border: "1px solid #A8C5D8", borderRadius: 20, padding: "2px 10px" }}>RECOMMENDED</span>
+            {pending ? (
+              <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, background: "#FEF3C7", color: "#92400E", border: "1px solid #FCD34D", borderRadius: 20, padding: "2px 10px" }}>PAUSED — PAYMENT UNDER REVIEW</span>
+            ) : (
+              <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, background: "#E8F1F7", color: "#154665", border: "1px solid #A8C5D8", borderRadius: 20, padding: "2px 10px" }}>RECOMMENDED</span>
+            )}
           </div>
 
           {/* Manual Option */}
@@ -341,6 +361,7 @@ export default function ShopDashboardBasic() {
   const [projects, setProjects]               = useState([]);
   const [quotations, setQuotations]           = useState([]);
   const [existingPayment, setExistingPayment] = useState(undefined);
+  const { payment: livePayment } = useLatestPayment();
   const [loading, setLoading]                 = useState(true);
   const [activeTab, setActiveTab]             = useState("overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -561,7 +582,7 @@ export default function ShopDashboardBasic() {
           <div className="db-topbar-right">
             <ShopNotificationBell
               extraItems={[
-                ...[buildSubscriptionAlert(shop)].filter(Boolean).map((a) => ({ ...a, onClick: () => setActiveTab("upgrade") })),
+                ...[buildSubscriptionAlert(shop), buildPaymentAlert(livePayment)].filter(Boolean).map((a) => ({ ...a, onClick: () => setActiveTab("upgrade") })),
                 ...buildShopQuoteAlerts(quotations).map((a) => ({ ...a, onClick: () => setActiveTab("quotations") })),
               ]}
             />
