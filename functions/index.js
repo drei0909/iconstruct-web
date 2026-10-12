@@ -1989,14 +1989,19 @@ exports.submitQuotation = onRequest(
       // offer from each shop. Re-submitting while the shop's quote is still
       // pending REVISES it (no duplicate, no extra bid count, no quota use);
       // once the builder has accepted it, it can't be changed from here.
-      const mineSnap = await postRef.collection("quotations").where("shopId", "==", shopId).get();
+      // Reads this ONE project's quotes and filters in memory instead of a
+      // where("shopId") query: a project holds at most one quote per shop,
+      // so it's small, and a plain subcollection read needs no index — a
+      // query did, and 500'd every submission while that index was building.
       const lower = (s) => String(s || "").toLowerCase();
-      if (mineSnap.docs.some((d) => ["accepted", "partially_accepted"].includes(lower(d.data().status)))) {
+      const allQuotesSnap = await postRef.collection("quotations").get();
+      const mineDocs = allQuotesSnap.docs.filter((d) => d.data().shopId === shopId);
+      if (mineDocs.some((d) => ["accepted", "partially_accepted"].includes(lower(d.data().status)))) {
         return res.status(409).json({
           error: "The builder already accepted your quote on this project. Manage it from your Quotations tab.",
         });
       }
-      const pendingMine = mineSnap.docs.find((d) => lower(d.data().status || "pending") === "pending") || null;
+      const pendingMine = mineDocs.find((d) => lower(d.data().status || "pending") === "pending") || null;
 
       // Basic plan's monthly quota — reads the same admin-editable config the
       // dashboard already shows, so it can't drift from what shops are told.
