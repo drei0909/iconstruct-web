@@ -106,6 +106,10 @@ async function sendMulticastChunked({ tokens = [], ...message }) {
   return { responses, successCount, failureCount };
 }
 
+/** Project statuses that end bidding. Keep in sync with CLOSED_STATUSES in
+ *  src/models/shopModel.js (which decides what shops are shown). */
+const BIDDING_CLOSED = new Set(["closed", "cancelled", "canceled", "completed", "rejected", "deleted"]);
+
 // Lets a handler throw with a specific HTTP status from deep inside a
 // transaction, instead of returning sentinel values up through every layer.
 class HttpError extends Error {
@@ -1969,11 +1973,30 @@ exports.submitQuotation = onRequest(
         return res.status(404).json({ error: "Project not found." });
       }
       const post = postSnap.data() || {};
-      if (String(post.status || "open").toLowerCase() !== "open") {
-        return res.status(409).json({ error: "This project is no longer open for quotes." });
+      // Bidding stays open to EVERY approved shop until the project is
+      // actually finished. This used to require status === "open" exactly,
+      // but the builder app's functions move a post to its next stage once
+      // bids arrive — so after the first shop quoted, every other shop was
+      // refused even though the dashboard still listed the project. Same
+      // closed set as fetchOpenProjects (src/models/shopModel.js).
+      if (BIDDING_CLOSED.has(String(post.status || "open").toLowerCase())) {
+        return res.status(409).json({ error: "This project is no longer accepting quotes." });
       }
       const builderId =
         post.userId || post.builderId || post.ownerId || post.postedBy || "";
+
+      // One live quote per shop per project, so the builder compares one
+      // offer from each shop. Re-submitting while the shop's quote is still
+      // pending REVISES it (no duplicate, no extra bid count, no quota use);
+      // once the builder has accepted it, it can't be changed from here.
+      const mineSnap = await postRef.collection("quotations").where("shopId", "==", shopId).get();
+      const lower = (s) => String(s || "").toLowerCase();
+      if (mineSnap.docs.some((d) => ["accepted", "partially_accepted"].includes(lower(d.data().status)))) {
+        return res.status(409).json({
+          error: "The builder already accepted your quote on this project. Manage it from your Quotations tab.",
+        });
+      }
+      const pendingMine = mineSnap.docs.find((d) => lower(d.data().status || "pending") === "pending") || null;
 
       // Basic plan's monthly quota — reads the same admin-editable config the
       // dashboard already shows, so it can't drift from what shops are told.
@@ -1986,7 +2009,8 @@ exports.submitQuotation = onRequest(
         (rawPlan === "pro" || rawPlan === "business") && expMs != null && expMs <= Date.now()
           ? "basic"
           : rawPlan;
-      if (plan === "basic") {
+      // Revising an existing pending quote isn't a new quotation — no quota.
+      if (plan === "basic" && !pendingMine) {
         let quotaLimit = 3;
         try {
           const cfgSnap = await db.collection("systemConfig").doc("subscriptionPlans").get();
@@ -2047,6 +2071,23 @@ exports.submitQuotation = onRequest(
       };
       if (builderId) payload.builderId = builderId;
 
+      if (pendingMine) {
+        const { createdAt: _unusedCreatedAt, ...revision } = payload;
+        await db.runTransaction(async (tx) => {
+          const fresh = await tx.get(pendingMine.ref);
+          // The builder may have decided it between our read and now.
+          if (!fresh.exists || lower(fresh.data().status || "pending") !== "pending") {
+            throw new HttpError(409, "The builder just responded to your quote — refresh and check your Quotations tab.");
+          }
+          tx.update(pendingMine.ref, {
+            ...revision,
+            revisedAt: admin.firestore.FieldValue.serverTimestamp(),
+            revisionCount: admin.firestore.FieldValue.increment(1),
+          });
+        });
+        return res.status(200).json({ success: true, id: pendingMine.id, revised: true });
+      }
+
       await db.runTransaction(async (tx) => {
         tx.set(quotationRef, payload);
         tx.update(postRef, {
@@ -2057,6 +2098,9 @@ exports.submitQuotation = onRequest(
 
       return res.status(200).json({ success: true, id: quotationRef.id });
     } catch (err) {
+      if (err instanceof HttpError) {
+        return res.status(err.status).json({ error: err.message });
+      }
       logger.error("submitQuotation error", err);
       return res.status(500).json({ error: err.message || "Failed to submit quote." });
     }

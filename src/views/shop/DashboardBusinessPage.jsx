@@ -643,8 +643,8 @@ export default function ShopDashboardBusiness() {
           onSubmit={async ({ projectId, amount, note, items }) => {
             setSubmitting(true);
             try {
-              await submitQuotation({ projectId, amount, note, items });
-              showToast("Quotation submitted!");
+              const result = await submitQuotation({ projectId, amount, note, items });
+              showToast(result?.revised ? "Quote updated — the builder now sees your new prices." : "Quotation submitted!");
               setQuoteModal(null);
               const updated = await getShopQuotations();
               setQuotations(updated);

@@ -160,6 +160,22 @@ export default function ShopProjectsPanel({
     return set;
   }, [quotations]);
 
+  // This shop's quote state per project, matching submitQuotation's rules:
+  // "won" (accepted — locked), "pending" (re-submitting revises it), or
+  // "rejected" (may quote again). Won beats pending beats rejected.
+  const myQuoteState = useMemo(() => {
+    const rank = { won: 3, pending: 2, rejected: 1 };
+    const map = new Map();
+    quotations.forEach((q) => {
+      if (!q.projectId) return;
+      const s = String(q.status || "pending").toLowerCase();
+      const state = s === "accepted" || s === "partially_accepted" ? "won" : s === "pending" ? "pending" : "rejected";
+      const prev = map.get(q.projectId);
+      if (!prev || rank[state] > rank[prev]) map.set(q.projectId, state);
+    });
+    return map;
+  }, [quotations]);
+
   const types = useMemo(() => {
     const map = new Map();
     projects.forEach((p) => {
@@ -572,31 +588,46 @@ export default function ShopProjectsPanel({
                         />
                       </button>
                     )}
-                    <button
-                      type="button"
-                      disabled={quotaBlocked}
-                      onClick={() => !quotaBlocked && onQuote?.(p)}
-                      title={
-                        quotaBlocked
-                          ? "Monthly quotation quota reached"
-                          : already
-                            ? "Submit another quote for this project"
-                            : "Submit a quotation"
-                      }
-                      style={{
-                        padding: "10px 18px",
-                        borderRadius: 8,
-                        border: "none",
-                        background: quotaBlocked ? "#E2E8F0" : `linear-gradient(135deg,${ACCENT},#3B82F6)`,
-                        color: quotaBlocked ? "#94A3B8" : "#fff",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: quotaBlocked ? "not-allowed" : "pointer",
-                        fontFamily: "inherit",
-                      }}
-                    >
-                      {quotaBlocked ? "Quota reached" : already ? "Quote again" : "Submit quote"}
-                    </button>
+                    {(() => {
+                      const mine = myQuoteState.get(p.id);
+                      // Revising a pending quote doesn't use the monthly quota.
+                      const locked = mine === "won" || (quotaBlocked && mine !== "pending");
+                      const label =
+                        mine === "won" ? "Quote accepted"
+                        : mine === "pending" ? "Update my quote"
+                        : quotaBlocked ? "Quota reached"
+                        : mine === "rejected" ? "Quote again"
+                        : "Submit quote";
+                      const title =
+                        mine === "won" ? "The builder accepted your quote — manage it from Quotations"
+                        : mine === "pending" ? "Replace your current quote with an updated one"
+                        : quotaBlocked ? "Monthly quotation quota reached"
+                        : mine === "rejected" ? "Your last quote wasn't accepted — you can send a new one"
+                        : "Submit a quotation";
+                      return (
+                        <button
+                          type="button"
+                          disabled={locked}
+                          onClick={() => !locked && onQuote?.(p)}
+                          title={title}
+                          style={{
+                            padding: "10px 18px",
+                            borderRadius: 8,
+                            border: "none",
+                            background: locked
+                              ? (mine === "won" ? "#D1FAE5" : "#E2E8F0")
+                              : `linear-gradient(135deg,${ACCENT},#3B82F6)`,
+                            color: locked ? (mine === "won" ? "#065F46" : "#94A3B8") : "#fff",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: locked ? "not-allowed" : "pointer",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
 

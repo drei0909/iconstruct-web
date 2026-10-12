@@ -80,7 +80,9 @@ export async function submitQuotation({ projectId, amount, note, items, quotedCo
     post.userId || post.builderId || post.ownerId || post.postedBy || "";
 
   const list = Array.isArray(items) ? items : [];
-  await insertQuotation({
+  // Returns { success, id, revised } — revised=true when an existing
+  // pending quote was updated instead of a new one being created.
+  return insertQuotation({
     projectId,
     projectTitle,
     shopId:   user.uid,
