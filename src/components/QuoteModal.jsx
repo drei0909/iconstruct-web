@@ -3,14 +3,15 @@ import { useState } from "react";
 import { Package } from "@phosphor-icons/react";
 import { estimateProjectBaseline, referenceUnitPrice } from "../utils/recommendationEngine";
 import { classifyMaterial } from "../utils/supplyCategories";
+import MaterialPhoto from "./ui/MaterialPhoto";
 
 const peso = (n) =>
   new Intl.NumberFormat("en-PH", {
     style: "currency", currency: "PHP", maximumFractionDigits: 0,
   }).format(n ?? 0);
 
-function MaterialImage({ accentColor, active }) {
-  return (
+function MaterialImage({ accentColor, active, photoKey, name }) {
+  const icon = (
     <div style={{
       width: 44, height: 44, borderRadius: 8,
       background: active ? accentColor + "15" : "#E4E9F0",
@@ -20,6 +21,8 @@ function MaterialImage({ accentColor, active }) {
       <Package size={22} color={active ? accentColor : "#94A3B8"} weight="duotone" />
     </div>
   );
+  // Real photo when the builder app attached one; otherwise the box icon.
+  return <MaterialPhoto photoKey={photoKey} name={name} size={44} fallback={icon} />;
 }
 
 const AMBER = "#D97706";
@@ -288,7 +291,7 @@ export default function QuoteModal({
                     {/* Row 1: identity + mode toggle */}
                     <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
 
-                      <MaterialImage accentColor={accentColor} active={active} />
+                      <MaterialImage accentColor={accentColor} active={active} photoKey={m.photoKey} name={m.name} />
 
                       <div style={{ flex: "1 1 140px", minWidth: 0 }}>
                         <div style={{ fontSize: 13.5, fontWeight: 700, color: isDecl ? "#B91C1C" : "#0F172A", textDecoration: isDecl ? "line-through" : "none", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>

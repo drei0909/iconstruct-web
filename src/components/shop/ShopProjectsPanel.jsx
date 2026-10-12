@@ -8,6 +8,7 @@ import ListPagination, { paginate } from "../ui/ListPagination";
 import { estimateProjectBaseline } from "../../utils/recommendationEngine";
 import { scoreProjectFit } from "../../utils/supplyCategories";
 import { toDate, formatDateTime } from "../../utils/dateTime";
+import MaterialPhoto from "../ui/MaterialPhoto";
 
 const ACCENT = "#2C5282";
 const peso0 = (n) => `₱${Number(n || 0).toLocaleString("en-PH", { maximumFractionDigits: 0 })}`;
@@ -733,15 +734,21 @@ export default function ShopProjectsPanel({
                                 border: "1px solid #E2E8F0",
                                 borderRadius: 10,
                                 padding: "10px 12px",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 10,
                               }}
                             >
-                              <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>
-                                {m.name || "Material"}
-                              </div>
-                              <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
-                                {[m.category, m.quantity != null ? `${m.quantity} ${m.unit || ""}`.trim() : null, m.size]
-                                  .filter(Boolean)
-                                  .join(" · ") || "—"}
+                              <MaterialPhoto photoKey={m.photoKey} name={m.name} size={40} />
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>
+                                  {m.name || "Material"}
+                                </div>
+                                <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
+                                  {[m.category, m.quantity != null ? `${m.quantity} ${m.unit || ""}`.trim() : null, m.size]
+                                    .filter(Boolean)
+                                    .join(" · ") || "—"}
+                                </div>
                               </div>
                             </div>
                           ))}
