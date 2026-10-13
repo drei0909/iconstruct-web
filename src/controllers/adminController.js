@@ -11,7 +11,7 @@
 import { auth, db } from "../services/firebase";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import {
-  getDoc, doc, addDoc, collection, serverTimestamp, arrayUnion,
+  getDoc, doc, addDoc, collection, serverTimestamp, arrayUnion, Timestamp,
 } from "firebase/firestore";
 import {
   fetchAllShops,
@@ -21,6 +21,8 @@ import {
   updateShopSubscription,
   fetchPlatformOpsCounts,
   subscribeToAdminInbox,
+  subscribeToConfirmedPayments,
+  subscribeToActiveSubscribers,
 } from "../models/adminModel";
 import {
   fetchContactMessages,
@@ -76,6 +78,16 @@ export async function logoutAdmin() {
   const email = auth.currentUser?.email || "unknown";
   await writeLog("info", `Admin signed out: ${email}`);
   await signOut(auth);
+}
+
+/** Live confirmed subscription payments (sales). Returns unsubscribe. */
+export function watchSales(onChange, onError) {
+  return subscribeToConfirmedPayments(onChange, onError);
+}
+
+/** Live shops currently on an active paid plan. Returns unsubscribe. */
+export function watchActiveSubscribers(onChange, onError) {
+  return subscribeToActiveSubscribers(onChange, onError);
 }
 
 /** Live pending shops / payments / new messages for the admin bell.
@@ -164,9 +176,22 @@ export async function confirmPayment(paymentId, planName, shopId) {
   // Length comes from the plan's billing cycle (Monthly 30 / Quarterly 90 /
   // Annually 365 days) — it was a flat 30 even for quarterly/annual plans.
   const livePlan = await getLivePlanConfig(planKey);
-  const expiry = new Date(baseMs + cycleDays(livePlan.billingCycle) * 24 * 60 * 60 * 1000);
+  const days = cycleDays(livePlan.billingCycle);
+  const expiry = new Date(baseMs + days * 24 * 60 * 60 * 1000);
 
-  await updatePaymentStatus(paymentId, "confirmed");
+  // Sales ledger fields: when it was confirmed, the period it bought, and a
+  // numeric amount (requests from before submitPaymentRequest recorded one
+  // only had a "₱799/month" display string — fall back to the plan price).
+  const payData = paySnap.data();
+  const ledger = {
+    confirmedAt: serverTimestamp(),
+    periodDays: days,
+    periodEnd: Timestamp.fromDate(expiry),
+  };
+  if (!Number.isFinite(Number(payData.amount)) || payData.amount === null || payData.amount === "") {
+    ledger.amount = Number(livePlan.price) || 0;
+  }
+  await updatePaymentStatus(paymentId, "confirmed", ledger);
   await updateShopSubscription(shopId, planName, expiry);
 
   const snap = await getDoc(doc(db, "shops", shopId));

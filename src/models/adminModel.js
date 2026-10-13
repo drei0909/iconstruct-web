@@ -15,6 +15,31 @@ const NOTIF_SOURCES = [
 ];
 
 /**
+ * Live feed of CONFIRMED subscription payments (= sales). Single equality
+ * filter (no orderBy), so Firestore's automatic index serves it with no
+ * composite index to build; the Sales tab sorts by date client-side. A
+ * PayMongo sale is written by a Cloud Function, so without a listener it
+ * would only appear after a manual refresh.
+ */
+export function subscribeToConfirmedPayments(onChange, onError) {
+  return onSnapshot(
+    query(collection(db, "subscriptionPayments"), where("status", "==", "confirmed")),
+    (snap) => onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    onError
+  );
+}
+
+/** Live list of shops whose paid plan is marked active (single equality —
+ *  automatic index). Callers still check the expiry date client-side. */
+export function subscribeToActiveSubscribers(onChange, onError) {
+  return onSnapshot(
+    query(collection(db, "shops"), where("subscriptionStatus", "==", "active")),
+    (snap) => onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    onError
+  );
+}
+
+/**
  * Live feed of everything waiting on an admin: pending shop applications,
  * pending payments, and new contact messages. Each listener only watches
  * the actionable subset (status filter + cap), never a whole collection,

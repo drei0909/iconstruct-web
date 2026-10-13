@@ -381,6 +381,11 @@ async function activateShopSubscription(shopId, planId, opts = {}) {
       email: data.email || "",
       planName: planId,
       planPrice: amount,
+      // Sales ledger fields (admin Sales tab): numeric peso amount actually
+      // charged, and the paid period this sale bought.
+      amount,
+      periodDays: planDays,
+      periodEnd: admin.firestore.Timestamp.fromDate(newExpiry),
       paymentMethod: "paymongo",
       status: "confirmed",
       source,
@@ -2058,6 +2063,8 @@ exports.submitPaymentRequest = onRequest(
         email: shop.email || decoded.email || "",
         planName,
         planPrice: planPriceLabel,
+        // Numeric peso price for the Sales ledger once an admin confirms it.
+        amount: plan.amount / 100,
         paymentMethod,
         referenceNumber,
         screenshotBase64,

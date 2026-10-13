@@ -32,6 +32,7 @@
     GearSix,
     SquaresFour,
     EnvelopeSimple,
+    ChartLineUp,
   } from "@phosphor-icons/react";
 
   import SystemSettingsTab from "./SystemSettingsTab";
@@ -39,6 +40,7 @@
   import DashboardOverview from "./DashboardOverview";
   import ShopApplicationsTab, { getDocCompleteness } from "./ShopApplicationsTab";
   import ManageShopsTab from "./ManageShopsTab";
+  import SalesTab from "./SalesTab";
   import DashboardBrand from "../../components/ui/DashboardBrand";
   import MobileDrawerNav from "../../components/ui/MobileDrawerNav";
   import { auth } from "../../services/firebase";
@@ -78,6 +80,7 @@
     { key:"applications",  label:"Shop Applications",  icon: <Storefront size={16} /> },
     { key:"shops",         label:"Manage Shops",        icon: <Buildings size={16} /> },
     { key:"subscriptions", label:"Subscriptions",       icon: <CurrencyCircleDollar size={16} /> },
+    { key:"sales",         label:"Sales",               icon: <ChartLineUp size={16} /> },
     { key:"messages",      label:"Contact Messages",    icon: <EnvelopeSimple size={16} /> },
     { key:"settings",      label:"System Settings",     icon: <GearSix size={16} /> },
   ];
@@ -546,6 +549,7 @@
               StatusBadge={StatusBadge}
             />
           );
+        case "sales":         return <SalesTab shops={shops} Avatar={Avatar} />;
         case "subscriptions": return <SubscriptionsTabFull filteredPayments={filteredPayments} payFilter={payFilter} setPayFilter={setPayFilter} paySearch={paySearch} setPaySearch={setPaySearch} payStats={payStats} setSelectedPayment={setSelectedPayment} />;
         case "messages":
           return (
