@@ -57,8 +57,10 @@
   // Shared with Flutter: collection "projectPosts". Fetch all posts builders create
   // so the web shop dashboard can list them (not only status === "open").
 
+  // Keep in sync with BIDDING_CLOSED in functions/index.js. "offer_accepted"
+  // = the builder already picked a supplier, so it's off the bidding board.
   const CLOSED_STATUSES = new Set([
-    "closed", "cancelled", "canceled", "completed", "rejected", "deleted",
+    "closed", "cancelled", "canceled", "completed", "rejected", "deleted", "offer_accepted",
   ]);
 
   function projectTimestamp(p) {

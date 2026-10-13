@@ -108,7 +108,12 @@ async function sendMulticastChunked({ tokens = [], ...message }) {
 
 /** Project statuses that end bidding. Keep in sync with CLOSED_STATUSES in
  *  src/models/shopModel.js (which decides what shops are shown). */
-const BIDDING_CLOSED = new Set(["closed", "cancelled", "canceled", "completed", "rejected", "deleted"]);
+// "offer_accepted" = the builder app picked a supplier (it rejects every other
+// quote in the same step); the builder app's cancelSupplierSelection sets the
+// post back to "open"/"has_quotations", which reopens bidding here too.
+const BIDDING_CLOSED = new Set([
+  "closed", "cancelled", "canceled", "completed", "rejected", "deleted", "offer_accepted",
+]);
 
 // Lets a handler throw with a specific HTTP status from deep inside a
 // transaction, instead of returning sentinel values up through every layer.
