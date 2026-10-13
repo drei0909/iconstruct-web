@@ -11,25 +11,25 @@ const team = [
     number: "01",
     name: "Project Lead",
     role: "System Architecture & Backend Development",
-    photo: photo1, // replace with photo1
+    // photo: photo1, // replace with photo1
   },
   {
     number: "02",
     name: "UI/UX Designer",
     role: "Interface Design & Frontend Development",
-    photo: photo1, // replace with photo2
+    // photo: photo1, // replace with photo2
   },
   {
     number: "03",
     name: "Database Engineer",
     role: "Data Modeling & System Integration",
-    photo: photo1, // replace with photo3
+    // photo: photo1, // replace with photo3
   },
   {
     number: "04",
     name: "QA & Documentation",
     role: "Testing, Research & Technical Writing",
-    photo: photo1, // replace with photo4
+    // photo: photo1, // replace with photo4
   },
 ];
 

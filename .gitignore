@@ -20,3 +20,6 @@ dist/
 # IDE / local
 .cursor/
 *.local
+
+# Internal security notes — never push (public repo)
+SYSTEM-AND-SECURITY-STATE.md
