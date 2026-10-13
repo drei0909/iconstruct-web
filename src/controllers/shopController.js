@@ -12,8 +12,7 @@ import {
   insertQuotation,
   respondToAcceptedQuote,
   proposeItemRenegotiation,
-  fetchLatestPaymentByShop,
-  fetchPendingPaymentByShop,
+  fetchLatestPaymentByShop,
   insertPaymentRequest,
 } from "../models/shopModel";
 import { getDoc, doc } from "firebase/firestore";
@@ -140,27 +139,12 @@ export async function getMyPaymentRequest() {
   return fetchLatestPaymentByShop(user.uid);
 }
 
+// Approval, the one-pending rule and the price are all enforced by the
+// server function now — the browser can't skip or fake them.
 export async function submitPaymentRequest({
-  planName, planPrice, paymentMethod, referenceNumber, screenshotBase64,
+  planName, paymentMethod, referenceNumber, screenshotBase64,
 }) {
-  const { user, shop } = await requireApprovedShop();
-
-  const hasPending = await fetchPendingPaymentByShop(user.uid);
-  if (hasPending) {
-    throw new Error("You already have a pending payment request. Please wait for admin confirmation.");
-  }
-
-  await insertPaymentRequest({
-    shopId:          user.uid,
-    shopName:        shop.shopName,
-    ownerName:       shop.ownerName,
-    email:           shop.email,
-    planName,
-    planPrice,
-    paymentMethod,
-    referenceNumber,
-    screenshotBase64: screenshotBase64 || "",
-  });
+  return insertPaymentRequest({ planName, paymentMethod, referenceNumber, screenshotBase64 });
 }
 
 // ── Analytics ─────────────────────────────────────────────────────────────────

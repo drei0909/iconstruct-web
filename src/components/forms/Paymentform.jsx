@@ -105,12 +105,43 @@ export default function PaymentForm({ onSuccess, existingRequest }) {
     );
   }
 
+  // Phone screenshots are often 1–3 MB, over the ~700 KB the server accepts.
+  // Downscale to ≤1280 px and re-encode as JPEG so a normal receipt fits
+  // (and stays readable) instead of being rejected.
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setScreenshot(reader.result);
-    reader.readAsDataURL(file);
+    setError("");
+    if (!/^image\/(png|jpe?g|webp)$/i.test(file.type)) {
+      setError("Please upload a PNG, JPG or WEBP image of your receipt.");
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, 1280 / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      let quality = 0.8;
+      let data = canvas.toDataURL("image/jpeg", quality);
+      while (data.length > 900000 && quality > 0.4) {
+        quality -= 0.1;
+        data = canvas.toDataURL("image/jpeg", quality);
+      }
+      if (data.length > 900000) {
+        setError("That image is too large even after compressing. Try a cropped screenshot.");
+        return;
+      }
+      setScreenshot(data);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      setError("Couldn't read that image. Try a different file.");
+    };
+    img.src = url;
   };
 
   const handleSubmit = async () => {

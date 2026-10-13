@@ -6,9 +6,13 @@ service firebase.storage {
     // Download URLs with tokens still work for admin review links in Firestore.
     match /shop-documents/{userId}/{allPaths=**} {
       allow read: if request.auth != null && request.auth.uid == userId;
+      // Images or PDF only (what the registration form accepts) — any file
+      // type used to be accepted, letting an account park arbitrary files.
       allow write: if request.auth != null
                    && request.auth.uid == userId
-                   && request.resource.size < 8 * 1024 * 1024;
+                   && request.resource.size < 8 * 1024 * 1024
+                   && (request.resource.contentType.matches('image/.*')
+                       || request.resource.contentType == 'application/pdf');
     }
 
     // Product images (written by web shops only). Cap size + require an image type.
@@ -22,9 +26,14 @@ service firebase.storage {
     }
 
     // Existing profile images folder — write only under own uid prefix
+    // Builder app profile photos. Size-capped (there was no limit at all, so
+    // one account could upload huge files indefinitely at the project's cost).
     match /user_profile_images/{userId}/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if request.auth != null
+                   && request.auth.uid == userId
+                   && request.resource.size < 10 * 1024 * 1024;
+      allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
     // Chat photo attachments (builder ↔ shop). Both apps upload here; any
@@ -40,7 +49,10 @@ service firebase.storage {
     // Legacy flat paths: authenticated write only to own filename prefix (best-effort)
     match /user_profile_images/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null
+      allow create, update: if request.auth != null
+                   && fileName.matches(request.auth.uid + '.*')
+                   && request.resource.size < 10 * 1024 * 1024;
+      allow delete: if request.auth != null
                    && fileName.matches(request.auth.uid + '.*');
     }
 

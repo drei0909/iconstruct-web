@@ -4,7 +4,6 @@
 import { db } from "../services/firebase";
 import {
   collection,
-  addDoc,
   getDocs,
   updateDoc,
   deleteDoc,
@@ -16,16 +15,30 @@ import {
 
 const COL = "contactMessages";
 
-export async function insertContactMessage({ name, email, subject, message }) {
-  const ref = await addDoc(collection(db, COL), {
-    name,
-    email,
-    subject,
-    message,
-    status: "new", // new | read | archived
-    createdAt: serverTimestamp(),
-  });
-  return ref.id;
+const SUBMIT_CONTACT_URL =
+  "https://us-central1-iconstruct-58a87.cloudfunctions.net/submitContactMessage";
+
+/** Public submit goes through the submitContactMessage Cloud Function (spam
+ *  limits, honeypot). Direct Firestore creates are locked in the rules. */
+export async function insertContactMessage({ name, email, subject, message, website }) {
+  let res;
+  try {
+    res = await fetch(SUBMIT_CONTACT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, subject, message, website }),
+    });
+  } catch {
+    throw new Error("Couldn't reach the server. Check your connection and try again.");
+  }
+  let data = {};
+  try {
+    data = await res.json();
+  } catch {
+    /* non-JSON */
+  }
+  if (!res.ok) throw new Error(data.error || `Couldn't send your message (${res.status}).`);
+  return data.id || null;
 }
 
 export async function fetchContactMessages() {

@@ -32,6 +32,32 @@ service cloud.firestore {
       return signedIn() && shopIsApproved(request.auth.uid);
     }
 
+    // The signed-in email passed the emailed OTP and that verification hasn't
+    // lapsed (written only by the OTP Cloud Functions; clients can't touch it).
+    function emailOtpVerified(email) {
+      return exists(/databases/$(database)/documents/otps/$(email))
+        && get(/databases/$(database)/documents/otps/$(email)).data.verified == true
+        && get(/databases/$(database)/documents/otps/$(email)).data.expires > request.time.toMillis();
+    }
+
+    // Field is absent, not a string, or a string within `n` characters.
+    function strMax(d, f, n) {
+      return !(f in d) || !(d[f] is string) || d[f].size() <= n;
+    }
+
+    // Size caps on a shop's free-text fields, so they can't be stuffed with
+    // megabytes of junk that every dashboard and the builder app then loads.
+    function shopTextOk(d) {
+      return strMax(d, "shopName", 120)
+        && strMax(d, "ownerName", 120)
+        && strMax(d, "phone", 30)
+        && strMax(d, "address", 300)
+        && strMax(d, "barangay", 120)
+        && strMax(d, "description", 2000)
+        && strMax(d, "businessHours", 200)
+        && strMax(d, "storefrontAbout", 3000);
+    }
+
     // Builder uid on a posted estimate. Canonical field is userId (Auth uid).
     function isPostOwner(data) {
       return signedIn() && (
@@ -61,29 +87,38 @@ service cloud.firestore {
       allow read: if isOwner(shopId) || isAdmin()
                   || (signedIn() && resource.data.status == "approved");
 
+      // A new application requires that this exact email really passed the
+      // emailed OTP (verifyEmailOtp marks otps/{email} verified, server-side
+      // only). The OTP gate used to exist only in the browser, so a script
+      // could create accounts and flood Shop Applications with fake pending
+      // shops without ever verifying an address.
       allow create: if isOwner(shopId)
         && request.resource.data.subscriptionPlan == "basic"
-        && request.resource.data.status == "pending";
+        && request.resource.data.status == "pending"
+        && request.auth.token.email is string
+        && request.resource.data.email == request.auth.token.email
+        && emailOtpVerified(request.auth.token.email)
+        && request.resource.data.documents is list
+        && request.resource.data.documents.size() <= 12
+        && shopTextOk(request.resource.data);
 
-      // Owners may edit profile fields only — not plan, approval, billing,
-      // identity/email, KYC documents, or an oversized fcmTokens array.
-      // Cloud Functions (Admin SDK) bypass rules for PayMongo activation.
+      // Owners may edit ONLY the profile fields the dashboard edits. This was
+      // a blocklist, which left everything else writable — including the
+      // rating fields (avgRating, ratingCount, …), so a shop could give itself
+      // 5★ from 1,000 reviews. Plan, approval, billing, ratings, documents and
+      // identity are all written by admins or Cloud Functions (Admin SDK).
       allow update: if isAdmin() || (
         isOwner(shopId)
-        && !request.resource.data.diff(resource.data).affectedKeys()
-            .hasAny([
-              "subscriptionPlan",
-              "subscriptionStatus",
-              "subscriptionExpiry",
-              "status",
-              "email",
-              "uid",
-              "createdAt",
-              "documents",
-              "documentURL",
-              "documentName",
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly([
+              "shopName", "ownerName", "phone", "address", "barangay",
+              "description", "notifs", "businessHours", "coverageCities",
+              "storefrontAbout", "suppliedCategories", "fcmTokens", "updatedAt",
             ])
         && request.resource.data.get("fcmTokens", []).size() <= 30
+        && request.resource.data.get("coverageCities", []).size() <= 50
+        && request.resource.data.get("suppliedCategories", []).size() <= 50
+        && shopTextOk(request.resource.data)
       ) || (
         isOwner(shopId)
         && request.resource.data.diff(resource.data).affectedKeys()
@@ -128,13 +163,11 @@ service cloud.firestore {
     match /subscriptionPayments/{paymentId} {
       allow read: if isAdmin()
                   || (signedIn() && resource.data.shopId == request.auth.uid);
-      allow create: if signedIn()
-        && request.resource.data.shopId == request.auth.uid
-        && request.resource.data.status == "pending"
-        && request.resource.data.planName is string
-        && request.resource.data.planName.lower() in ["pro", "business"]
-        && request.resource.data.get("screenshotBase64", "").size() < 950000
-        && request.resource.data.get("referenceNumber", "").size() <= 120;
+      // Created only by the submitPaymentRequest Cloud Function (approved
+      // shops, one pending at a time, daily cap, server-set price). A direct
+      // client create let ANY account — builders too — spam pending requests
+      // with ~1 MB screenshots and a self-reported price.
+      allow create: if isAdmin();
       allow update, delete: if isAdmin();
     }
 
@@ -374,23 +407,10 @@ service cloud.firestore {
     // Not used by the Flutter app. Anyone may create a well-formed message;
     // only admins can read / triage / delete.
     match /contactMessages/{messageId} {
-      allow create: if request.resource.data.keys().hasOnly([
-          "name", "email", "subject", "message", "status", "createdAt"
-        ])
-        && request.resource.data.status == "new"
-        && request.resource.data.name is string
-        && request.resource.data.name.size() > 0
-        && request.resource.data.name.size() <= 120
-        && request.resource.data.email is string
-        && request.resource.data.email.size() > 3
-        && request.resource.data.email.size() <= 200
-        && request.resource.data.subject is string
-        && request.resource.data.subject.size() > 0
-        && request.resource.data.subject.size() <= 200
-        && request.resource.data.message is string
-        && request.resource.data.message.size() >= 10
-        && request.resource.data.message.size() <= 5000
-        && request.resource.data.createdAt == request.time;
+      // Public submissions go through the submitContactMessage Cloud Function
+      // (cross-instance rate limits + honeypot). An unauthenticated direct
+      // create could be scripted to flood the admin inbox.
+      allow create: if false;
       allow read: if isAdmin();
       allow update, delete: if isAdmin();
     }

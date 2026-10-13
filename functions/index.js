@@ -136,6 +136,39 @@ function rateLimit(key, { max, windowMs }) {
   return { ok: true, retryAfterSec: 0 };
 }
 
+/**
+ * Rate limit that holds across ALL function instances. The in-memory
+ * rateLimit() above lives inside one instance — with maxInstances 10 a
+ * script effectively gets 10x the limit, and a cold start resets it — so
+ * every unauthenticated public endpoint uses this instead. The key is
+ * hashed so raw IPs / emails are never stored. `expiresAt` lets a Firestore
+ * TTL policy on rateLimits.expiresAt clean old entries up automatically.
+ */
+async function durableRateLimit(key, { max, windowMs }) {
+  const id = crypto.createHash("sha256").update(String(key)).digest("hex").slice(0, 40);
+  const ref = db.collection("rateLimits").doc(id);
+  const now = Date.now();
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const stamps = (snap.exists ? snap.data().stamps || [] : []).filter((t) => t > now - windowMs);
+    if (stamps.length >= max) {
+      return { ok: false, retryAfterSec: Math.max(1, Math.ceil((stamps[0] + windowMs - now) / 1000)) };
+    }
+    stamps.push(now);
+    tx.set(ref, { stamps, expiresAt: admin.firestore.Timestamp.fromMillis(now + windowMs) });
+    return { ok: true, retryAfterSec: 0 };
+  });
+}
+
+/** Runs several durable limits; returns the first that trips (or ok). */
+async function checkLimits(limits) {
+  for (const [key, opts] of limits) {
+    const r = await durableRateLimit(key, opts);
+    if (!r.ok) return r;
+  }
+  return { ok: true, retryAfterSec: 0 };
+}
+
 function getPaymongoSecret() {
   // Bound secret (production) or dotenv (local emulator / fallback)
   try {
@@ -1628,17 +1661,20 @@ exports.requestEmailOtp = onRequest(
       return res.status(400).json({ error: "Valid email is required." });
     }
 
-    const ipLim = rateLimit(`otp-ip:${clientIp(req)}`, {
-      max: 12,
-      windowMs: 15 * 60 * 1000,
-    });
-    const mailLim = rateLimit(`otp-mail:${email}`, {
-      max: 3,
-      windowMs: 10 * 60 * 1000,
-    });
-    if (!ipLim.ok || !mailLim.ok) {
+    // Durable limits (shared by every instance). The daily global cap is what
+    // protects the EmailJS monthly quota: without it a script rotating IPs
+    // and addresses could burn through every email the platform can send,
+    // and real shops would stop receiving their codes.
+    const lim = await checkLimits([
+      [`otp-mail:${email}`, { max: 3, windowMs: 10 * 60 * 1000 }],
+      [`otp-mail-day:${email}`, { max: 10, windowMs: 24 * 60 * 60 * 1000 }],
+      [`otp-ip:${clientIp(req)}`, { max: 10, windowMs: 60 * 60 * 1000 }],
+      // Size this to the EmailJS plan's quota.
+      ["otp-global-day", { max: 100, windowMs: 24 * 60 * 60 * 1000 }],
+    ]);
+    if (!lim.ok) {
       return res.status(429).json({
-        error: `Too many OTP requests. Retry in ${Math.max(ipLim.retryAfterSec, mailLim.retryAfterSec)}s.`,
+        error: `Too many verification code requests. Please try again in ${Math.ceil(lim.retryAfterSec / 60)} minute(s).`,
       });
     }
 
@@ -1886,6 +1922,157 @@ exports.assertEmailOtpVerified = onRequest(
     return res.status(500).json({ error: err.message || "Check failed." });
   }
 });
+
+/**
+ * Public Contact Us submission. Used to be a direct, unauthenticated
+ * Firestore write whose only limit lived in the visitor's own browser — a
+ * script could flood the admin inbox. contactMessages `create` is now
+ * locked in firestore.rules; this is the only way in.
+ */
+exports.submitContactMessage = onRequest(
+  { cors: true, invoker: "public", timeoutSeconds: 30 },
+  async (req, res) => {
+    if (handlePreflight(req, res)) return;
+    applyCors(req, res);
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+    try {
+      const body = req.body || {};
+      const clean = (s, max) => String(s || "").trim().replace(/\s+/g, " ").slice(0, max);
+      const name = clean(body.name, 120);
+      const email = clean(body.email, 200).toLowerCase();
+      const subject = clean(body.subject, 200);
+      const message = String(body.message || "").trim().slice(0, 5000);
+
+      // Honeypot: a hidden field real visitors never see or fill. Bots that
+      // fill every input get a normal-looking success and nothing is stored.
+      if (String(body.website || "").trim()) {
+        return res.status(200).json({ success: true });
+      }
+
+      if (!name) return res.status(400).json({ error: "Please enter your name." });
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ error: "Please enter a valid email address." });
+      }
+      if (!subject) return res.status(400).json({ error: "Please enter a subject." });
+      if (message.length < 10) {
+        return res.status(400).json({ error: "Please write a slightly longer message (at least 10 characters)." });
+      }
+
+      const lim = await checkLimits([
+        [`contact-ip:${clientIp(req)}`, { max: 5, windowMs: 60 * 60 * 1000 }],
+        [`contact-mail:${email}`, { max: 3, windowMs: 60 * 60 * 1000 }],
+        ["contact-global-day", { max: 300, windowMs: 24 * 60 * 60 * 1000 }],
+      ]);
+      if (!lim.ok) {
+        return res.status(429).json({
+          error: `Too many messages sent. Please try again in ${Math.ceil(lim.retryAfterSec / 60)} minute(s).`,
+        });
+      }
+
+      const ref = await db.collection("contactMessages").add({
+        name,
+        email,
+        subject,
+        message,
+        status: "new",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return res.status(200).json({ success: true, id: ref.id });
+    } catch (err) {
+      logger.error("submitContactMessage", err);
+      return res.status(500).json({ error: "Couldn't send your message. Please try again." });
+    }
+  }
+);
+
+/**
+ * Manual (GCash receipt) payment request. Used to be a direct Firestore write
+ * any signed-in account could make — including builder accounts — with the
+ * "one pending request" rule and the displayed price both coming from the
+ * browser, so they could be skipped or faked. Now: approved shops only, one
+ * pending request at a time, a daily cap, and the price is set server-side
+ * from the admin's plan config.
+ */
+exports.submitPaymentRequest = onRequest(
+  { cors: [/^http:\/\/localhost:\d+$/, true], invoker: "public", timeoutSeconds: 30 },
+  async (req, res) => {
+    if (handlePreflight(req, res)) return;
+    applyCors(req, res);
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+    const decoded = await requireAuth(req, res);
+    if (!decoded) return;
+    const shopId = decoded.uid;
+
+    try {
+      const lim = await checkLimits([
+        [`payreq-uid:${shopId}`, { max: 5, windowMs: 24 * 60 * 60 * 1000 }],
+      ]);
+      if (!lim.ok) {
+        return res.status(429).json({ error: "Too many payment requests today. Please try again tomorrow." });
+      }
+
+      const shopSnap = await db.collection("shops").doc(shopId).get();
+      const shop = shopSnap.exists ? shopSnap.data() || {} : null;
+      if (!shop || String(shop.status || "").toLowerCase() !== "approved") {
+        return res.status(403).json({ error: "Only approved shops can submit payments." });
+      }
+
+      const body = req.body || {};
+      const planName = String(body.planName || "").toLowerCase();
+      if (!PLAN_PRICES[planName]) {
+        return res.status(400).json({ error: "Choose a valid plan." });
+      }
+      const paymentMethod = String(body.paymentMethod || "").trim().slice(0, 40);
+      const referenceNumber = String(body.referenceNumber || "").trim().slice(0, 120);
+      const screenshotBase64 = String(body.screenshotBase64 || "");
+      if (!paymentMethod) return res.status(400).json({ error: "Choose a payment method." });
+      if (!referenceNumber) return res.status(400).json({ error: "Enter your payment reference number." });
+      if (screenshotBase64 && (
+        screenshotBase64.length > 950000 || !/^data:image\/(png|jpe?g|webp);base64,/i.test(screenshotBase64)
+      )) {
+        return res.status(400).json({ error: "The receipt must be a PNG, JPG or WEBP image under ~700 KB." });
+      }
+
+      const pending = await db
+        .collection("subscriptionPayments")
+        .where("shopId", "==", shopId)
+        .where("status", "==", "pending")
+        .limit(1)
+        .get();
+      if (!pending.empty) {
+        return res.status(409).json({
+          error: "You already have a pending payment request. Please wait for admin confirmation.",
+        });
+      }
+
+      const plan = await resolvePlanPrice(planName);
+      const planPriceLabel = `₱${Number(plan.amount / 100).toLocaleString("en-PH")}/${plan.interval || "month"}`;
+      const ref = await db.collection("subscriptionPayments").add({
+        shopId,
+        shopName: shop.shopName || "",
+        ownerName: shop.ownerName || "",
+        email: shop.email || decoded.email || "",
+        planName,
+        planPrice: planPriceLabel,
+        paymentMethod,
+        referenceNumber,
+        screenshotBase64,
+        status: "pending",
+        submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return res.status(200).json({ success: true, id: ref.id });
+    } catch (err) {
+      logger.error("submitPaymentRequest", err);
+      return res.status(500).json({ error: "Couldn't submit your payment request. Please try again." });
+    }
+  }
+);
 
 /**
  * Submit a per-line quotation on a project. Used to be a direct client write

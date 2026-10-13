@@ -3,9 +3,9 @@
 
   import { db, auth } from "../services/firebase";
   import {
-    doc, getDoc, getDocs, addDoc,
+    doc, getDoc, getDocs,
     collection, collectionGroup, query, where, orderBy,
-    serverTimestamp, onSnapshot, limit,
+    onSnapshot, limit,
   } from "firebase/firestore";
 
   const SUBMIT_QUOTATION_URL =
@@ -14,6 +14,8 @@
     "https://us-central1-iconstruct-58a87.cloudfunctions.net/respondToAcceptedQuote";
   const PROPOSE_RENEGOTIATION_URL =
     "https://us-central1-iconstruct-58a87.cloudfunctions.net/proposeItemRenegotiation";
+  const SUBMIT_PAYMENT_URL =
+    "https://us-central1-iconstruct-58a87.cloudfunctions.net/submitPaymentRequest";
 
   async function postToShopFunction(url, body) {
     const user = auth.currentUser;
@@ -229,23 +231,12 @@
     );
   }
 
-  export async function fetchPendingPaymentByShop(shopId) {
-    const q = query(
-      collection(db, "subscriptionPayments"),
-      where("shopId", "==", shopId),
-      where("status", "==", "pending")
-    );
-    const snap = await getDocs(q);
-    return !snap.empty;
-  }
-
-  export async function insertPaymentRequest(data) {
-    await addDoc(collection(db, "subscriptionPayments"), {
-      ...data,
-      status: "pending",
-      submittedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(), 
-      createdAt:   serverTimestamp(),
+  /** Manual payment request — goes through the submitPaymentRequest Cloud
+   *  Function (approved-shop check, one pending at a time, daily cap,
+   *  server-set price). The direct Firestore write is locked in the rules. */
+  export async function insertPaymentRequest({ planName, paymentMethod, referenceNumber, screenshotBase64 }) {
+    return postToShopFunction(SUBMIT_PAYMENT_URL, {
+      planName, paymentMethod, referenceNumber, screenshotBase64: screenshotBase64 || "",
     });
   }
 
