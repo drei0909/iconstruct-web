@@ -1,6 +1,7 @@
 // src/views/admin/AdminLoginPage.jsx
 import { useState } from "react";
 import { loginAdmin } from "../../controllers/adminController";
+import { logAuthEvent, failReason } from "../../services/activityLog";
 import ForgotPassword from "../../components/forms/ForgotPassword";
 
 // Already-signed-in admins are redirected away from /admin by the
@@ -44,6 +45,9 @@ export default function AdminLogin() {
       // once AuthContext actually confirms isAdmin — only one source of
       // truth, no race. This component unmounts via that redirect shortly.
     } catch (err) {
+      // Failed admin sign-ins are a security signal (someone guessing the
+      // admin password) — recorded in System Logs with IP and device.
+      logAuthEvent("admin_login_failed", { email: form.email, reason: failReason(err) });
       const byCode = {
         "auth/invalid-credential": "Incorrect email or password.",
         "auth/wrong-password": "Incorrect email or password.",

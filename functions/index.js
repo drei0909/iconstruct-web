@@ -270,13 +270,16 @@ function handlePreflight(req, res) {
   return false;
 }
 
+// The FIRST X-Forwarded-For entry is whatever the caller chose to send, so a
+// script could put a fresh fake IP on every request and slip past every per-IP
+// limit (and plant fake IPs in the logs). Google's front end appends the real
+// connecting address as the LAST entry, so that's the one to trust.
 function clientIp(req) {
-  return (
-    req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
-    req.ip ||
-    req.connection?.remoteAddress ||
-    "unknown"
-  );
+  const xff = String(req.headers["x-forwarded-for"] || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return xff[xff.length - 1] || req.ip || req.connection?.remoteAddress || "unknown";
 }
 
 /** Only allow redirects back to our own origin (blocks open-redirect phishing). */
@@ -1931,6 +1934,161 @@ exports.assertEmailOtpVerified = onRequest(
   } catch (err) {
     return res.status(500).json({ error: err.message || "Check failed." });
   }
+});
+
+// ── System activity log (admin → System Settings → System Logs) ─────────────
+// systemLogs is admin-read / admin-create in the rules; public activity can't
+// be written from a browser (and anything a browser wrote could be faked), so
+// it is recorded here, server-side, from verified data only.
+
+const LOG_RETENTION_MS = 180 * 24 * 60 * 60 * 1000;
+
+function userAgentOf(req) {
+  return String(req.headers["user-agent"] || "").slice(0, 300);
+}
+
+async function writeSystemLog({ type, level = "info", message, actor = "system", actorRole = "system", uid = null, email = null, ip = null, userAgent = null, extra = {} }) {
+  try {
+    await db.collection("systemLogs").add({
+      type,
+      level,
+      message: String(message || "").slice(0, 500),
+      actor: String(actor || "system").slice(0, 200),
+      actorRole,
+      uid,
+      email: email ? String(email).slice(0, 200) : null,
+      ip: ip ? String(ip).slice(0, 64) : null,
+      userAgent: userAgent ? String(userAgent).slice(0, 300) : null,
+      ...extra,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      // Lets a Firestore TTL policy on systemLogs.expiresAt prune old rows.
+      expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + LOG_RETENTION_MS),
+    });
+  } catch (err) {
+    logger.warn("writeSystemLog failed", err.message);
+  }
+}
+
+/**
+ * Records shop / admin sign-ins, sign-outs, dashboard visits and FAILED
+ * sign-ins in systemLogs.
+ *  - Signed-in events require a valid ID token: who it was (uid, email,
+ *    role) comes from the token and Firestore, never from the request body.
+ *  - Failed sign-ins are necessarily unauthenticated, so they carry only the
+ *    attempted email and are rate-limited per IP and per email (durable) so
+ *    the endpoint can't be used to flood the log.
+ */
+const AUTH_LOG_EVENTS = {
+  shop_login: { level: "success", text: "signed in" },
+  shop_logout: { level: "info", text: "signed out" },
+  shop_visit: { level: "info", text: "opened the dashboard" },
+  admin_login: { level: "success", text: "signed in to the admin panel" },
+  admin_logout: { level: "info", text: "signed out of the admin panel" },
+  login_failed: { level: "warn", text: "failed sign-in" },
+  admin_login_failed: { level: "error", text: "failed ADMIN sign-in" },
+};
+
+exports.logAuthEvent = onRequest(
+  { cors: true, invoker: "public", timeoutSeconds: 15 },
+  async (req, res) => {
+    if (handlePreflight(req, res)) return;
+    applyCors(req, res);
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+    try {
+      const event = String(req.body?.event || "");
+      const spec = AUTH_LOG_EVENTS[event];
+      if (!spec) return res.status(400).json({ error: "Unknown event." });
+      const ip = clientIp(req);
+      const userAgent = userAgentOf(req);
+
+      if (event === "login_failed" || event === "admin_login_failed") {
+        const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 200);
+        // Fixed vocabulary only — free text from an unauthenticated caller
+        // never reaches the log.
+        const REASONS = {
+          wrong_credentials: "wrong email or password",
+          too_many_attempts: "too many attempts",
+          pending: "application still under review",
+          rejected: "application was rejected",
+          suspended: "account suspended",
+          deleted: "account closed",
+          no_shop: "no shop linked to this login",
+          not_admin: "not an admin account",
+          network: "network error",
+        };
+        const reason = REASONS[String(req.body?.reason || "")] || null;
+        const lim = await checkLimits([
+          [`authlog-fail-ip:${ip}`, { max: 30, windowMs: 60 * 60 * 1000 }],
+          [`authlog-fail-mail:${email || "-"}`, { max: 15, windowMs: 60 * 60 * 1000 }],
+        ]);
+        // Silently drop beyond the limit — the caller doesn't need to know.
+        if (lim.ok) {
+          await writeSystemLog({
+            type: event,
+            level: spec.level,
+            message: `${email || "Unknown email"} — ${spec.text}${reason ? ` (${reason})` : ""}`,
+            actor: email || "unknown",
+            actorRole: event === "admin_login_failed" ? "admin" : "visitor",
+            email: email || null,
+            ip,
+            userAgent,
+          });
+        }
+        return res.status(200).json({ ok: true });
+      }
+
+      const decoded = await requireAuth(req, res);
+      if (!decoded) return;
+      const lim = await checkLimits([[`authlog-uid:${decoded.uid}`, { max: 60, windowMs: 60 * 60 * 1000 }]]);
+      if (!lim.ok) return res.status(200).json({ ok: true });
+
+      const isAdminEvent = event.startsWith("admin_");
+      let role = "shop";
+      let name = decoded.email || decoded.uid;
+      if (isAdminEvent) {
+        const a = await db.collection("admins").doc(decoded.uid).get();
+        if (!a.exists) return res.status(403).json({ error: "Not an admin." });
+        role = "admin";
+      } else {
+        const s = await db.collection("shops").doc(decoded.uid).get();
+        if (!s.exists) return res.status(403).json({ error: "No shop for this account." });
+        name = s.data()?.shopName ? `${s.data().shopName} (${decoded.email || "no email"})` : name;
+      }
+
+      await writeSystemLog({
+        type: event,
+        level: spec.level,
+        message: `${name} — ${spec.text}`,
+        actor: decoded.email || decoded.uid,
+        actorRole: role,
+        uid: decoded.uid,
+        email: decoded.email || null,
+        ip,
+        userAgent,
+      });
+      return res.status(200).json({ ok: true });
+    } catch (err) {
+      logger.error("logAuthEvent", err);
+      return res.status(500).json({ error: "Could not record event." });
+    }
+  }
+);
+
+/** A new shop application = a sign-up. Logged from the database write
+ *  itself, so it can't be skipped or faked by the browser. */
+exports.onShopRegistered = onDocumentCreated("shops/{shopId}", async (event) => {
+  const d = event.data?.data() || {};
+  await writeSystemLog({
+    type: "shop_signup",
+    level: "success",
+    message: `New shop sign-up: ${d.shopName || "Unnamed shop"} (${d.email || "no email"}) — awaiting review`,
+    actor: d.email || event.params.shopId,
+    actorRole: "shop",
+    uid: event.params.shopId,
+    email: d.email || null,
+  });
 });
 
 /**

@@ -29,6 +29,23 @@ export function subscribeToConfirmedPayments(onChange, onError) {
   );
 }
 
+/**
+ * Live system log, newest first, capped. `sinceMs` narrows it server-side to
+ * a date range (range + orderBy on the same field = automatic index, nothing
+ * to build); category / role / level / search filters run client-side over
+ * that window so every combination works without a composite index each.
+ */
+export function subscribeToSystemLogs({ sinceMs = null, cap = 500 } = {}, onChange, onError) {
+  const parts = [collection(db, "systemLogs")];
+  if (sinceMs) parts.push(where("createdAt", ">=", Timestamp.fromMillis(sinceMs)));
+  parts.push(orderBy("createdAt", "desc"), limit(cap));
+  return onSnapshot(
+    query(...parts),
+    (snap) => onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    onError
+  );
+}
+
 /** Live list of shops whose paid plan is marked active (single equality —
  *  automatic index). Callers still check the expiry date client-side. */
 export function subscribeToActiveSubscribers(onChange, onError) {

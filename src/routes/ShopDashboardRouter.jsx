@@ -7,6 +7,7 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { useAuth } from "../context/AuthContext";
 import { logoutShop } from "../controllers/shopController";
+import { logVisitOnce } from "../services/activityLog";
 import {
   evaluateShopLoginAccess,
   isShopApproved,
@@ -87,6 +88,7 @@ export default function ShopDashboardRouter() {
   const alertShownRef = useRef(false);
   const deniedOnceRef = useRef(false);
   const unsubRef = useRef(null);
+  const visitLoggedRef = useRef(false);
 
   useEffect(() => {
     if (initializing || checking) return;
@@ -120,7 +122,7 @@ export default function ShopDashboardRouter() {
               "no-shop"
             );
             try {
-              await logoutShop();
+              await logoutShop({ log: false });
             } catch {
               /* ignore */
             }
@@ -146,7 +148,7 @@ export default function ShopDashboardRouter() {
             deniedOnceRef.current = true;
             await showAccessDenied(access.message, access.code);
             try {
-              await logoutShop();
+              await logoutShop({ log: false });
             } catch {
               /* ignore */
             }
@@ -156,6 +158,10 @@ export default function ShopDashboardRouter() {
         }
 
         deniedOnceRef.current = false;
+        if (!visitLoggedRef.current) {
+          visitLoggedRef.current = true;
+          logVisitOnce(shopId);
+        }
 
         // ── Plan routing (expired paid plan → basic features) ──
         const resolved = resolveEffectivePlan(data);
@@ -206,7 +212,7 @@ export default function ShopDashboardRouter() {
             isNetwork ? "network" : ""
           );
           try {
-            await logoutShop();
+            await logoutShop({ log: false });
           } catch {
             /* ignore */
           }

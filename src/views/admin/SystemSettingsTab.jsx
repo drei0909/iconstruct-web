@@ -47,6 +47,7 @@ import {
 
 import { PLAN_CONFIG, invalidatePlanCache } from "../../config/planConfig";
 import { formatDateTime } from "../../utils/dateTime";
+import SystemLogsPanel from "./SystemLogsPanel";
 import { db } from "../../services/firebase";
 import {
   doc,
@@ -320,23 +321,6 @@ function AdminFormModal({ open, onClose, onSave, editTarget, loading }) {
 
 // Defaults live in utils/recommendationEngine.js (web-only estimator)
 
-// ─── System Log row ───────────────────────────────────────────────────────────
-
-function LogEntry({ entry }) {
-  const levelColors = { info: T.info, warn: T.warning, error: T.danger, success: T.success };
-  const levelBg = { info: T.infoLight, warn: T.warningLight, error: T.dangerLight, success: T.successLight };
-  const level = entry.level || "info";
-  return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 16px", borderBottom: `1px solid #F8FAFC`, fontFamily: "var(--font-mono)" }}>
-      <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: levelBg[level] || T.infoLight, color: levelColors[level] || T.info, letterSpacing: "0.06em", textTransform: "uppercase", flexShrink: 0, marginTop: 1 }}>{level}</span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, color: T.text }}>{entry.message}</div>
-        <div style={{ fontSize: 10.5, color: T.textLight, marginTop: 2 }}>{entry.timestamp} · {entry.actor || "system"}</div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Password Field with Toggle ───────────────────────────────────────────────
 
 function PwField({ label, value, onChange, error, placeholder = "••••••••" }) {
@@ -366,6 +350,7 @@ const SETTING_SECTIONS = [
   { key: "plans",       icon: <TbPackage size={15} />,       label: "Subscription Plans" },
   { key: "notifs",      icon: <TbBell size={15} />,          label: "Notification Settings" },
   { key: "maintenance", icon: <TbTool size={15} />,          label: "System Maintenance" },
+  { key: "logs",        icon: <TbClipboardList size={15} />, label: "System Logs" },
 ];
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -373,28 +358,6 @@ const SETTING_SECTIONS = [
 export default function SystemSettingsTab({ currentUser }) {
   const [activeSection, setActiveSection] = useState("accounts");
   const [toast, setToast] = useState(null);
-  const loadLogs = useCallback(async () => {
-    setLogsLoading(true);
-    try {
-      const q = query(collection(db, "systemLogs"), orderBy("createdAt", "desc"), limit(50));
-      const snap = await getDocs(q);
-      const entries = snap.docs.map(d => {
-        const data = d.data();
-        return {
-          id: d.id,
-          level: data.level || "info",
-          message: data.message || "",
-          actor: data.actor || "system",
-          timestamp: formatDateTime(data.createdAt),
-        };
-      });
-          setLogs(entries);
-        } catch {
-          // keep existing logs on refresh failure
-        } finally {
-          setLogsLoading(false);
-        }
-      }, []);
       const showToast = useCallback((msg, type = "success") => {
         setToast({ msg, type });
         setTimeout(() => setToast(null), 3500);
@@ -441,8 +404,6 @@ export default function SystemSettingsTab({ currentUser }) {
   const [notifLoading, setNotifLoading] = useState(true);
 
   // ── System Maintenance state ──
-  const [logs, setLogs]               = useState([]);
-  const [logsLoading, setLogsLoading] = useState(true);
   const [maintenance, setMaintenance] = useState({
     maintenanceMode: false,
     noticeActive: false,
@@ -460,7 +421,6 @@ export default function SystemSettingsTab({ currentUser }) {
   const [schedulingMaint, setSchedulingMaint] = useState(false);
   const [maintTick, setMaintTick] = useState(Date.now());
   const [savingMaint, setSavingMaint] = useState(false);
-  const [logFilter, setLogFilter]     = useState("all");
 
   // ── Load admin accounts ──
   const loadAdmins = useCallback(async () => {
@@ -569,7 +529,7 @@ export default function SystemSettingsTab({ currentUser }) {
     })();
   }, []);
 
-  // ── Load system config + logs ──
+  // ── Load system config ──
   useEffect(() => {
     (async () => {
       try {
@@ -581,7 +541,6 @@ export default function SystemSettingsTab({ currentUser }) {
         }
       } catch { /* use defaults */ }
 
-    await loadLogs();
     })();
   }, []);
 
@@ -754,7 +713,6 @@ const handleSavePlan = async () => {
     });
     await writeLog("info", `Query caching ${maintenance.cacheEnabled ? "enabled" : "disabled"}.`);
     await writeLog("info", `Backup schedule set to: ${maintenance.backupSchedule}.`);
-    await loadLogs();
     showToast("Maintenance extras saved.");
   } catch { showToast("Failed to save maintenance settings.", "error"); }
   finally { setSavingMaint(false); }
@@ -780,7 +738,6 @@ const handleSavePlan = async () => {
     try {
       const result = await scheduleMaintenanceWithNotice(maintNote, scheduledAtMs);
       await refreshMaintenanceDoc();
-      await loadLogs();
       showToast(
         `Scheduled for ${formatStartLocal({}, scheduledAtMs)}. ` +
           `Emails: ${result.sent}/${result.total}. Push notifications queued.`
@@ -801,7 +758,6 @@ const handleSavePlan = async () => {
       setMaintPreset("custom");
       setMaintDate(defaults.date);
       setMaintTime(defaults.time);
-      await loadLogs();
       showToast("Scheduled maintenance cancelled.");
     } catch {
       showToast("Failed to cancel schedule.", "error");
@@ -815,7 +771,6 @@ const handleSavePlan = async () => {
     try {
       await turnOnMaintenanceImmediate();
       await refreshMaintenanceDoc();
-      await loadLogs();
       showToast("Maintenance enabled immediately.");
     } catch {
       showToast("Failed to enable maintenance.", "error");
@@ -830,7 +785,6 @@ const handleSavePlan = async () => {
       await turnOffMaintenance();
       await refreshMaintenanceDoc();
       setMaintNote("");
-      await loadLogs();
       showToast("Maintenance turned off. Site is live again.");
     } catch {
       showToast("Failed to disable maintenance.", "error");
@@ -840,7 +794,6 @@ const handleSavePlan = async () => {
   };
 
   const isCurrentUser = (id) => currentUser?.uid === id;
-  const filteredLogs = logFilter === "all" ? logs : logs.filter(l => l.level === logFilter);
 
   // ─── Render Sections ──────────────────────────────────────────────────────
 
@@ -1233,7 +1186,6 @@ const handleSavePlan = async () => {
   };
 
   const renderMaintenance = () => {
-    const logLevels = ["all", "info", "success", "warn", "error"];
     const noticeLive = isNoticeCountdownActive(maintenance, maintTick);
     const locked = isMaintenanceActive(maintenance, maintTick);
     const remaining = getCountdownRemainingMs(maintenance, maintTick);
@@ -1403,26 +1355,6 @@ const handleSavePlan = async () => {
           </div>
         </SectionCard>
 
-        <SectionCard title="System Logs" subtitle="Recent platform activity and error events." icon={<TbClipboardList size={18} />}>
-          <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
-            {logLevels.map(level => (
-              <button key={level} onClick={() => setLogFilter(level)}
-                style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize", border: "none", background: logFilter === level ? T.text : "#F1F5F9", color: logFilter === level ? "#fff" : T.textMuted }}>
-                {level}
-              </button>
-            ))}
-          </div>
-          {logsLoading ? (
-            <div style={{ padding: 24, textAlign: "center", color: T.textLight }}>Loading logs...</div>
-          ) : filteredLogs.length === 0 ? (
-            <div style={{ padding: 32, textAlign: "center", color: T.textLight, fontSize: 13 }}>No log entries found.</div>
-          ) : (
-            <div style={{ borderRadius: 10, border: `1px solid ${T.border}`, overflow: "hidden", maxHeight: 380, overflowY: "auto" }}>
-              {filteredLogs.map(entry => <LogEntry key={entry.id} entry={entry} />)}
-            </div>
-          )}
-        </SectionCard>
-
         <SectionCard title="Platform Stats" subtitle="Current resource and usage overview." icon={<TbChartBar size={18} />}>
           <InfoGrid items={[
             { label: "Firebase Project", value: "iconstruct-web" },
@@ -1439,6 +1371,16 @@ const handleSavePlan = async () => {
     );
   };
 
+  const renderLogs = () => (
+    <SectionCard
+      title="System Logs"
+      subtitle="Sign-ups, sign-ins and sign-outs, dashboard visits, failed sign-in attempts, and admin actions — updates live."
+      icon={<TbClipboardList size={18} />}
+    >
+      <SystemLogsPanel />
+    </SectionCard>
+  );
+
   const sectionRenderers = {
     accounts: renderAccounts,
     security: renderSecurity,
@@ -1446,6 +1388,7 @@ const handleSavePlan = async () => {
     plans: renderPlans,
     notifs: renderNotifs,
     maintenance: renderMaintenance,
+    logs: renderLogs,
   };
 
   // ─── Layout ───────────────────────────────────────────────────────────────

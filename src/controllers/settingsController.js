@@ -20,13 +20,17 @@ import {
 } from "../models/settingsModel";
 
 // ── System Log Writer (same pattern as adminController) ─────────────────────
-export async function writeLog(level, message) {
+export async function writeLog(level, message, type = "admin_action") {
   try {
     const actor = auth.currentUser?.email || "system";
     await addDoc(collection(db, "systemLogs"), {
+      type,
       level,
       message,
       actor,
+      actorRole: "admin",
+      uid: auth.currentUser?.uid || null,
+      email: auth.currentUser?.email || null,
       createdAt: serverTimestamp(),
     });
   } catch (err) {

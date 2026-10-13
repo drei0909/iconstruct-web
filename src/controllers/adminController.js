@@ -23,6 +23,7 @@ import {
   subscribeToAdminInbox,
   subscribeToConfirmedPayments,
   subscribeToActiveSubscribers,
+  subscribeToSystemLogs,
 } from "../models/adminModel";
 import {
   fetchContactMessages,
@@ -39,19 +40,24 @@ import {
 } from "../services/emailService";
 import { assertRateLimit, RATE } from "../utils/rateLimit";
 import { cycleDays, getLivePlanConfig } from "../config/planConfig";
+import { logAuthEvent } from "../services/activityLog";
 
 
 
 
 // ── System Log Writer ──────────────────────────────────────────────────────
 // level: "info" | "success" | "warn" | "error"
-async function writeLog(level, message) {
+async function writeLog(level, message, type = "admin_action") {
   try {
     const actor = auth.currentUser?.email || "system";
     await addDoc(collection(db, "systemLogs"), {
+      type,
       level,
       message,
       actor,
+      actorRole: "admin",
+      uid: auth.currentUser?.uid || null,
+      email: auth.currentUser?.email || null,
       createdAt: serverTimestamp(),
     });
   } catch (err) {
@@ -70,19 +76,25 @@ export async function loginAdmin(email, password) {
     await signOut(auth);
     throw new Error("Not authorized as admin.");
   }
-  await writeLog("info", `Admin signed in: ${normalized}`);
+  // Server-side log (adds IP + device; identity comes from the ID token).
+  logAuthEvent("admin_login");
   return cred.user;
 }
 
 export async function logoutAdmin() {
-  const email = auth.currentUser?.email || "unknown";
-  await writeLog("info", `Admin signed out: ${email}`);
+  // Before signOut — the server needs the still-valid ID token.
+  await logAuthEvent("admin_logout");
   await signOut(auth);
 }
 
 /** Live confirmed subscription payments (sales). Returns unsubscribe. */
 export function watchSales(onChange, onError) {
   return subscribeToConfirmedPayments(onChange, onError);
+}
+
+/** Live system log for the admin System Logs page. Returns unsubscribe. */
+export function watchSystemLogs(opts, onChange, onError) {
+  return subscribeToSystemLogs(opts, onChange, onError);
 }
 
 /** Live shops currently on an active paid plan. Returns unsubscribe. */

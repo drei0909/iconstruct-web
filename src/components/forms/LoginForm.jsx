@@ -1,6 +1,7 @@
 // src/components/forms/LoginForm.jsx
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { logAuthEvent, markVisitLogged, failReason } from "../../services/activityLog";
 import { loginShop } from "../../controllers/authController";
 import ForgotPassword from "./ForgotPassword";
 import { requestNotificationPermission } from "../../services/fcmService";
@@ -31,6 +32,8 @@ function LoginForm() {
     setFirebaseError("");
     try {
       const { user } = await loginShop(form.email, form.password);
+      markVisitLogged(user.uid);
+      logAuthEvent("shop_login");
 
       // Not awaited on purpose: this shows the browser's "Allow notifications?"
       // prompt, and awaiting it left login spinning until the user answered.
@@ -40,6 +43,7 @@ function LoginForm() {
 
       navigate("/shop/dashboard", { replace: true });
     } catch (err) {
+      logAuthEvent("login_failed", { email: form.email, reason: failReason(err) });
       const msg = {
         "auth/user-not-found": "No account found with this email.",
         "auth/wrong-password": "Incorrect password. Please try again.",

@@ -12,12 +12,13 @@ import {
   insertQuotation,
   respondToAcceptedQuote,
   proposeItemRenegotiation,
-  fetchLatestPaymentByShop,
+  fetchLatestPaymentByShop,
   insertPaymentRequest,
 } from "../models/shopModel";
 import { getDoc, doc } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { evaluateShopLoginAccess, isShopApproved } from "../utils/shopAccess";
+import { logAuthEvent } from "../services/activityLog";
 
 async function requireApprovedShop() {
   const user = auth.currentUser;
@@ -161,6 +162,10 @@ export async function getQuotationAnalytics() {
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
-export async function logoutShop() {
+/** `log: false` for automatic sign-outs (e.g. a blocked account bounced off
+ *  the dashboard) so only real, user-initiated sign-outs reach System Logs. */
+export async function logoutShop({ log = true } = {}) {
+  // Logged BEFORE signing out — the server needs the still-valid ID token.
+  if (log) await logAuthEvent("shop_logout");
   await signOut(auth);
 }
