@@ -2320,6 +2320,12 @@ exports.submitQuotation = onRequest(
         const reqQty = Number(it?.requestedQty);
         if (Number.isFinite(reqQty) && reqQty > clean.qty) clean.requestedQty = reqQty;
         if (it?.requestedName) clean.requestedName = String(it.requestedName).slice(0, 200);
+        // Link to the shop's own inventory item, so the sold quantity can be
+        // deducted once the deal is confirmed (deductSoldStock only ever
+        // touches shops/{this shop}/materials, so a bad id is harmless).
+        if (typeof it?.materialId === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(it.materialId)) {
+          clean.materialId = it.materialId;
+        }
         return clean;
       });
       const safeNote = typeof note === "string" ? note.slice(0, 2000) : "";
@@ -2939,26 +2945,6 @@ exports.onQuotationAccepted = onDocumentUpdated(
       logger.error("[Confirm] failed to reset shopConfirmation:", err);
     }
 
-    // Automatically mark the project as completed when builder accepts a quotation
-    try {
-      const completionPayload = {
-        status: "completed",
-        biddingStatus: "completed",
-        completedAt: admin.firestore.FieldValue.serverTimestamp(),
-        acceptedQuotationId: quotationId,
-        acceptedShopId: after.shopId || null,
-        acceptedShopName: after.shopName || null,
-        acceptedAmount: after.acceptedTotal || after.amount || null,
-      };
-      await db.collection("projectPosts").doc(postId).set(completionPayload, { merge: true });
-      try {
-        await db.collection("projects").doc(postId).set(completionPayload, { merge: true });
-      } catch (_) {}
-      logger.info(`[Project] Post ${postId} marked as completed after quote ${quotationId} accepted`);
-    } catch (projErr) {
-      logger.warn("[Project] failed to mark projectPost as completed:", projErr.message);
-    }
-
     try {
       const shopId = after.shopId;
       if (!shopId) return;
@@ -3053,20 +3039,21 @@ exports.onShopConfirmedQuotation = onDocumentUpdated(
           await convRef.set(payload, { merge: true });
         }
 
-        // Ensure official transaction quotation invoice message exists in the thread
+        // The ONE official quotation invoice for this deal, posted into the
+        // chat. Built here from the real quotation doc (never from what a
+        // browser sends), with a fixed message id so a retry or a double
+        // confirm can't post it twice. Both apps render type
+        // "quotation_invoice" as a downloadable / printable PDF; `text` is a
+        // plain-language fallback for any client that doesn't.
         try {
-          const invoiceQuery = await convRef
-            .collection("messages")
-            .where("quotationId", "==", quotationId)
-            .limit(1)
-            .get();
-
-          if (invoiceQuery.empty) {
-            const acceptedTotal = Number(after.acceptedTotal || after.amount || 0);
-            const qRef = String(quotationId).slice(-6).toUpperCase();
-            const invoiceText = `[OFFICIAL_TRANSACTION_INVOICE]\nOfficial Quotation & Transaction Invoice\nRef: #${qRef}\nProject: ${projectTitle}\nTotal: ₱${acceptedTotal.toLocaleString()}\nStatus: Confirmed & Secured by ${shopName}\n\nClick below to download or print your official PDF quotation invoice.`;
-
-            await convRef.collection("messages").add({
+          const acceptedTotal = Number(after.acceptedTotal || after.amount || 0);
+          const qRef = String(quotationId).slice(-6).toUpperCase();
+          const invoiceText =
+            `Official quotation #${qRef} for "${projectTitle}" — ₱${acceptedTotal.toLocaleString("en-PH")}, ` +
+            `confirmed by ${shopName}. Open it to download or print the PDF.`;
+          let created = false;
+          try {
+            await convRef.collection("messages").doc(`invoice_${quotationId}`).create({
               senderId: shopId,
               senderRole: "shop",
               type: "quotation_invoice",
@@ -3090,16 +3077,49 @@ exports.onShopConfirmedQuotation = onDocumentUpdated(
               text: invoiceText,
               createdAt: admin.firestore.FieldValue.serverTimestamp(),
             });
-
+            created = true;
+          } catch (e) {
+            // 6 = ALREADY_EXISTS: invoice was already posted — fine.
+            if (e.code !== 6 && !/already exists/i.test(String(e.message))) throw e;
+          }
+          if (created) {
             await convRef.update({
-              lastMessage: `Official Quotation Invoice · ₱${acceptedTotal.toLocaleString()}`,
+              lastMessage: `Official quotation · ₱${acceptedTotal.toLocaleString("en-PH")}`,
               lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
               lastSenderId: shopId,
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
           }
         } catch (invErr) {
-          logger.warn(`[Chat] Auto-invoice creation notice: ${invErr.message}`);
+          logger.error(`[Chat] invoice message failed for ${quotationId}:`, invErr);
+        }
+
+        // Deal done → project completed (closes bidding for other shops; it
+        // lands in Completed Projects). Only now, after the SHOP confirmed —
+        // not when the builder accepted, so a shop rejection never leaves a
+        // project stuck as "completed" and closed to everyone.
+        try {
+          await db.collection("projectPosts").doc(postId).set({
+            status: "completed",
+            biddingStatus: "completed",
+            completedAt: admin.firestore.FieldValue.serverTimestamp(),
+            acceptedQuotationId: quotationId,
+            acceptedShopId: shopId,
+            acceptedShopName: after.shopName || null,
+            acceptedAmount: Number(after.acceptedTotal || after.amount || 0),
+          }, { merge: true });
+        } catch (projErr) {
+          logger.error(`[Project] could not mark ${postId} completed:`, projErr);
+        }
+
+        // Inventory: deduct what was actually SOLD — the lines the builder
+        // took, at the quoted quantity — now that the deal is confirmed.
+        // (Was deducted on every quote submission, so quoting 5 projects and
+        // winning none drained stock.) Idempotent via stockDeductedAt.
+        try {
+          await deductSoldStock({ postId, quotationId, shopId });
+        } catch (stockErr) {
+          logger.error(`[Stock] deduction failed for ${quotationId}:`, stockErr);
         }
 
         logger.info(`[Chat] Conversation ${conversationId} ready after shop confirmation`);
@@ -3145,6 +3165,50 @@ exports.onShopConfirmedQuotation = onDocumentUpdated(
     }
   }
 );
+
+/**
+ * Deduct sold quantities from the shop's inventory (shops/{shopId}/materials)
+ * for a confirmed quotation, in one transaction that also stamps
+ * stockDeductedAt on the quotation — so it runs at most once per deal even
+ * if the trigger is retried. Only lines the builder took, linked to an
+ * inventory item (materialId), whose stock is tracked; never below zero.
+ */
+async function deductSoldStock({ postId, quotationId, shopId }) {
+  const qRef = db.collection("projectPosts").doc(postId).collection("quotations").doc(quotationId);
+  await db.runTransaction(async (tx) => {
+    const qSnap = await tx.get(qRef);
+    if (!qSnap.exists) return;
+    const q = qSnap.data() || {};
+    if (q.stockDeductedAt) return;
+
+    const partial = String(q.status || "").toLowerCase() === "partially_accepted";
+    const hasFlags = (q.items || []).some((it) => typeof it?.accepted === "boolean");
+    const perMaterial = new Map();
+    for (const it of q.items || []) {
+      if (!it || it.status === "declined" || !it.materialId) continue;
+      if (partial && hasFlags && it.accepted !== true) continue;
+      const qty = Number(it.qty) || 0;
+      if (qty <= 0) continue;
+      perMaterial.set(it.materialId, (perMaterial.get(it.materialId) || 0) + qty);
+    }
+
+    const refs = [...perMaterial.keys()].map((id) =>
+      db.collection("shops").doc(shopId).collection("materials").doc(String(id))
+    );
+    const snaps = await Promise.all(refs.map((r) => tx.get(r)));
+    snaps.forEach((s, i) => {
+      if (!s.exists) return;
+      const stock = s.data()?.stock;
+      if (typeof stock !== "number") return; // stock not tracked for this item
+      const qty = perMaterial.get(s.id);
+      tx.update(refs[i], {
+        stock: Math.max(0, stock - qty),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+    tx.update(qRef, { stockDeductedAt: admin.firestore.FieldValue.serverTimestamp() });
+  });
+}
 
 // FCM when a new chat message is sent
 exports.onChatMessageCreated = onDocumentCreated(

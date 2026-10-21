@@ -34,7 +34,7 @@ import {
   referenceUnitPrice,
 } from "../utils/recommendationEngine";
 import { classifyMaterial, SUPPLY_CATEGORIES, categoryLabel } from "../utils/supplyCategories";
-import { getMaterials, deductMaterialsStock } from "../controllers/materialsController";
+import { getMaterials } from "../controllers/materialsController";
 import { smartMatchProjectMaterials, scoreMaterialMatch } from "../utils/materialsMatcher";
 import { getBiddingSchedule } from "../utils/biddingSchedule";
 import MaterialPhoto from "./ui/MaterialPhoto";
@@ -385,38 +385,8 @@ export default function QuoteModal({
   const handleSubmit = async () => {
     if (!canSubmit) return;
 
-    // 1. Collect inventory stock deductions for quoted/substituted store items
-    const deductions = [];
-    supplyRows.forEach((r) => {
-      if (
-        r.matchedProduct?.id &&
-        r.qty > 0 &&
-        r.matchedProduct.stock !== null &&
-        r.matchedProduct.stock !== undefined
-      ) {
-        deductions.push({
-          materialId: r.matchedProduct.id,
-          qty: r.qty,
-        });
-      }
-    });
-
-    if (deductions.length > 0) {
-      try {
-        await deductMaterialsStock(deductions);
-        // Decrease stock in local state so UI updates immediately
-        setShopMaterials((prev) =>
-          prev.map((m) => {
-            const deduction = deductions.find((d) => d.materialId === m.id);
-            if (!deduction) return m;
-            const currentStock = Number(m.stock) || 0;
-            return { ...m, stock: Math.max(0, currentStock - deduction.qty) };
-          })
-        );
-      } catch (stockErr) {
-        console.warn("Stock deduction error:", stockErr);
-      }
-    }
+    // Stock is NOT deducted here: a quote is only an offer. The server
+    // deducts the sold quantities once the shop confirms the final offer.
 
     // 2. Prepare items payload
     const items = rows.map((r) => {
@@ -427,6 +397,8 @@ export default function QuoteModal({
         lineNote: (r.note || "").trim(),
         requestedName: r.productName,
         customerQty: r.requestedQty,
+        // Inventory item this line sells from (lets the server deduct it on a confirmed sale).
+        ...(r.mode !== "decline" && r.matchedProduct?.id ? { materialId: r.matchedProduct.id } : {}),
       };
       if (r.mode === "decline") {
         return {

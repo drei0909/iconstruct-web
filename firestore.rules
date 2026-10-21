@@ -72,9 +72,12 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/projectPosts/$(postId)).data;
     }
 
+    // projectPosts only. A fallback to a separate `projects` collection let any
+    // signed-in user create projects/{someone else's postId} and pass this
+    // check — i.e. read and accept another builder's quotations.
     function ownsPostedEstimate(postId) {
-      return (exists(/databases/$(database)/documents/projectPosts/$(postId)) && isPostOwner(get(/databases/$(database)/documents/projectPosts/$(postId)).data))
-        || (exists(/databases/$(database)/documents/projects/$(postId)) && isPostOwner(get(/databases/$(database)/documents/projects/$(postId)).data));
+      return exists(/databases/$(database)/documents/projectPosts/$(postId))
+        && isPostOwner(get(/databases/$(database)/documents/projectPosts/$(postId)).data);
     }
 
     // ── Admins ──────────────────────────────────────────────────────────────
@@ -261,7 +264,7 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys()
                 .hasOnly(["quotationCount", "updatedAt"]))
         || (isPostOwner(resource.data)
-            && (!('userId' in resource.data) || !('userId' in request.resource.data) || request.resource.data.userId == resource.data.userId));
+            && request.resource.data.get('userId', null) == resource.data.get('userId', null));
 
       allow delete: if isAdmin() || isPostOwner(resource.data);
 
@@ -299,20 +302,6 @@ service cloud.firestore {
           && request.resource.data.userId == request.auth.uid;
         allow update, delete: if false;
       }
-    }
-
-    // Direct collection match if mobile app addresses `projects` instead of `projectPosts`
-    match /projects/{projectId} {
-      allow get, list: if isAdmin()
-        || isPostOwner(resource.data)
-        || isApprovedShop();
-
-      allow create: if signedIn();
-
-      allow update: if isAdmin()
-        || isPostOwner(resource.data);
-
-      allow delete: if isAdmin() || isPostOwner(resource.data);
     }
 
     // Collection-group queries used by the web shop dashboard.
@@ -394,6 +383,11 @@ service cloud.firestore {
           && isConvParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data)
           && request.resource.data.senderId == request.auth.uid
           && request.resource.data.senderRole in ['builder', 'shop']
+          // The official quotation invoice is posted only by the server, from
+          // the real quotation. A client can't post one — otherwise a shop
+          // could send a fake "official" invoice with prices it made up.
+          && request.resource.data.get('type', '') != 'quotation_invoice'
+          && !('quotationSnapshot' in request.resource.data)
           && (
                !('text' in request.resource.data)
                || (request.resource.data.text is string

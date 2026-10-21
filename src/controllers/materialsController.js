@@ -10,8 +10,6 @@ import {
   deleteShopMaterial,
   batchInsertShopMaterials,
   clearAllShopMaterials,
-  deductShopMaterialStock,
-  deductMultipleShopMaterials,
 } from "../models/materialsModel";
 import { classifyMaterial } from "../utils/supplyCategories";
 import * as XLSX from "xlsx";
@@ -87,21 +85,6 @@ export async function removeMaterial(materialId) {
   return deleteShopMaterial(shopId, materialId);
 }
 
-/**
- * Deduct stock for a single material item.
- */
-export async function deductMaterialStock(materialId, qty) {
-  const shopId = getAuthenticatedShopId();
-  return deductShopMaterialStock(shopId, materialId, qty);
-}
-
-/**
- * Deduct stock for multiple materials upon quotation submission.
- */
-export async function deductMaterialsStock(deductions = []) {
-  const shopId = getAuthenticatedShopId();
-  return deductMultipleShopMaterials(shopId, deductions);
-}
 
 /**
  * Normalizes column header strings.

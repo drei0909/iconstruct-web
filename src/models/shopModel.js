@@ -154,17 +154,10 @@
       console.warn("Could not fetch projectPosts:", e?.message);
     }
 
-    let projectsDocs = [];
-    try {
-      const snap2 = await getDocs(collection(db, "projects"));
-      projectsDocs = snap2.docs.map((d) => normalizeProjectPost(d.id, d.data()));
-    } catch (_) {
-      /* collection might not exist */
-    }
 
     // Merge and deduplicate by document id
     const map = new Map();
-    for (const p of [...postsDocs, ...projectsDocs]) {
+    for (const p of postsDocs) {
       map.set(p.id, p);
     }
 

@@ -5,7 +5,6 @@ import ListPagination, { paginate } from "../ui/ListPagination";
 import { getAcceptanceSummary } from "../../utils/quoteAnalytics";
 import { openQuotePdf } from "../../utils/quotePdf";
 import { confirmQuotation, renegotiateQuoteItem } from "../../controllers/shopController";
-import { sendQuotationInvoiceMessage } from "../../controllers/chatController";
 import { toDate, formatDateTime } from "../../utils/dateTime";
 
 const ACCENT = "#2C5282";
@@ -92,18 +91,10 @@ export default function ShopQuotationsPanel({
     setConfirmBusy(q.id);
     setConfirmError((e) => ({ ...e, [q.id]: null }));
     try {
+      // On "confirm" the server opens the chat and posts the official
+      // quotation invoice itself (onShopConfirmedQuotation) — built from the
+      // real quotation, exactly once. Nothing more to send from here.
       await confirmQuotation({ postId: q.projectId, quotationId: q.id, decision });
-      if (decision === "confirm") {
-        try {
-          await sendQuotationInvoiceMessage({
-            quotation: q,
-            shop,
-            project: projectsById.get(String(q.projectId)) || null,
-          });
-        } catch (msgErr) {
-          console.warn("[Invoice] Client invoice dispatch notice:", msgErr);
-        }
-      }
     } catch (err) {
       setConfirmError((e) => ({ ...e, [q.id]: err.message || "Failed. Try again." }));
     } finally {

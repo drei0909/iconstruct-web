@@ -6,7 +6,6 @@ import {
   collection,
   doc,
   getDocs,
-  getDoc,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -161,48 +160,3 @@ export async function clearAllShopMaterials(shopId) {
   return totalDeleted;
 }
 
-/**
- * Deduct stock quantity for a single material item.
- * If stock is null/undefined (untracked), leaves as is.
- * Decrements accurately down to minimum 0.
- */
-export async function deductShopMaterialStock(shopId, materialId, qtyToDeduct) {
-  if (!shopId || !materialId || !qtyToDeduct || qtyToDeduct <= 0) return null;
-  const ref = materialDocRef(shopId, materialId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return null;
-
-  const current = snap.data();
-  if (current.stock === null || current.stock === undefined) return null;
-
-  const currentStock = Number(current.stock) || 0;
-  const newStock = Math.max(0, currentStock - Number(qtyToDeduct));
-
-  await updateDoc(ref, {
-    stock: newStock,
-    updatedAt: serverTimestamp(),
-  });
-
-  return newStock;
-}
-
-/**
- * Deduct stock for multiple materials at once (e.g. when submitting a quotation).
- * deductions: [{ materialId, qty }]
- */
-export async function deductMultipleShopMaterials(shopId, deductions = []) {
-  if (!shopId || !deductions.length) return [];
-  const results = [];
-
-  for (const item of deductions) {
-    if (!item?.materialId || !item?.qty) continue;
-    try {
-      const newStock = await deductShopMaterialStock(shopId, item.materialId, item.qty);
-      results.push({ materialId: item.materialId, newStock });
-    } catch (err) {
-      console.warn(`Failed to deduct stock for material ${item.materialId}:`, err);
-    }
-  }
-
-  return results;
-}
