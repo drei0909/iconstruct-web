@@ -59,9 +59,7 @@
 
   // Keep in sync with BIDDING_CLOSED in functions/index.js. "offer_accepted"
   // = the builder already picked a supplier, so it's off the bidding board.
-  const CLOSED_STATUSES = new Set([
-    "closed", "cancelled", "canceled", "completed", "rejected", "deleted", "offer_accepted",
-  ]);
+  const TRASH_STATUSES = new Set(["deleted", "cancelled", "canceled"]);
 
   function projectTimestamp(p) {
     const t = p.postedAt || p.createdAt || p.updatedAt || p.timestamp;
@@ -80,6 +78,15 @@
       data.city ||
       data.address ||
       "";
+    const rawStatus = (data.status || "open").toString().toLowerCase();
+    const rawBiddingStatus = (data.biddingStatus || data.scheduleStatus || "").toString().toLowerCase();
+    const isCompleted =
+      rawStatus === "completed" ||
+      rawStatus === "offer_accepted" ||
+      rawStatus === "awarded" ||
+      rawBiddingStatus === "completed" ||
+      Boolean(data.completedAt);
+
     return {
       id,
       ...data,
@@ -92,23 +99,80 @@
       budget: data.budget ?? data.budgetRange ?? data.budget_range ?? null,
       totalAreaSqm:
         data.totalAreaSqm ?? data.area ?? data.totalArea ?? data.total_area_sqm ?? null,
-      status: (data.status || "open").toString().toLowerCase(),
+      isCompleted,
+      status: isCompleted ? "completed" : rawStatus,
+      biddingStatus: isCompleted ? "completed" : (data.biddingStatus || data.scheduleStatus || null),
+      biddingStartDate:
+        data.biddingStartDate ||
+        data.biddingOpensAt ||
+        data.biddingStart ||
+        data.quotationStartDate ||
+        data.quoteStartDate ||
+        data.opensAt ||
+        data.startDate ||
+        data.openingDate ||
+        null,
+      biddingDeadline:
+        data.biddingDeadline ||
+        data.bidding_deadline ||
+        data.quotationDeadline ||
+        data.quotation_deadline ||
+        data.quoteDeadline ||
+        data.quote_deadline ||
+        data.deadline ||
+        (data.deadlineDate && data.deadlineTime ? `${data.deadlineDate} ${data.deadlineTime}` : data.deadlineDate) ||
+        (data.closingDate && data.closingTime ? `${data.closingDate} ${data.closingTime}` : data.closingDate) ||
+        data.newDeadline ||
+        (data.newDeadlineDate && data.newDeadlineTime ? `${data.newDeadlineDate} ${data.newDeadlineTime}` : data.newDeadlineDate) ||
+        data.deadlineChange?.newDeadline ||
+        data.biddingEndDate ||
+        data.bidding_end_date ||
+        data.biddingEnd ||
+        data.biddingClosesAt ||
+        data.closesAt ||
+        data.endDate ||
+        data.dueDate ||
+        data.expiresAt ||
+        null,
+      deadlineChange: data.deadlineChange || data.deadline_change || (data.reasonForChange || data.reason ? {
+        previousDeadline: data.previousDeadline || data.biddingDeadline || data.deadline,
+        newDeadline: data.newDeadline || (data.newDeadlineDate && data.newDeadlineTime ? `${data.newDeadlineDate} ${data.newDeadlineTime}` : data.newDeadlineDate),
+        reason: data.reasonForChange || data.reason || data.changeReason,
+        details: data.details || data.additionalDetails || data.notes || "",
+        changedAt: data.updatedAt || data.changedAt || null,
+      } : null),
+      deadlineHistory: Array.isArray(data.deadlineHistory) ? data.deadlineHistory : Array.isArray(data.deadlineChanges) ? data.deadlineChanges : [],
     };
   }
 
   export async function fetchOpenProjects() {
-    // Full collection read (rules: signed-in). No status filter — Flutter may omit
-    // "status" or use a different value; shops still need to see those posts.
-    // Sorted client-side on purpose: orderBy("postedAt") makes Firestore
-    // silently EXCLUDE every post without that field (it doesn't throw, so a
-    // catch-based fallback never ran) — a post saved with only createdAt would
-    // never reach any shop. projectTimestamp() falls back across field names.
-    const snap = await getDocs(collection(db, "projectPosts"));
-    const docs = snap.docs.map((d) => normalizeProjectPost(d.id, d.data()));
+    let postsDocs = [];
+    try {
+      const snap = await getDocs(collection(db, "projectPosts"));
+      postsDocs = snap.docs.map((d) => normalizeProjectPost(d.id, d.data()));
+    } catch (e) {
+      console.warn("Could not fetch projectPosts:", e?.message);
+    }
+
+    let projectsDocs = [];
+    try {
+      const snap2 = await getDocs(collection(db, "projects"));
+      projectsDocs = snap2.docs.map((d) => normalizeProjectPost(d.id, d.data()));
+    } catch (_) {
+      /* collection might not exist */
+    }
+
+    // Merge and deduplicate by document id
+    const map = new Map();
+    for (const p of [...postsDocs, ...projectsDocs]) {
+      map.set(p.id, p);
+    }
+
+    const docs = Array.from(map.values());
     docs.sort((a, b) => projectTimestamp(b) - projectTimestamp(a));
 
-    // Hide only clearly finished posts; keep open / missing status / active / etc.
-    return docs.filter((p) => !CLOSED_STATUSES.has(p.status));
+    // Exclude only deleted or cancelled posts so open, scheduled, closed, and completed projects are all accessible
+    return docs.filter((p) => !TRASH_STATUSES.has(p.status));
   }
 
   // ── Quotations ────────────────────────────────────────────────────────────────

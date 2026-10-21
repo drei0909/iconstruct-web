@@ -29,10 +29,12 @@ import { normalizeEngineDoc } from "../../utils/recommendationEngine";
 import { getShopRating } from "../../utils/shopRating";
 import DashboardBrand from "../../components/ui/DashboardBrand";
 import ShopNotificationBell from "../../components/ui/ShopNotificationBell";
-import { buildShopQuoteAlerts, buildSubscriptionAlert } from "../../utils/shopAlerts";
+import { buildShopQuoteAlerts, buildSubscriptionAlert, buildProjectDeadlineAlerts } from "../../utils/shopAlerts";
+import { getBiddingSchedule } from "../../utils/biddingSchedule";
 import TopProductsCard from "../../components/shop/TopProductsCard";
 import SupplyCoverageTab from "../../components/shop/SupplyCoverageTab";
 import StorefrontTab from "../../components/shop/StorefrontTab";
+import MaterialsTab from "../../components/shop/MaterialsTab";
 
 import {
   ArrowRight,
@@ -49,6 +51,7 @@ import {
   Storefront,
   CreditCard,
   GearSix,
+  Package,
 } from "@phosphor-icons/react";
 
 const NAV = [
@@ -57,6 +60,7 @@ const NAV = [
   { key: "quotations", label: "Quotations",   icon: <Receipt size={16} /> },
   { key: "messages",   label: "Messages",     icon: <ChatCircleText size={16} /> },
   { key: "analytics",  label: "Analytics",      icon: <ChartLineUp size={16} /> },
+  { key: "materials",  label: "Materials",      icon: <Package size={16} /> },
   { key: "supply",     label: "What We Supply", icon: <ListChecks size={16} /> },
   { key: "storefront", label: "My Storefront",  icon: <Storefront size={16} /> },
   { key: "billing",    label: "Billing",        icon: <CreditCard size={16} /> },
@@ -152,17 +156,30 @@ function Overview({ shop, quotations, projects, accepted, pending, rejected, mon
             <div style={{ fontSize:11, color:"#1E40AF" }}>Average accepted bid — use when quoting.</div>
           </div>
           <div style={{ background:"#fff", borderRadius:14, border:"1px solid #E2E8F0", padding:"16px 18px" }}>
-            <div style={{ fontSize:12, fontWeight:700, color:"#0F172A", marginBottom:8 }}>Recent Projects</div>
+            <div style={{ fontSize:12, fontWeight:700, color:"#0F172A", marginBottom:8 }}>Recent Projects &amp; Bidding</div>
             {projects.length === 0
               ? <div style={{ fontSize:11, color:"#94A3B8" }}>No open projects yet.</div>
-              : projects.slice(0, 3).map(p => (
-                  <div key={p.id} style={{ fontSize:12, color:"#334155", marginBottom:6, display:"flex", justifyContent:"space-between" }}>
-                    <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:120 }}>{p.projectName || "Project"}</span>
-                    <button onClick={() => setQuoteModal(p)} style={{ fontSize:10, fontWeight:600, color:"#3B82F6", background:"none", border:"none", cursor:"pointer", display:"flex", alignItems:"center", gap:3 }}>
-                      Quote <ArrowRight size={10} weight="bold" />
-                    </button>
-                  </div>
-                ))
+              : projects.slice(0, 3).map(p => {
+                  const sched = getBiddingSchedule(p);
+                  return (
+                    <div key={p.id} style={{ fontSize:12, color:"#334155", marginBottom:8, display:"flex", justifyContent:"space-between", alignItems:"center", gap: 6 }}>
+                      <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:110 }}>{p.projectName || "Project"}</span>
+                      {sched.isOpen ? (
+                        <button onClick={() => setQuoteModal(p)} style={{ fontSize:10, fontWeight:700, color:"#1D4ED8", background:"#EFF6FF", border:"1px solid #BFDBFE", borderRadius:5, padding:"3px 7px", cursor:"pointer", display:"flex", alignItems:"center", gap:3 }}>
+                          Quote ({sched.remainingFormatted}) <ArrowRight size={10} weight="bold" />
+                        </button>
+                      ) : sched.isScheduled ? (
+                        <span style={{ fontSize:10, fontWeight:700, color:"#92400E", background:"#FEF3C7", border:"1px solid #FCD34D", borderRadius:5, padding:"2px 6px" }}>
+                          Opens {sched.openDateOnly}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize:10, fontWeight:700, color:"#64748B", background:"#F1F5F9", border:"1px solid #CBD5E1", borderRadius:5, padding:"2px 6px" }}>
+                          Closed
+                        </span>
+                      )}
+                    </div>
+                  );
+                })
             }
           </div>
         </div>
@@ -521,6 +538,7 @@ export default function ShopDashboardPro() {
           extraItems={[
                 ...[buildSubscriptionAlert(shop)].filter(Boolean).map((a) => ({ ...a, onClick: () => setActiveTab("billing") })),
                 ...buildShopQuoteAlerts(quotations).map((a) => ({ ...a, onClick: () => setActiveTab("quotations") })),
+                ...buildProjectDeadlineAlerts(projects).map((a) => ({ ...a, onClick: () => setActiveTab("projects") })),
               ]}
         />
         <PlanBadge />
@@ -554,9 +572,14 @@ export default function ShopDashboardPro() {
           accentColor="#2C5282"
           bootstrapQuote={chatQuote}
           onBootstrapped={() => setChatQuote(null)}
+          shop={shop}
+          quotations={quotations}
+          projects={projects}
+          estimateConfig={estimateConfig}
         />
       );
       case "analytics":  return <PaidPlanAnalytics quotations={quotations} tier="pro" />;
+      case "materials":  return <MaterialsTab accentColor="#2C5282" plan="pro" />;
       case "supply":     return <SupplyCoverageTab shop={shop} accentColor="#2C5282" onShopUpdated={(next) => setShop((s) => ({ ...s, ...next }))} />;
       case "storefront": return <StorefrontTab shop={shop} plan="pro" accentColor="#2C5282" onShopUpdated={(next) => setShop((s) => ({ ...s, ...next }))} />;
       case "billing":    return <Billing shop={shop} />;

@@ -99,7 +99,20 @@ export async function upsertConversation({
   return conversationId;
 }
 
-export async function insertChatMessage(conversationId, { senderId, senderRole, text, imageUrl }) {
+export async function insertChatMessage(
+  conversationId,
+  {
+    senderId,
+    senderRole,
+    text,
+    imageUrl,
+    type,
+    quotationId,
+    projectId,
+    acceptedTotal,
+    quotationSnapshot,
+  }
+) {
   const trimmed = String(text || "").trim();
   const img = String(imageUrl || "").trim();
   if (!trimmed && !img) throw new Error("Message cannot be empty.");
@@ -112,10 +125,22 @@ export async function insertChatMessage(conversationId, { senderId, senderRole, 
     createdAt: serverTimestamp(),
   };
   if (img) msg.imageUrl = img;
+  if (type) msg.type = type;
+  if (quotationId) msg.quotationId = quotationId;
+  if (projectId) msg.projectId = projectId;
+  if (acceptedTotal != null) msg.acceptedTotal = Number(acceptedTotal);
+  if (quotationSnapshot) msg.quotationSnapshot = quotationSnapshot;
   await addDoc(messagesRef, msg);
 
+  const displayLast =
+    type === "quotation_invoice"
+      ? `Official Quotation Invoice · ₱${Number(acceptedTotal || 0).toLocaleString("en-PH", {
+          maximumFractionDigits: 0,
+        })}`
+      : trimmed || "[Photo]";
+
   await updateDoc(doc(db, "conversations", conversationId), {
-    lastMessage: (trimmed || "📷 Photo").slice(0, 200),
+    lastMessage: displayLast.slice(0, 200),
     lastMessageAt: serverTimestamp(),
     lastSenderId: String(senderId),
     updatedAt: serverTimestamp(),

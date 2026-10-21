@@ -7,6 +7,21 @@ export function toDate(v) {
     if (!v) return null;
     if (typeof v.toDate === "function") return v.toDate();
     if (typeof v.seconds === "number") return new Date(v.seconds * 1000);
+    if (typeof v === "number") {
+      if (Number.isNaN(v) || v <= 0) return null;
+      return v < 10000000000 ? new Date(v * 1000) : new Date(v);
+    }
+    if (typeof v === "string") {
+      const trimmed = v.trim();
+      if (!trimmed) return null;
+      if (/^\d+$/.test(trimmed)) {
+        const num = Number(trimmed);
+        return num < 10000000000 ? new Date(num * 1000) : new Date(num);
+      }
+      const clean = trimmed.replace(/\s+at\s+/i, " ");
+      const parsed = new Date(clean);
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
     const d = v instanceof Date ? v : new Date(v);
     return Number.isNaN(d.getTime()) ? null : d;
   } catch {

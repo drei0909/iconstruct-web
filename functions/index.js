@@ -2339,6 +2339,36 @@ exports.submitQuotation = onRequest(
       if (BIDDING_CLOSED.has(String(post.status || "open").toLowerCase())) {
         return res.status(409).json({ error: "This project is no longer accepting quotes." });
       }
+
+      // Enforce Bidding Schedule & Deadline Policy
+      const nowMs = Date.now();
+      const parseDateMs = (v) => {
+        if (!v) return null;
+        if (typeof v.toMillis === "function") return v.toMillis();
+        if (typeof v.seconds === "number") return v.seconds * 1000;
+        const d = new Date(v);
+        return Number.isNaN(d.getTime()) ? null : d.getTime();
+      };
+
+      const startMs = parseDateMs(
+        post.biddingStartDate || post.biddingOpensAt || post.biddingStart || post.opensAt || post.startDate
+      );
+      const deadlineMs = parseDateMs(
+        post.biddingDeadline || post.deadline || post.biddingEndDate || post.biddingEnd || post.biddingClosesAt || post.closesAt || post.endDate
+      );
+
+      if (String(post.biddingStatus || "").toLowerCase() === "scheduled" || (startMs && nowMs < startMs)) {
+        return res.status(403).json({
+          error: "Bidding has not opened for this project yet. Quotations will be accepted once bidding begins.",
+        });
+      }
+
+      if (String(post.biddingStatus || "").toLowerCase() === "closed" || (deadlineMs && nowMs > deadlineMs)) {
+        return res.status(409).json({
+          error: "The quotation deadline for this project has passed. Late quotations are automatically rejected.",
+        });
+      }
+
       const builderId =
         post.userId || post.builderId || post.ownerId || post.postedBy || "";
 
@@ -2909,6 +2939,26 @@ exports.onQuotationAccepted = onDocumentUpdated(
       logger.error("[Confirm] failed to reset shopConfirmation:", err);
     }
 
+    // Automatically mark the project as completed when builder accepts a quotation
+    try {
+      const completionPayload = {
+        status: "completed",
+        biddingStatus: "completed",
+        completedAt: admin.firestore.FieldValue.serverTimestamp(),
+        acceptedQuotationId: quotationId,
+        acceptedShopId: after.shopId || null,
+        acceptedShopName: after.shopName || null,
+        acceptedAmount: after.acceptedTotal || after.amount || null,
+      };
+      await db.collection("projectPosts").doc(postId).set(completionPayload, { merge: true });
+      try {
+        await db.collection("projects").doc(postId).set(completionPayload, { merge: true });
+      } catch (_) {}
+      logger.info(`[Project] Post ${postId} marked as completed after quote ${quotationId} accepted`);
+    } catch (projErr) {
+      logger.warn("[Project] failed to mark projectPost as completed:", projErr.message);
+    }
+
     try {
       const shopId = after.shopId;
       if (!shopId) return;
@@ -2988,9 +3038,9 @@ exports.onShopConfirmedQuotation = onDocumentUpdated(
         if (!convSnap.exists) {
           await convRef.set({
             ...payload,
-            lastMessage: "Quote confirmed — you can now message each other.",
+            lastMessage: `Official Quotation Invoice · ₱${Number(after.acceptedTotal || after.amount || 0).toLocaleString()}`,
             lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-            lastSenderId: "",
+            lastSenderId: shopId,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
           });
           await convRef.collection("messages").add({
@@ -3002,6 +3052,56 @@ exports.onShopConfirmedQuotation = onDocumentUpdated(
         } else {
           await convRef.set(payload, { merge: true });
         }
+
+        // Ensure official transaction quotation invoice message exists in the thread
+        try {
+          const invoiceQuery = await convRef
+            .collection("messages")
+            .where("quotationId", "==", quotationId)
+            .limit(1)
+            .get();
+
+          if (invoiceQuery.empty) {
+            const acceptedTotal = Number(after.acceptedTotal || after.amount || 0);
+            const qRef = String(quotationId).slice(-6).toUpperCase();
+            const invoiceText = `[OFFICIAL_TRANSACTION_INVOICE]\nOfficial Quotation & Transaction Invoice\nRef: #${qRef}\nProject: ${projectTitle}\nTotal: ₱${acceptedTotal.toLocaleString()}\nStatus: Confirmed & Secured by ${shopName}\n\nClick below to download or print your official PDF quotation invoice.`;
+
+            await convRef.collection("messages").add({
+              senderId: shopId,
+              senderRole: "shop",
+              type: "quotation_invoice",
+              quotationId,
+              projectId: postId,
+              acceptedTotal,
+              quotationSnapshot: {
+                id: quotationId,
+                projectId: postId,
+                projectTitle,
+                shopId,
+                shopName,
+                amount: after.amount || 0,
+                acceptedTotal,
+                status: after.status || "accepted",
+                shopConfirmation: "confirmed",
+                items: Array.isArray(after.items) ? after.items : [],
+                note: after.note || "",
+                createdAt: after.createdAt || null,
+              },
+              text: invoiceText,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+
+            await convRef.update({
+              lastMessage: `Official Quotation Invoice · ₱${acceptedTotal.toLocaleString()}`,
+              lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+              lastSenderId: shopId,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          }
+        } catch (invErr) {
+          logger.warn(`[Chat] Auto-invoice creation notice: ${invErr.message}`);
+        }
+
         logger.info(`[Chat] Conversation ${conversationId} ready after shop confirmation`);
 
         try {

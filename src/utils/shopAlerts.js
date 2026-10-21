@@ -128,3 +128,71 @@ export function buildShopQuoteAlerts(quotations = []) {
 
   return alerts.sort((a, b) => toMillis(b.at) - toMillis(a.at));
 }
+
+/**
+ * Builds in-app notification alerts for bidding schedule events:
+ * 1. Homeowner deadline changes (advance notification with reason, previous & new deadlines).
+ * 2. Urgent bidding deadlines closing within 24 hours.
+ */
+export function buildProjectDeadlineAlerts(projects = []) {
+  const alerts = [];
+  const now = Date.now();
+  const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+  for (const p of projects || []) {
+    if (!p) continue;
+    const title = p.projectName || p.title || "Project";
+
+    // 1. Check for deadline changes made by homeowner
+    const history = Array.isArray(p.deadlineHistory)
+      ? p.deadlineHistory
+      : Array.isArray(p.deadlineChanges)
+      ? p.deadlineChanges
+      : [];
+    const change = p.deadlineChange || (history.length > 0 ? history[history.length - 1] : null);
+
+    if (change) {
+      const prev = toDate(change.previousDeadline || change.previousDate);
+      const next = toDate(change.newDeadline || change.newDate || p.biddingDeadline || p.deadline);
+      const changedAt = toDate(change.changedAt || change.timestamp);
+      const reason = String(change.reason || "Bidding schedule updated by homeowner").trim();
+
+      // Keep recent change alerts (within 7 days)
+      if (!changedAt || now - changedAt.getTime() < WEEK_MS) {
+        alerts.push({
+          id: `deadline-change-${p.id}-${next?.getTime() || "upd"}`,
+          important: true,
+          at: changedAt || p.updatedAt,
+          title: `Bidding Deadline Updated · ${title}`,
+          body: `New deadline: ${next ? formatDateTime(next) : "Updated"}${
+            prev ? ` (was ${formatDateTime(prev)})` : ""
+          }. Reason: ${reason}`,
+          meta: changedAt ? `Changed ${formatDateTime(changedAt)}` : "Schedule updated",
+        });
+      }
+    }
+
+    // 2. Urgent deadline warning (closes within 24 hours for open projects)
+    const deadline = toDate(p.biddingDeadline || p.deadline || p.biddingEndDate || p.biddingEnd);
+    if (deadline) {
+      const msLeft = deadline.getTime() - now;
+      const isProjectClosed =
+        String(p.status || "").toLowerCase() === "closed" ||
+        String(p.biddingStatus || "").toLowerCase() === "closed";
+
+      if (!isProjectClosed && msLeft > 0 && msLeft <= ONE_DAY_MS) {
+        const hoursLeft = Math.max(1, Math.round(msLeft / 3600_000));
+        alerts.push({
+          id: `deadline-urgent-${p.id}`,
+          important: hoursLeft <= 6,
+          at: p.updatedAt || deadline,
+          title: `Bidding Closes in ${hoursLeft}h · ${title}`,
+          body: `Quotation deadline is ${formatDateTime(deadline)}. Late quotations will be rejected automatically.`,
+          meta: `Closes ${formatDateTime(deadline)}`,
+        });
+      }
+    }
+  }
+
+  return alerts.sort((a, b) => toMillis(b.at) - toMillis(a.at));
+}

@@ -27,10 +27,11 @@ import ShopQuotationsPanel from "../../components/shop/ShopQuotationsPanel";
 import ShopMessagesPanel from "../../components/shop/ShopMessagesPanel";
 import DashboardBrand from "../../components/ui/DashboardBrand";
 import ShopNotificationBell from "../../components/ui/ShopNotificationBell";
-import { buildShopQuoteAlerts, buildSubscriptionAlert, buildPaymentAlert } from "../../utils/shopAlerts";
+import { buildShopQuoteAlerts, buildSubscriptionAlert, buildPaymentAlert, buildProjectDeadlineAlerts } from "../../utils/shopAlerts";
 import TopProductsCard from "../../components/shop/TopProductsCard";
 import SupplyCoverageTab from "../../components/shop/SupplyCoverageTab";
 import StorefrontTab from "../../components/shop/StorefrontTab";
+import MaterialsTab from "../../components/shop/MaterialsTab";
 
 import {
   TbConfetti, TbAlertTriangle, TbCreditCard, TbBuildingBank,
@@ -38,7 +39,7 @@ import {
 } from "react-icons/tb";
 import {
   SquaresFour, Briefcase, Receipt, ChatCircleText, ListChecks, Storefront,
-  CreditCard as CreditCardIcon, GearSix,
+  CreditCard as CreditCardIcon, GearSix, Package,
 } from "@phosphor-icons/react";
 
 const cfg           = getPlanConfig("basic");
@@ -50,6 +51,7 @@ const NAV = [
   { key: "projects",   label: "Projects",     icon: <Briefcase size={16} /> },
   { key: "quotations", label: "Quotations",   icon: <Receipt size={16} /> },
   { key: "messages",   label: "Messages",       icon: <ChatCircleText size={16} /> },
+  { key: "materials",  label: "Materials",      icon: <Package size={16} /> },
   { key: "supply",     label: "What We Supply", icon: <ListChecks size={16} /> },
   { key: "storefront", label: "My Storefront",  icon: <Storefront size={16} /> },
   { key: "upgrade",    label: "Upgrade Plan",   icon: <CreditCardIcon size={16} />, isUpgrade: true },
@@ -477,8 +479,13 @@ export default function ShopDashboardBasic() {
           accentColor="#2C3E50"
           bootstrapQuote={chatQuote}
           onBootstrapped={() => setChatQuote(null)}
+          shop={shop}
+          quotations={quotations}
+          projects={projects}
+          estimateConfig={estimateConfig}
         />
       );
+      case "materials":  return <MaterialsTab accentColor="#2C5282" plan="basic" />;
       case "supply":     return <SupplyCoverageTab shop={shop} accentColor="#2C5282" onShopUpdated={(next) => setShop((s) => ({ ...s, ...next }))} />;
       case "storefront": return <StorefrontTab shop={shop} plan="basic" accentColor="#2C5282" onShopUpdated={(next) => setShop((s) => ({ ...s, ...next }))} />;
       case "upgrade":    return <Upgrade existingPayment={existingPayment} onPaymentSuccess={handlePaymentSuccess} />;
@@ -584,6 +591,7 @@ export default function ShopDashboardBasic() {
               extraItems={[
                 ...[buildSubscriptionAlert(shop), buildPaymentAlert(livePayment)].filter(Boolean).map((a) => ({ ...a, onClick: () => setActiveTab("upgrade") })),
                 ...buildShopQuoteAlerts(quotations).map((a) => ({ ...a, onClick: () => setActiveTab("quotations") })),
+                ...buildProjectDeadlineAlerts(projects).map((a) => ({ ...a, onClick: () => setActiveTab("projects") })),
               ]}
             />
             <PlanBadge />

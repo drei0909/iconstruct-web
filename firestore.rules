@@ -61,10 +61,10 @@ service cloud.firestore {
     // Builder uid on a posted estimate. Canonical field is userId (Auth uid).
     function isPostOwner(data) {
       return signedIn() && (
-        data.userId == request.auth.uid
-        || data.builderId == request.auth.uid
-        || data.ownerId == request.auth.uid
-        || data.postedBy == request.auth.uid
+        data.get('userId', '') == request.auth.uid
+        || data.get('builderId', '') == request.auth.uid
+        || data.get('ownerId', '') == request.auth.uid
+        || data.get('postedBy', '') == request.auth.uid
       );
     }
 
@@ -73,7 +73,8 @@ service cloud.firestore {
     }
 
     function ownsPostedEstimate(postId) {
-      return isPostOwner(postDoc(postId));
+      return (exists(/databases/$(database)/documents/projectPosts/$(postId)) && isPostOwner(get(/databases/$(database)/documents/projectPosts/$(postId)).data))
+        || (exists(/databases/$(database)/documents/projects/$(postId)) && isPostOwner(get(/databases/$(database)/documents/projects/$(postId)).data));
     }
 
     // ── Admins ──────────────────────────────────────────────────────────────
@@ -131,6 +132,12 @@ service cloud.firestore {
       match /categories/{categoryId} {
         allow read: if isOwner(shopId) || isAdmin()
                     || get(/databases/$(database)/documents/shops/$(shopId)).data.status == "approved";
+        allow write: if (isOwner(shopId) && shopIsApproved(shopId)) || isAdmin();
+      }
+
+      match /materials/{materialId} {
+        allow read: if isOwner(shopId) || isAdmin()
+                    || (signedIn() && shopIsApproved(shopId));
         allow write: if (isOwner(shopId) && shopIsApproved(shopId)) || isAdmin();
       }
     }
@@ -254,7 +261,7 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys()
                 .hasOnly(["quotationCount", "updatedAt"]))
         || (isPostOwner(resource.data)
-            && request.resource.data.userId == resource.data.userId);
+            && (!('userId' in resource.data) || !('userId' in request.resource.data) || request.resource.data.userId == resource.data.userId));
 
       allow delete: if isAdmin() || isPostOwner(resource.data);
 
@@ -266,18 +273,8 @@ service cloud.firestore {
             || request.auth.uid == quotationId
           ));
 
-        // Quote creation goes through the submitQuotation Cloud Function
-        // (Admin SDK — bypasses this rule entirely) so the abuse rate limit
-        // and the Basic plan's monthly quota are actually enforceable; a
-        // direct client write here could never be rate-limited or quota-
-        // checked server-side. isAdmin() is only a manual-fix escape hatch.
         allow create: if isAdmin();
 
-        // Only the builder who posted the project decides a quote — full
-        // accept, reject, or partial accept (per-line items[].accepted +
-        // acceptedTotal, written by the builder app). Shops never update
-        // their own quote once submitted; no web feature does this, and
-        // allowing it would let a shop self-approve its own bid.
         allow update: if isAdmin()
           || (ownsPostedEstimate(postId)
               && request.resource.data.diff(resource.data).affectedKeys()
@@ -302,6 +299,20 @@ service cloud.firestore {
           && request.resource.data.userId == request.auth.uid;
         allow update, delete: if false;
       }
+    }
+
+    // Direct collection match if mobile app addresses `projects` instead of `projectPosts`
+    match /projects/{projectId} {
+      allow get, list: if isAdmin()
+        || isPostOwner(resource.data)
+        || isApprovedShop();
+
+      allow create: if signedIn();
+
+      allow update: if isAdmin()
+        || isPostOwner(resource.data);
+
+      allow delete: if isAdmin() || isPostOwner(resource.data);
     }
 
     // Collection-group queries used by the web shop dashboard.

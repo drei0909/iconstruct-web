@@ -2,7 +2,10 @@
 // Shop ↔ builder chat for accepted quotations.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { TbMessage, TbSend, TbMessages, TbPhoto } from "react-icons/tb";
+import { TbMessage, TbSend, TbMessages, TbPhoto, TbFileText, TbCheck, TbDownload } from "react-icons/tb";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../../services/firebase";
+import { openQuotePdf } from "../../utils/quotePdf";
 import {
   openChatForAcceptedQuote,
   sendShopChatMessage,
@@ -84,9 +87,45 @@ export default function ShopMessagesPanel({
   initialConversationId = null,
   bootstrapQuote = null,
   onBootstrapped,
+  shop = null,
+  quotations = [],
+  projects = [],
+  estimateConfig = null,
 }) {
   const [conversations, setConversations] = useState([]);
   const [activeId, setActiveId] = useState(initialConversationId);
+
+  const handleDownloadInvoice = async (quoteData, m) => {
+    let quote = quoteData;
+    if (!quote?.items?.length) {
+      const match = (quotations || []).find((q) => q.id === (m.quotationId || quote.id));
+      if (match?.items?.length) {
+        quote = match;
+      } else if (m.quotationId && active?.projectId) {
+        try {
+          const snap = await getDoc(doc(db, "projectPosts", active.projectId, "quotations", m.quotationId));
+          if (snap.exists()) {
+            quote = { id: snap.id, ...snap.data() };
+          }
+        } catch (fetchErr) {
+          console.warn("[Invoice] Fetch quotation failed:", fetchErr);
+        }
+      }
+    }
+
+    const matchedProject =
+      (projects || []).find((p) => String(p.id) === String(quote?.projectId || active?.projectId)) ||
+      null;
+
+    const ok = openQuotePdf(quote, {
+      shop,
+      project: matchedProject,
+      estimateConfig,
+    });
+    if (!ok) {
+      window.alert("Please allow pop-ups for this site, then try Download PDF again.");
+    }
+  };
   const [messages, setMessages] = useState([]);
   const [pending, setPending] = useState([]); // optimistic "Sending…" bubbles
   const [text, setText] = useState("");
@@ -331,6 +370,142 @@ export default function ShopMessagesPanel({
                     _pending: true,
                   })),
                 ].map((m) => {
+                  const isInvoice = m.type === "quotation_invoice" || String(m.text || "").includes("[OFFICIAL_TRANSACTION_INVOICE]");
+
+                  if (isInvoice) {
+                    const quoteData = m.quotationSnapshot || (quotations || []).find((q) => q.id === m.quotationId) || {
+                      id: m.quotationId,
+                      projectTitle: active?.projectTitle || "Project",
+                      amount: m.acceptedTotal,
+                      acceptedTotal: m.acceptedTotal,
+                      createdAt: m.createdAt,
+                    };
+                    const qRef = String(m.quotationId || quoteData.id || "").slice(-6).toUpperCase() || "INV";
+                    const totalAmount = Number(m.acceptedTotal || quoteData.acceptedTotal || quoteData.amount || 0);
+                    const itemsCount = Array.isArray(quoteData.items)
+                      ? quoteData.items.filter((it) => it && it.status !== "declined").length
+                      : 0;
+
+                    return (
+                      <div
+                        key={m.id}
+                        style={{
+                          alignSelf: "center",
+                          width: "100%",
+                          maxWidth: 440,
+                          background: "#FFFFFF",
+                          border: "1.5px solid #10B981",
+                          borderRadius: 14,
+                          overflow: "hidden",
+                          boxShadow: "0 4px 14px rgba(16, 185, 129, 0.12)",
+                          margin: "10px 0",
+                        }}
+                      >
+                        {/* Top banner */}
+                        <div style={{
+                          background: "linear-gradient(135deg, #065F46, #059669)",
+                          color: "#fff",
+                          padding: "10px 14px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                            <TbFileText size={18} />
+                            <span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: "0.02em" }}>
+                              Official Quotation &amp; Invoice
+                            </span>
+                          </div>
+                          <span style={{
+                            fontSize: 10,
+                            fontWeight: 800,
+                            textTransform: "uppercase",
+                            background: "rgba(255,255,255,0.2)",
+                            padding: "2px 8px",
+                            borderRadius: 10,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}>
+                            <TbCheck size={12} /> Verified
+                          </span>
+                        </div>
+
+                        {/* Card body */}
+                        <div style={{ padding: "14px 16px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
+                              {quoteData.projectTitle || active?.projectTitle || "Project"}
+                            </div>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: "#64748B" }}>
+                              Ref #{qRef}
+                            </span>
+                          </div>
+
+                          <div style={{
+                            background: "#F8FAFC",
+                            borderRadius: 8,
+                            padding: "10px 12px",
+                            border: "1px solid #E2E8F0",
+                            marginBottom: 12,
+                          }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "#64748B", marginBottom: 4 }}>
+                              <span>Transaction Status:</span>
+                              <strong style={{ color: "#065F46" }}>Confirmed &amp; Secured</strong>
+                            </div>
+                            {itemsCount > 0 && (
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "#64748B", marginBottom: 4 }}>
+                                <span>Accepted Items:</span>
+                                <strong style={{ color: "#334155" }}>{itemsCount} item{itemsCount !== 1 ? "s" : ""}</strong>
+                              </div>
+                            )}
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#0F172A", marginTop: 6, paddingTop: 6, borderTop: "1px dashed #CBD5E1" }}>
+                              <span style={{ fontWeight: 700 }}>Total Confirmed:</span>
+                              <strong style={{ color: "#059669", fontSize: 15, fontWeight: 900 }}>
+                                ₱{totalAmount.toLocaleString("en-PH", { maximumFractionDigits: 0 })}
+                              </strong>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadInvoice(quoteData, m)}
+                            style={{
+                              width: "100%",
+                              padding: "10px 14px",
+                              borderRadius: 8,
+                              border: "none",
+                              background: "linear-gradient(135deg, #059669, #10B981)",
+                              color: "#fff",
+                              fontSize: 12.5,
+                              fontWeight: 800,
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: 7,
+                              boxShadow: "0 2px 6px rgba(16, 185, 129, 0.25)",
+                              transition: "filter 0.15s ease",
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.filter = "brightness(1.07)"; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; }}
+                          >
+                            <TbDownload size={15} />
+                            Download PDF Quotation / Invoice
+                          </button>
+
+                          <div style={{ fontSize: 10, color: "#94A3B8", textAlign: "center", marginTop: 8 }}>
+                            Official invoice document · Click to save or print PDF
+                          </div>
+                        </div>
+
+                        <div style={{ fontSize: 9.5, opacity: 0.7, padding: "0 16px 8px", textAlign: "right", color: "#94A3B8" }}>
+                          {formatTime(m.createdAt)}
+                        </div>
+                      </div>
+                    );
+                  }
+
                   const mine = m.senderRole === "shop";
                   const imgSrc = safeHttpUrl(m.imageUrl);
                   const seenAt = active?.builderLastReadAt;

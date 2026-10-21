@@ -24,6 +24,8 @@ export const PLAN_CONFIG = {
     sidebarActiveBorder: "#3B82F6",
     sidebarActiveBg: "rgba(59,130,246,0.12)",
     features: [
+      "Materials inventory with CSV & Excel upload",
+      "Smart auto-filled bidding from store stock",
       "Per-item quoting on open projects",
       "3 quotations per month",
       "See 5 open project postings",

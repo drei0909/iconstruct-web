@@ -1,20 +1,21 @@
 // Shared Quotations list for Basic / Pro / Business dashboards
 import { useEffect, useMemo, useState } from "react";
-import { TbClipboardList, TbSearch, TbX, TbRefresh, TbChevronDown, TbFileDownload } from "react-icons/tb";
+import { TbClipboardList, TbSearch, TbX, TbRefresh, TbChevronDown, TbFileDownload, TbCheck } from "react-icons/tb";
 import ListPagination, { paginate } from "../ui/ListPagination";
 import { getAcceptanceSummary } from "../../utils/quoteAnalytics";
 import { openQuotePdf } from "../../utils/quotePdf";
 import { confirmQuotation, renegotiateQuoteItem } from "../../controllers/shopController";
+import { sendQuotationInvoiceMessage } from "../../controllers/chatController";
 import { toDate, formatDateTime } from "../../utils/dateTime";
 
 const ACCENT = "#2C5282";
 const DEFAULT_PAGE_SIZE = 8;
 
 const STATUS_META = {
-  pending:              { bg: "#FEF3C7", color: "#92400E", border: "#FCD34D", label: "Pending" },
-  accepted:             { bg: "#D1FAE5", color: "#065F46", border: "#6EE7B7", label: "Accepted" },
-  partially_accepted:   { bg: "#FEF3C7", color: "#92400E", border: "#FCD34D", label: "Partial" },
-  rejected:             { bg: "#FEE2E2", color: "#991B1B", border: "#FCA5A5", label: "Rejected" },
+  pending:              { bg: "#FEF3C7", color: "#92400E", border: "#FCD34D", label: "Pending Review" },
+  accepted:             { bg: "#D1FAE5", color: "#065F46", border: "#6EE7B7", label: "Completed · Accepted" },
+  partially_accepted:   { bg: "#D1FAE5", color: "#065F46", border: "#6EE7B7", label: "Completed (Partial)" },
+  rejected:             { bg: "#FEE2E2", color: "#991B1B", border: "#FCA5A5", label: "Not Selected" },
 };
 
 // "accepted" filter/count also covers partial acceptances.
@@ -92,6 +93,17 @@ export default function ShopQuotationsPanel({
     setConfirmError((e) => ({ ...e, [q.id]: null }));
     try {
       await confirmQuotation({ postId: q.projectId, quotationId: q.id, decision });
+      if (decision === "confirm") {
+        try {
+          await sendQuotationInvoiceMessage({
+            quotation: q,
+            shop,
+            project: projectsById.get(String(q.projectId)) || null,
+          });
+        } catch (msgErr) {
+          console.warn("[Invoice] Client invoice dispatch notice:", msgErr);
+        }
+      }
     } catch (err) {
       setConfirmError((e) => ({ ...e, [q.id]: err.message || "Failed. Try again." }));
     } finally {
@@ -119,14 +131,18 @@ export default function ShopQuotationsPanel({
   };
 
   const counts = useMemo(() => {
-    const c = { all: quotations.length, pending: 0, accepted: 0, rejected: 0 };
+    const c = { all: quotations.length, pending: 0, accepted: 0, completed: 0, rejected: 0 };
     quotations.forEach((q) => {
       const s = wonKey((q.status || "pending").toLowerCase());
+      const p = projectsById.get(String(q.projectId));
+      const isWon = s === "accepted";
+      const isCompleted = isWon || p?.isCompleted || (p?.status === "completed");
+      if (isCompleted) c.completed += 1;
       if (c[s] != null) c[s] += 1;
       else c.pending += 1;
     });
     return c;
-  }, [quotations]);
+  }, [quotations, projectsById]);
 
   const totalAmount = useMemo(
     () => quotations.reduce((sum, q) => sum + (Number(q.amount) || 0), 0),
@@ -143,7 +159,15 @@ export default function ShopQuotationsPanel({
     const q = search.trim().toLowerCase();
     let list = quotations.filter((item) => {
       const s = wonKey((item.status || "pending").toLowerCase());
-      if (status !== "all" && s !== status) return false;
+      const p = projectsById.get(String(item.projectId));
+      const isCompleted = s === "accepted" || p?.isCompleted || (p?.status === "completed");
+
+      if (status === "completed") {
+        if (!isCompleted) return false;
+      } else if (status !== "all" && s !== status) {
+        return false;
+      }
+
       if (!q) return true;
       const hay = [
         item.projectTitle,
@@ -167,7 +191,7 @@ export default function ShopQuotationsPanel({
     });
 
     return list;
-  }, [quotations, search, status, sortBy]);
+  }, [quotations, search, status, sortBy, projectsById]);
 
   useEffect(() => {
     setPage(1);
@@ -260,7 +284,7 @@ export default function ShopQuotationsPanel({
           {[
             { label: "Total quotes", value: counts.all, sub: peso(totalAmount) },
             { label: "Pending", value: counts.pending, sub: "Awaiting reply" },
-            { label: "Accepted", value: counts.accepted, sub: peso(acceptedAmount) },
+            { label: "Completed Projects", value: counts.completed, sub: peso(acceptedAmount) },
             { label: "Rejected", value: counts.rejected, sub: "Not selected" },
           ].map((s) => (
             <div
@@ -289,7 +313,7 @@ export default function ShopQuotationsPanel({
         {[
           { id: "all", label: `All (${counts.all})` },
           { id: "pending", label: `Pending (${counts.pending})` },
-          { id: "accepted", label: `Accepted (${counts.accepted})` },
+          { id: "completed", label: `Completed Projects (${counts.completed})` },
           { id: "rejected", label: `Rejected (${counts.rejected})` },
         ].map((tab) => (
           <button
@@ -319,9 +343,35 @@ export default function ShopQuotationsPanel({
         )}
       </div>
 
+      {status === "completed" && (
+        <div style={{
+          marginBottom: 14,
+          padding: "11px 16px",
+          borderRadius: 10,
+          background: "#ECFDF5",
+          border: "1px solid #A7F3D0",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 10,
+          fontSize: 12.5,
+          color: "#065F46",
+        }}>
+          <div>
+            <strong style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <TbCheck size={15} /> Completed Projects Section:
+            </strong> Displaying {counts.completed} project quotation{counts.completed !== 1 ? "s" : ""} accepted by builders.
+          </div>
+          <div style={{ fontWeight: 800, fontSize: 13 }}>
+            Total Won Value: {peso(acceptedAmount)}
+          </div>
+        </div>
+      )}
+
       <div style={{ fontSize: 12, color: "#94A3B8", marginBottom: 12 }}>
         Showing <strong style={{ color: "#334155" }}>{filteredTotal}</strong>
-        {status !== "all" ? ` ${status}` : ""} quotation{filteredTotal !== 1 ? "s" : ""}
+        {status === "completed" ? " completed project" : status !== "all" ? ` ${status}` : ""} quotation{filteredTotal !== 1 ? "s" : ""}
       </div>
 
       {quotations.length === 0 ? (
@@ -518,8 +568,8 @@ export default function ShopQuotationsPanel({
                         )}
 
                         {q.shopConfirmation === "confirmed" && (
-                          <div style={{ fontSize: 11.5, color: "#065F46", marginTop: 6, fontWeight: 600 }}>
-                            ✓ You confirmed this order{toDate(q.shopConfirmedAt) ? ` on ${formatDateTime(q.shopConfirmedAt)}` : ""} — chat and rating are unlocked.
+                          <div style={{ fontSize: 11.5, color: "#065F46", marginTop: 6, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
+                            <TbCheck size={14} /> You confirmed this order{toDate(q.shopConfirmedAt) ? ` on ${formatDateTime(q.shopConfirmedAt)}` : ""} — official invoice sent to chat.
                           </div>
                         )}
                       </div>
